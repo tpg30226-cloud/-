@@ -1,5 +1,6 @@
 
-const SAVE_KEY = "yefeng_v061_save";
+const SAVE_KEY = "yefeng_v07_save";
+const PREV_SAVE_KEY = "yefeng_v061_save";
 const OLD_SAVE_KEY = "yefeng_v06_save";
 
 const ROLES = ["上路","打野","中路","下路","輔助"];
@@ -9,7 +10,7 @@ const WEEKEND_SLOTS = ["上午","下午","傍晚","晚間","深夜"];
 
 function newGame() {
   return {
-    version:"0.6.1",
+    version:"0.7",
     started:false,
     player:{
       name:"夜鋒", age:16, role:"中路",
@@ -18,6 +19,7 @@ function newGame() {
       wins:0, losses:0, followers:0, proAttention:0,
       energy:82, stress:22, mood:72, passion:91,
       school:62, family:28,
+      relations:{阿哲:64},
       stats:{
         操作:61,反應:65,對線:58,補刀:62,換血:57,團戰:56,
         遊戲理解:52,地圖意識:51,決策:48,心態:57,英雄池:45,溝通:50
@@ -26,10 +28,11 @@ function newGame() {
     date:{year:2026, month:9, week:1, day:1},
     dayState:{usedSlots:0, actions:[]},
     schedule: makeDefaultSchedule(),
+    weeklyPlan:{},
     logs:["新的學期開始了。你還只是個默默無名的16歲高中生。"],
     news:["本週高分段競爭激烈，多名年輕玩家開始衝擊宗師。"],
     messages:[
-      {from:"阿哲",text:"今天晚上要不要雙排？我剛上翡翠。"}
+      {id:"azhe-duo-1",from:"阿哲",text:"今天晚上要不要雙排？我剛上翡翠。",unread:true,replied:false,type:"invite-duo"}
     ]
   };
 }
@@ -52,13 +55,19 @@ function normalizeState(x){
   if(!x.dayState) x.dayState={usedSlots:0,actions:[]};
   if(!Array.isArray(x.dayState.actions)) x.dayState.actions=[];
   if(typeof x.dayState.usedSlots!=="number") x.dayState.usedSlots=0;
-  x.version="0.6.1";
+  if(!x.player.relations) x.player.relations={阿哲:64};
+  if(!x.weeklyPlan) x.weeklyPlan={};
+  if(!x.messages) x.messages=[];
+  x.messages=x.messages.map((m,i)=>({id:m.id||`m${i+1}`,from:m.from||"未知",text:m.text||"",unread:m.unread??true,replied:m.replied??false,type:m.type||(m.from==="阿哲"&&m.text.includes("雙排")?"invite-duo":"normal")}));
+  x.version="0.7";
   return x;
 }
 function load(){
   try{
     const x = JSON.parse(localStorage.getItem(SAVE_KEY));
     if(x && x.version) return normalizeState(x);
+    const prev = JSON.parse(localStorage.getItem(PREV_SAVE_KEY));
+    if(prev && prev.version) return normalizeState(prev);
     const old = JSON.parse(localStorage.getItem(OLD_SAVE_KEY));
     if(old && old.version) return normalizeState(old);
   }catch(e){}
@@ -177,7 +186,11 @@ function homeScreen(){
       <button class="choice action-btn" data-action="rank" ${!canAct()?"disabled":""}><strong>打一場 Rank</strong><span class="small">1時段 · 體力 -6</span></button>
       <button class="choice action-btn" data-action="train" ${!canAct()?"disabled":""}><strong>個人訓練</strong><span class="small">1時段 · 穩定成長</span></button>
       <button class="choice action-btn" data-action="study" ${!canAct()?"disabled":""}><strong>讀書</strong><span class="small">1時段 · 維持學業</span></button>
-      <button class="choice action-btn" data-action="rest" ${!canAct()?"disabled":""}><strong>休息</strong><span class="small">1時段 · 恢復狀態</span></button>
+      <button class="choice action-btn" data-action="stream" ${!canAct()?"disabled":""}><strong>📺 直播</strong><span class="small">1時段 · 累積觀眾</span></button>
+      <button class="choice action-btn" data-action="social" ${!canAct()?"disabled":""}><strong>👥 社交</strong><span class="small">1時段 · 維持關係</span></button>
+      <button class="choice action-btn" data-action="work" ${!canAct(2)?"disabled":""}><strong>💼 打工</strong><span class="small">2時段 · 賺取收入</span></button>
+      <button class="choice action-btn" data-action="shop" ${!canAct()?"disabled":""}><strong>🛒 外出/購物</strong><span class="small">1時段 · 花錢與放鬆</span></button>
+      <button class="choice action-btn" data-action="rest" ${!canAct()?"disabled":""}><strong>🛏️ 休息</strong><span class="small">1時段 · 恢復狀態</span></button>
     </div>
     <button class="btn secondary" id="nextDayBtn" style="width:100%;margin-top:12px">${slotsRemaining()===0?"今日行程完成，進入下一天":"提早結束今天"}</button>
   </section>
@@ -196,22 +209,14 @@ function statusBar(label,v,invert=false){
 }
 
 function scheduleScreen(){
+  const plan=state.weeklyPlan[state.date.day]||[];
   return `
   <section class="card">
     <div class="section-title"><h2>本週行程</h2><span class="badge">第${state.date.week}週</span></div>
-    <div class="timeline">
-      ${DAYS.map((d,i)=>`<div class="day-chip"><strong>週${d}</strong><span class="small">${state.schedule[i+1].join(" · ")}</span></div>`).join("")}
-    </div>
+    <div class="timeline">${DAYS.map((d,i)=>{const arr=state.weeklyPlan[i+1]||[];return `<div class="day-chip"><strong>週${d}</strong><span class="small">${arr.length?arr.map(x=>x.title).join(" · "):"無特殊行程"}</span></div>`}).join("")}</div>
   </section>
-  <section class="card">
-    <h2>調整今天</h2>
-    ${["Rank","訓練","讀書","直播","社交","休息"].map(a=>`
-      <div class="activity">
-        <div><strong>${a}</strong><div class="small">${activityDesc(a)}</div></div>
-        <div class="activity-actions"><button data-add="${a}">加入</button></div>
-      </div>`).join("")}
-    <div class="notice" style="margin-top:12px">V0.6先採簡化排程。完整早晨／放學／晚間／深夜時段會在後續版本接上。</div>
-  </section>`;
+  <section class="card"><h2>今天已安排</h2>${plan.length?plan.map(x=>`<div class="log"><strong>${x.slot||"待定"}</strong>｜${x.title}</div>`).join(""):`<div class="small">今天目前沒有額外邀約。</div>`}</section>
+  <section class="card"><div class="notice">V0.7 已開始把「手機訊息 → 回覆 → 行程」串起來。完整每週日排程與自動執行會繼續擴充。</div></section>`;
 }
 
 function activityDesc(a){
@@ -246,14 +251,10 @@ function rankScreen(){
 
 function phoneScreen(){
   return `
-  <section class="card">
-    <h2>訊息</h2>
-    ${state.messages.map(m=>`<div class="log"><strong>${m.from}</strong><div>${m.text}</div></div>`).join("")}
+  <section class="card"><h2>訊息</h2>
+    ${state.messages.map(m=>`<button data-msg="${m.id}" style="width:100%;text-align:left;background:${m.unread?"#17233d":"#111a2e"};color:white;border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px"><div class="row space"><strong>${m.from}</strong><span class="small">${m.replied?"已回覆":m.unread?"未讀":"已讀"}</span></div><div style="margin-top:6px">${m.text.split("\n")[0]}</div></button>`).join("")}
   </section>
-  <section class="card">
-    <h2>電競新聞</h2>
-    ${state.news.slice().reverse().map(n=>`<div class="log">${n}</div>`).join("")}
-  </section>`;
+  <section class="card"><h2>電競新聞</h2>${state.news.slice().reverse().map(n=>`<div class="log">${n}</div>`).join("")}</section>`;
 }
 
 function careerScreen(){
@@ -275,8 +276,8 @@ function careerScreen(){
     <div class="log"><strong>生活：</strong>別讓學業、家庭、體力與熱情一起崩掉。</div>
   </section>
   <section class="card">
-    <h2>存檔</h2>
-    <p class="muted">V0.6會在每次行動與換日後自動儲存在你的瀏覽器。</p>
+    <h2>版本</h2>
+    <p class="muted">V0.7：可回覆訊息、邀約加入行程，並新增直播、社交、打工與購物。</p>
     <button class="btn secondary" id="exportBtn">匯出存檔文字</button>
   </section>`;
 }
@@ -290,6 +291,7 @@ function bindDynamic(){
     state.logs.push(`你把「${b.dataset.add}」加入了今天的行程。`);
     save(); render();
   });
+  document.querySelectorAll("[data-msg]").forEach(b=>b.onclick=()=>openMessage(b.dataset.msg));
   const ex=document.querySelector("#exportBtn");
   if(ex) ex.onclick=()=>showModal(`<h2>存檔文字</h2><p class="small">複製並保存這段JSON即可備份。</p><textarea style="width:100%;height:240px;background:#0b1324;color:white;border:1px solid var(--line);border-radius:12px;padding:10px">${JSON.stringify(state)}</textarea><button class="btn close-modal" style="width:100%;margin-top:10px">關閉</button>`);
 }
@@ -305,6 +307,10 @@ function performAction(type){
   if(type==="train") train();
   if(type==="study") study();
   if(type==="rest") rest();
+  if(type==="stream") stream();
+  if(type==="social") social();
+  if(type==="work") work();
+  if(type==="shop") shop();
 }
 
 function playRank(){
@@ -373,6 +379,36 @@ function rest(){
   p.energy=clamp(p.energy+18,0,100); p.stress=clamp(p.stress-8,0,100); p.mood=clamp(p.mood+4,0,100);
   state.logs.push("你放下遊戲休息了一段時間。");
   save(); render();
+}
+
+function stream(){
+  if(!consumeSlots("直播",1)) return;
+  showModal(`<h2>選擇直播內容</h2><div class="choice-grid"><button class="choice" data-stream="Rank實況"><strong>Rank實況</strong></button><button class="choice" data-stream="教學台"><strong>教學台</strong></button><button class="choice" data-stream="雜談"><strong>雜談</strong></button><button class="choice" data-stream="娛樂場"><strong>娛樂場</strong></button></div>`);
+  setTimeout(()=>document.querySelectorAll("[data-stream]").forEach(b=>b.onclick=()=>{const gain=rand(2,9);state.player.followers+=gain;state.player.energy=clamp(state.player.energy-7,0,100);state.logs.push(`直播「${b.dataset.stream}」，新增 ${gain} 位粉絲。`);save();document.querySelector(".modal-backdrop")?.remove();render();showModal(`<h2>直播結束</h2><p>新增 ${gain} 位粉絲。</p><button class="btn close-modal" style="width:100%">繼續</button>`)}),0);
+}
+function social(){
+  if(!consumeSlots("社交",1)) return;
+  showModal(`<h2>社交</h2><button class="choice" data-social="azhe" style="width:100%"><strong>找阿哲</strong><span class="small">聊天、吃飯或約下一次雙排</span></button><button class="choice" data-social="solo" style="width:100%;margin-top:8px"><strong>自己出去走走</strong></button>`);
+  setTimeout(()=>document.querySelectorAll("[data-social]").forEach(b=>b.onclick=()=>{if(b.dataset.social==="azhe"){state.player.relations.阿哲=clamp(state.player.relations.阿哲+2,0,100);state.player.mood=clamp(state.player.mood+5,0,100);state.logs.push("你和阿哲聊了一陣子，關係變得更好。") }else{state.player.mood=clamp(state.player.mood+3,0,100);state.logs.push("你一個人出去晃了晃，心情稍微放鬆。")};save();document.querySelector(".modal-backdrop")?.remove();render()}),0);
+}
+function work(){
+  if(!consumeSlots("打工",2)) return; state.player.cash+=1200;state.player.energy=clamp(state.player.energy-17,0,100);state.player.stress=clamp(state.player.stress+5,0,100);state.logs.push("完成打工，收入 NT$1,200。 ");save();render();showModal(`<h2>打工完成</h2><p>收入 NT$1,200，但消耗 2 個時段。</p><button class="btn close-modal" style="width:100%">繼續</button>`);
+}
+function shop(){
+  if(!consumeSlots("外出/購物",1)) return;
+  showModal(`<h2>外出 / 購物</h2><button class="choice" data-buy="120" style="width:100%">飲料與點心 NT$120</button><button class="choice" data-buy="450" style="width:100%;margin-top:8px">衣服 NT$450</button><button class="choice" data-buy="0" style="width:100%;margin-top:8px">只逛不買</button>`);
+  setTimeout(()=>document.querySelectorAll("[data-buy]").forEach(b=>b.onclick=()=>{const c=Number(b.dataset.buy);if(state.player.cash>=c){state.player.cash-=c;state.player.mood=clamp(state.player.mood+(c?2:1),0,100);state.logs.push(c?`外出購物花了 NT$${c}。`:"你出去逛了一圈，沒有買東西。")};save();document.querySelector(".modal-backdrop")?.remove();render()}),0);
+}
+function openMessage(id){
+  const m=state.messages.find(x=>x.id===id);if(!m)return;m.unread=false;save();render();
+  if(m.type==="invite-duo"&&!m.replied){showModal(`<h2>${m.from}</h2><p>${m.text}</p><button class="choice" data-reply="yes" style="width:100%"><strong>好啊，晚上一起打。</strong></button><button class="choice" data-reply="no" style="width:100%;margin-top:8px"><strong>今天想自己單排，下次吧。</strong></button><button class="choice" data-reply="seen" style="width:100%;margin-top:8px"><strong>先已讀，不回覆。</strong></button>`);setTimeout(()=>document.querySelectorAll("[data-reply]").forEach(b=>b.onclick=()=>replyDuo(m,b.dataset.reply)),0)}else showModal(`<h2>${m.from}</h2><p style="white-space:pre-wrap">${m.text}</p><button class="btn close-modal" style="width:100%">關閉</button>`)
+}
+function replyDuo(m,choice){
+  m.replied=true;
+  if(choice==="yes"){if(!state.weeklyPlan[state.date.day])state.weeklyPlan[state.date.day]=[];state.weeklyPlan[state.date.day].push({title:"與阿哲雙排",slot:"晚間"});m.text+="\n\n你：好啊，晚上一起打。";state.messages.push({id:`azhe-${Date.now()}`,from:"阿哲",text:"行，那九點上線！",unread:true,replied:true,type:"normal"});state.player.relations.阿哲=clamp(state.player.relations.阿哲+1,0,100);state.logs.push("你答應阿哲今晚雙排，已加入行程。")}
+  else if(choice==="no"){m.text+="\n\n你：今天想自己單排，下次吧。";state.messages.push({id:`azhe-${Date.now()}`,from:"阿哲",text:"OK，下次再約。",unread:true,replied:true,type:"normal"})}
+  else m.text+="\n\n（你已讀了訊息）";
+  save();document.querySelector(".modal-backdrop")?.remove();render();
 }
 
 function nextDay(){
