@@ -77,3 +77,9 @@ linear-gradient(180deg,var(--panel2),var(--panel))}
 @media(min-width:600px){
   .stat-grid{grid-template-columns:repeat(4,1fr)}
 }
+
+button:disabled{opacity:.4;filter:saturate(.5)}
+.slot-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.slot{padding:10px 8px;border-radius:12px;border:1px solid var(--line);background:#111a2e;text-align:center}
+.slot.used{background:#0c1323;color:#667085;text-decoration:line-through}
+.slot.current{outline:2px solid var(--accent)}

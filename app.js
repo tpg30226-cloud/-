@@ -1,12 +1,15 @@
 
-const SAVE_KEY = "yefeng_v06_save";
+const SAVE_KEY = "yefeng_v061_save";
+const OLD_SAVE_KEY = "yefeng_v06_save";
 
 const ROLES = ["上路","打野","中路","下路","輔助"];
 const DAYS = ["一","二","三","四","五","六","日"];
+const WEEKDAY_SLOTS = ["放學後","晚間","深夜"];
+const WEEKEND_SLOTS = ["上午","下午","傍晚","晚間","深夜"];
 
 function newGame() {
   return {
-    version:"0.6",
+    version:"0.6.1",
     started:false,
     player:{
       name:"夜鋒", age:16, role:"中路",
@@ -21,6 +24,7 @@ function newGame() {
       }
     },
     date:{year:2026, month:9, week:1, day:1},
+    dayState:{usedSlots:0, actions:[]},
     schedule: makeDefaultSchedule(),
     logs:["新的學期開始了。你還只是個默默無名的16歲高中生。"],
     news:["本週高分段競爭激烈，多名年輕玩家開始衝擊宗師。"],
@@ -44,12 +48,34 @@ let activeTab = "home";
 function save(){
   localStorage.setItem(SAVE_KEY,JSON.stringify(state));
 }
+function normalizeState(x){
+  if(!x.dayState) x.dayState={usedSlots:0,actions:[]};
+  if(!Array.isArray(x.dayState.actions)) x.dayState.actions=[];
+  if(typeof x.dayState.usedSlots!=="number") x.dayState.usedSlots=0;
+  x.version="0.6.1";
+  return x;
+}
 function load(){
   try{
     const x = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if(x && x.version) return x;
+    if(x && x.version) return normalizeState(x);
+    const old = JSON.parse(localStorage.getItem(OLD_SAVE_KEY));
+    if(old && old.version) return normalizeState(old);
   }catch(e){}
   return newGame();
+}
+function currentSlots(){ return state.date.day<=5 ? WEEKDAY_SLOTS : WEEKEND_SLOTS; }
+function slotsRemaining(){ return Math.max(0,currentSlots().length-state.dayState.usedSlots); }
+function canAct(cost=1){ return slotsRemaining()>=cost; }
+function consumeSlots(name,cost=1){
+  if(!canAct(cost)) return false;
+  const slots=currentSlots();
+  for(let i=0;i<cost;i++){
+    const slot=slots[state.dayState.usedSlots];
+    state.dayState.actions.push(`${slot}：${name}`);
+    state.dayState.usedSlots++;
+  }
+  return true;
 }
 function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
 function rand(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
@@ -106,6 +132,7 @@ function bindStart(){
 
 function homeScreen(){
   const p=state.player;
+  const slots=currentSlots();
   return `
   <section class="card hero">
     <div class="row space">
@@ -124,7 +151,20 @@ function homeScreen(){
   </section>
 
   <section class="card">
-    <div class="section-title"><h2>今日狀態</h2><span class="small">每個選擇都會留下代價</span></div>
+    <div class="section-title"><h2>今日時間</h2><span class="badge">剩餘 ${slotsRemaining()} 格</span></div>
+    <div class="slot-grid">
+      ${slots.map((slot,i)=>{
+        const used=i<state.dayState.usedSlots;
+        const current=i===state.dayState.usedSlots;
+        const action=used ? (state.dayState.actions[i]?.split("：")[1]||"已使用") : (current?"目前":"未使用");
+        return `<div class="slot ${used?"used":""} ${current?"current":""}"><strong>${slot}</strong><div class="small">${action}</div></div>`;
+      }).join("")}
+    </div>
+    <p class="small" style="margin-bottom:0">${state.date.day<=5?"平日白天固定上課，可自由安排 3 個時段。":"週末可自由安排 5 個時段。"} 一般行動目前各消耗 1 格。</p>
+  </section>
+
+  <section class="card">
+    <div class="section-title"><h2>今日狀態</h2><span class="small">行動後立即更新</span></div>
     ${statusBar("體力",p.energy)}
     ${statusBar("心情",p.mood)}
     ${statusBar("壓力",100-p.stress,true)}
@@ -134,12 +174,12 @@ function homeScreen(){
   <section class="card">
     <div class="section-title"><h2>今天要做什麼？</h2><span class="small">週${DAYS[state.date.day-1]}</span></div>
     <div class="choice-grid">
-      <button class="choice action-btn" data-action="rank"><strong>打一場 Rank</strong><span class="small">約50分鐘 · 體力 -6</span></button>
-      <button class="choice action-btn" data-action="train"><strong>個人訓練</strong><span class="small">成長慢，但穩定</span></button>
-      <button class="choice action-btn" data-action="study"><strong>讀書</strong><span class="small">維持學業與家庭支持</span></button>
-      <button class="choice action-btn" data-action="rest"><strong>休息</strong><span class="small">恢復體力、降低壓力</span></button>
+      <button class="choice action-btn" data-action="rank" ${!canAct()?"disabled":""}><strong>打一場 Rank</strong><span class="small">1時段 · 體力 -6</span></button>
+      <button class="choice action-btn" data-action="train" ${!canAct()?"disabled":""}><strong>個人訓練</strong><span class="small">1時段 · 穩定成長</span></button>
+      <button class="choice action-btn" data-action="study" ${!canAct()?"disabled":""}><strong>讀書</strong><span class="small">1時段 · 維持學業</span></button>
+      <button class="choice action-btn" data-action="rest" ${!canAct()?"disabled":""}><strong>休息</strong><span class="small">1時段 · 恢復狀態</span></button>
     </div>
-    <button class="btn secondary" id="nextDayBtn" style="width:100%;margin-top:12px">結束今天</button>
+    <button class="btn secondary" id="nextDayBtn" style="width:100%;margin-top:12px">${slotsRemaining()===0?"今日行程完成，進入下一天":"提早結束今天"}</button>
   </section>
 
   <section class="card">
@@ -255,6 +295,9 @@ function bindDynamic(){
 }
 
 function performAction(type){
+  if(!canAct()){
+    showModal(`<h2>今天已經沒有時間了</h2><p>今天的可用時段已全部用完，請進入下一天。</p><button class="btn close-modal" style="width:100%">知道了</button>`); return;
+  }
   if(state.player.energy<=5 && type!=="rest"){
     showModal(`<h2>你太累了</h2><p>現在硬撐只會讓表現變差。先休息吧。</p><button class="btn close-modal" style="width:100%">知道了</button>`); return;
   }
@@ -266,6 +309,7 @@ function performAction(type){
 
 function playRank(){
   const p=state.player;
+  if(!consumeSlots("Rank",1)) return;
   const strength = statAvg() + (p.mood-50)*0.05 - p.stress*0.05 + rand(-8,8);
   const win = strength >= 54;
   const k=rand(win?4:1,win?11:6), d=rand(win?1:4,win?5:10), a=rand(2,13);
@@ -283,11 +327,12 @@ function playRank(){
   if(scouting) p.proAttention=clamp(p.proAttention+1,0,100);
   state.logs.push(`${win?"勝利":"敗北"}｜${k}/${d}/${a}｜${delta>0?"+":""}${delta} LP。`);
   save();
+  render();
   showModal(`
     <h2 class="${win?"goodtext":"badtext"}">${win?"勝利":"敗北"}</h2>
     <div class="big-number">${k} / ${d} / ${a}</div>
     <p>${p.rank} · ${p.lp} LP</p>
-    <p class="small">這只是簡化比賽核心。V0.7會接上英雄選擇、對線事件與龍／巴龍等關鍵決策。</p>
+    <p class="small">已消耗 1 個時段，今日剩餘 ${slotsRemaining()} 格。V0.7會接上英雄選擇、對線事件與龍／巴龍等關鍵決策。</p>
     <button class="btn close-modal" style="width:100%">繼續</button>`);
 }
 
@@ -307,6 +352,7 @@ function adjustRank(){
 
 function train(){
   const p=state.player;
+  if(!consumeSlots("訓練",1)) return;
   const keys=Object.keys(p.stats);
   const focus=keys[rand(0,keys.length-1)];
   const gain=(Math.random()*0.18+0.08);
@@ -316,12 +362,14 @@ function train(){
 }
 function study(){
   const p=state.player;
+  if(!consumeSlots("讀書",1)) return;
   p.school=clamp(p.school+1.2,0,100); p.family=clamp(p.family+0.5,0,100); p.energy=clamp(p.energy-5,0,100);
   state.logs.push("你花了一段時間讀書。學業略有提升。");
   save(); render();
 }
 function rest(){
   const p=state.player;
+  if(!consumeSlots("休息",1)) return;
   p.energy=clamp(p.energy+18,0,100); p.stress=clamp(p.stress-8,0,100); p.mood=clamp(p.mood+4,0,100);
   state.logs.push("你放下遊戲休息了一段時間。");
   save(); render();
@@ -330,6 +378,7 @@ function rest(){
 function nextDay(){
   const p=state.player;
   state.date.day++;
+  state.dayState={usedSlots:0,actions:[]};
   p.energy=clamp(p.energy+10,0,100);
   p.stress=clamp(p.stress-2,0,100);
   if(state.date.day>7){
@@ -367,13 +416,13 @@ function showModal(html){
   const node=tpl.content.cloneNode(true);
   node.querySelector(".modal-content").innerHTML=html;
   document.body.appendChild(node);
-  document.querySelectorAll(".close-modal").forEach(b=>b.onclick=()=>document.querySelector(".modal-backdrop")?.remove());
+  document.querySelectorAll(".close-modal").forEach(b=>b.onclick=()=>{ document.querySelector(".modal-backdrop")?.remove(); render(); });
 }
 
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{activeTab=b.dataset.tab;render();});
 document.querySelector("#resetBtn").onclick=()=>{
   if(confirm("確定要刪除目前V0.6存檔並重開生涯嗎？")){
-    localStorage.removeItem(SAVE_KEY); state=newGame(); activeTab="home"; render();
+    localStorage.removeItem(SAVE_KEY); localStorage.removeItem(OLD_SAVE_KEY); state=newGame(); activeTab="home"; render();
   }
 };
 
