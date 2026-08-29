@@ -1,6 +1,6 @@
 
-const SAVE_KEY="yefeng_v09_save";
-const OLD_KEYS=["yefeng_v08_save","yefeng_v07_save","yefeng_v061_save","yefeng_v06_save"];
+const SAVE_KEY="yefeng_v10_save";
+const OLD_KEYS=["yefeng_v09_save","yefeng_v08_save","yefeng_v07_save","yefeng_v061_save","yefeng_v06_save"];
 const ROLES=["上路","打野","中路","下路","輔助"];
 const DAYS=["一","二","三","四","五","六","日"];
 const WEEKDAY_SLOTS=["放學後","晚間","深夜"];
@@ -15,7 +15,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"0.9",started:false,
+  version:"1.0",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -54,7 +54,7 @@ function normalize(s){
  if(!s.eventFlags)s.eventFlags={};
  if(!s.messages)s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="0.9";return s;
+ s.version="1.0";return s;
 }
 function load(){
  try{
@@ -145,7 +145,7 @@ function phone(){
  <section class="card"><h2>電競新聞</h2>${state.news.slice().reverse().map(n=>`<div class="log">${n}</div>`).join("")}</section>`;
 }
 function career(){
- const p=state.player;return `<section class="card"><h2>生涯檔案</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("阿哲關係",Math.round(p.relations.阿哲))}${stat("粉絲",p.followers)}</div></section>${masteryCard()}<section class="card"><h2>版本</h2><div class="log"><strong>V0.9</strong>｜事件/訊息/行程重構、正式比賽日、生活奇遇、角色熟練度、完整Rank與訓練回饋。</div></section>`;
+ const p=state.player;return `<section class="card"><h2>生涯檔案</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("阿哲關係",Math.round(p.relations.阿哲))}${stat("粉絲",p.followers)}</div></section>${masteryCard()}<section class="card"><h2>版本</h2><div class="log"><strong>V1.0</strong>｜事件/訊息/行程重構、正式比賽日、生活奇遇、角色熟練度、完整Rank與訓練回饋。</div></section>`;
 }
 function render(){
  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===activeTab));
@@ -373,6 +373,210 @@ function scriptedEvents(){
   setTimeout(()=>document.querySelectorAll(".rain-e").forEach(b=>b.onclick=()=>{let g=b.dataset.v==="umbrella"?4:b.dataset.v==="wait"?3:1;state.player.relations.林雨晴+=g;state.logs.push(`奇遇後續：和林雨晴的關係 +${g}。`);save();document.querySelector(".modal-backdrop")?.remove();render()}),0);
  }
 }
+
+// ======================== V1.0 WORLD / SCHOOL / SOCIAL EXPANSION ========================
+const RELATION_TIERS=[
+ {min:0,name:"陌生"},{min:20,name:"認識"},{min:40,name:"朋友"},{min:60,name:"親近"},{min:75,name:"曖昧"},{min:88,name:"非常親密"}
+];
+const SHOP_ITEMS=[
+ {id:"drink",name:"飲料",price:65,desc:"心情 +2",effect:p=>p.mood=clamp(p.mood+2,0,100)},
+ {id:"meal",name:"朋友聚餐",price:320,desc:"心情 +4",effect:p=>p.mood=clamp(p.mood+4,0,100)},
+ {id:"mouse",name:"入門電競滑鼠",price:1290,desc:"設備收藏；操作訓練微幅加成",once:true},
+ {id:"keyboard",name:"機械鍵盤",price:2490,desc:"設備收藏；直播品質微幅提升",once:true},
+ {id:"headset",name:"電競耳機",price:1890,desc:"設備收藏；團隊溝通訓練微幅加成",once:true},
+ {id:"gift",name:"小禮物",price:450,desc:"可送給朋友或戀愛對象"}
+];
+const LADDER_NAMES=["Raven","Luna","Kaito","Zero9","Mori","Nox","Aster","Haku","ViperX","Nagi","Frost","Mika","Rex","Nova","Sena","Crow","Yuzu","Kairos","Melo","Tide"];
+
+function ensureV10(){
+ const p=state.player;
+ if(!p.inventory)p.inventory=[];
+ if(!p.reputation&&p.reputation!==0)p.reputation=50;
+ if(!p.romance)p.romance={partner:null,trust:{},jealousy:{},rumorRisk:0};
+ if(!state.school)state.school={examWeek:7,examPrepared:0,lastExam:null,clubFame:0};
+ if(!state.world)state.world={newsWeek:0,leaderboard:[],rumors:[],amateurHistory:[]};
+ if(!state.friends)state.friends={俊凱:{known:true,relation:48,role:"上路",rank:"白金 I"},小宇:{known:true,relation:43,role:"輔助",rank:"翡翠 IV"}};
+ if(!state.characters.俊凱)state.characters.俊凱={name:"俊凱",known:true,desc:"同班好友，個性外向，偶爾一起開黑。"};
+ if(!state.characters.小宇)state.characters.小宇={name:"小宇",known:true,desc:"隔壁班朋友，主玩輔助，常約宵夜。"};
+ if(!state.characters.陳語彤)state.characters.陳語彤={name:"陳語彤",known:false,desc:"高一學妹，校內電競社成員。"};
+ if(!state.characters.沈若晴)state.characters.沈若晴={name:"沈若晴",known:false,desc:"高三學姊，學生會活動組。"};
+ if(!state.characters.許安然)state.characters.許安然={name:"許安然",known:false,desc:"國中時曾暗戀過的同學。"};
+ ["俊凱","小宇","陳語彤","沈若晴","許安然"].forEach(n=>{if(p.relations[n]==null)p.relations[n]=state.friends[n]?.relation||0});
+ if(!state.world.leaderboard.length)refreshLeaderboard();
+ generateWeeklyNews();
+}
+function relationTier(v){let t=RELATION_TIERS[0];RELATION_TIERS.forEach(x=>{if(v>=x.min)t=x});return t.name}
+function refreshLeaderboard(){
+ let arr=LADDER_NAMES.map((name,i)=>({name,lp:1900-i*58+rand(-30,30),role:ROLES[i%5],type:i%4===0?"職業選手":i%4===1?"青訓":i%4===2?"實況主":"路人王"}));
+ let p=state.player,score=(p.rank==="菁英"?1500:p.rank==="宗師"?900:p.rank==="大師"?300:Math.max(0,p.lp-100));
+ arr.push({name:p.name,lp:score,role:p.role,type:"玩家"});
+ arr.sort((a,b)=>b.lp-a.lp);state.world.leaderboard=arr;
+}
+function generateWeeklyNews(){
+ if(state.world.newsWeek===state.date.week)return;
+ state.world.newsWeek=state.date.week;refreshLeaderboard();
+ const pool=[
+  `KCL豪門「Eclipse」宣布青訓招募計畫，特別關注高分段${state.player.role}玩家。`,
+  `本週版本更新：控制型中路與前排打野勝率上升，高分段BP正在改變。`,
+  `城市青年盃開放報名，冠軍獎金 NT$20,000，部分業餘戰隊已開始組隊。`,
+  `全服菁英榜洗牌：${state.world.leaderboard[0].name} 目前暫居第一。`,
+  `知名實況主 Nox 在高分段連勝，引發「路人王能否打職業」討論。`,
+  `多間網咖將舉辦週末盃，冠軍隊伍可獲現金與設備獎品。`
+ ];
+ state.news.unshift(`【第${state.date.week}週】${pool[rand(0,pool.length-1)]}`);
+ if(state.news.length>20)state.news.length=20;
+}
+function relationshipCard(){
+ const p=state.player,known=Object.values(state.characters).filter(c=>c.known);
+ return `<section class="card"><div class="row space"><h2>人際關係</h2><span class="badge">${p.romance.partner?"交往中":"單身"}</span></div>
+ ${known.map(c=>{let v=p.relations[c.name]||0;return `<div class="log"><div class="row space"><strong>${c.name}</strong><span>${relationTier(v)} · ${Math.round(v)}</span></div><div class="small">${c.desc}</div></div>`}).join("")}</section>`;
+}
+function worldCards(){
+ const p=state.player,rank=state.world.leaderboard.findIndex(x=>x.name===p.name)+1;
+ return `<section class="card"><div class="row space"><h2>👑 全服菁英榜</h2><span class="badge">${rank?`目前 #${rank}`:"未上榜"}</span></div>
+ ${state.world.leaderboard.slice(0,10).map((x,i)=>`<div class="schedule-item ${x.name===p.name?"selected":""}"><div><strong>#${i+1} ${x.name}</strong><div class="small">${x.role} · ${x.type}</div></div><span>${x.lp} LP</span></div>`).join("")}
+ <div class="notice">大師以上開始進入真正的全服排名競爭。排行榜NPC每週都會變動。</div></section>`;
+}
+function schoolCard(){
+ const s=state.school,left=s.examWeek-state.date.week;
+ return `<section class="card"><div class="row space"><h2>🏫 校園生活</h2><span class="badge">${left>0?`距段考 ${left} 週`:left===0?"段考週":"本次段考結束"}</span></div>
+ ${stat("學業",Math.round(state.player.school))}${stat("段考準備",`${Math.round(s.examPrepared)}/100`)}
+ <div class="log">${left===0?"本週是段考週。白天考試，晚上仍能安排活動，但考差可能影響家庭支持與心情。":left>0?"可以利用「讀書」累積段考準備；完全不準備會有明顯風險。":s.lastExam?`上次段考：${s.lastExam}分。`:"新的考試週之後還會再出現。"}</div></section>`;
+}
+function amateurCard(){
+ const upcoming=[
+  {name:"網咖週末盃",fee:300,reward:"冠軍 NT$5,000",need:1},
+  {name:"校際電競盃",fee:0,reward:"校際榮譽＋職業關注",need:2},
+  {name:"城市青年盃",fee:500,reward:"冠軍 NT$20,000",need:4}
+ ];
+ return `<section class="card"><h2>🏆 業餘賽事</h2>${upcoming.map((x,i)=>`<div class="schedule-item"><div><strong>${x.name}</strong><div class="small">報名費 NT$${x.fee} · ${x.reward}</div></div><button class="ghost amateur-signup" data-i="${i}" ${state.date.week<x.need?"disabled":""}>${state.date.week<x.need?`第${x.need}週開放`:"報名"}</button></div>`).join("")}</section>`;
+}
+function shopCard(){
+ return `<section class="card"><div class="row space"><h2>🛍️ 商店與消費</h2><span class="badge">NT$${state.player.cash.toLocaleString()}</span></div>
+ ${SHOP_ITEMS.map(x=>`<div class="schedule-item"><div><strong>${x.name}</strong><div class="small">NT$${x.price.toLocaleString()} · ${x.desc}</div></div><button class="ghost buy-item" data-item="${x.id}" ${state.player.cash<x.price||(x.once&&state.player.inventory.includes(x.id))?"disabled":""}>${x.once&&state.player.inventory.includes(x.id)?"已擁有":"購買"}</button></div>`).join("")}</section>`;
+}
+function rumorCard(){
+ return `<section class="card"><h2>💬 校園緋聞</h2>${state.world.rumors.length?state.world.rumors.slice(0,5).map(r=>`<div class="log">${r}</div>`).join(""):`<div class="small">目前沒有特別的傳聞。隨著人際關係與知名度提高，這裡可能出現真假難辨的八卦。</div>`}</section>`;
+}
+
+function home(){
+ ensureV10();const p=state.player,hard=hardEventToday();
+ return `<section class="card hero"><div class="row space"><div><div class="small">${dateLabel()}</div><h2>${p.name} · ${p.age}歲 · ${p.role}</h2></div><span class="badge">綜合 ${avg().toFixed(1)}</span></div>
+ <div class="stat-grid">${stat("Rank",`${p.rank} ${p.lp} LP`)}${stat("現金",`NT$${p.cash.toLocaleString()}`)}${stat("職業關注",`${p.proAttention}/100`)}${stat("聲譽",`${p.reputation}/100`)}</div></section>
+ ${hard?lockedDayCard(hard):timeCard()}${schoolCard()}${appointmentCard()}
+ ${hard?`<section class="card"><div class="notice">今天是正式賽事日，一般活動全部鎖定。</div></section>`:actionCard()}
+ <section class="card"><h2>最近紀錄</h2>${state.logs.slice(-6).reverse().map(x=>`<div class="log">${x}</div>`).join("")}</section>`;
+}
+function phone(){
+ ensureV10();const unread=state.messages.filter(m=>m.unread).length;
+ return `<section class="card"><div class="row space"><h2>訊息</h2><span class="badge">${unread} 未讀</span></div>${state.messages.slice().reverse().map(m=>`<div class="message ${m.unread?"unread":""}"><button class="message-open" data-msg="${m.id}" style="width:100%;border:0;background:transparent;color:white;text-align:left;padding:0"><div class="meta"><strong>${m.from}</strong><span class="small">${m.resolved?"已處理":m.unread?"未讀":"待回覆"}</span></div><div style="margin-top:6px;white-space:pre-line">${m.text}</div><div class="small" style="margin-top:8px">點擊開啟對話 ›</div></button></div>`).join("")}</section>
+ ${relationshipCard()}${rumorCard()}<section class="card"><h2>📰 電競新聞</h2>${state.news.slice(0,12).map(n=>`<div class="log">${n}</div>`).join("")}</section>`;
+}
+function career(){
+ ensureV10();const p=state.player;
+ return `<section class="card"><h2>生涯中心</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
+ ${worldCards()}${amateurCard()}${shopCard()}${masteryCard()}
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.0</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+}
+function bind(){
+ document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));
+ document.querySelector("#nextDayBtn")?.addEventListener("click",nextDay);
+ document.querySelectorAll(".message-open").forEach(b=>b.onclick=e=>{e.preventDefault();openMessage(b.dataset.msg)});
+ document.querySelectorAll(".event-run").forEach(b=>b.onclick=()=>runEventById(b.dataset.event));
+ document.querySelectorAll(".buy-item").forEach(b=>b.onclick=()=>buyItem(b.dataset.item));
+ document.querySelectorAll(".amateur-signup").forEach(b=>b.onclick=()=>signupAmateur(Number(b.dataset.i)));
+}
+function buyItem(id){
+ const x=SHOP_ITEMS.find(a=>a.id===id);if(!x||state.player.cash<x.price)return;
+ state.player.cash-=x.price;if(x.once)state.player.inventory.push(x.id);if(x.effect)x.effect(state.player);
+ state.logs.push(`消費：購買${x.name}，支出 NT$${x.price.toLocaleString()}。`);save();render();
+ modal(`<h2>購買完成</h2><p>${x.name}｜NT$${x.price.toLocaleString()}</p><p>${x.desc}</p>${closeBtn()}`);
+}
+function signupAmateur(i){
+ const list=[
+  {name:"網咖週末盃",fee:300,day:6,id:"cafe-cup"},
+  {name:"校際電競盃",fee:0,day:6,id:"school-cup"},
+  {name:"城市青年盃",fee:500,day:7,id:"city-cup"}
+ ],x=list[i];if(!x||state.player.cash<x.fee)return;
+ if(todayPlan().some(e=>e.lockDay)){modal(`<h2>行程衝突</h2><p>目前已有正式鎖定行程，不能重複報名。</p>${closeBtn()}`);return}
+ state.player.cash-=x.fee;
+ addPlan(x.day,{id:x.id+"-"+state.date.week,title:x.name,slot:"全天",type:"amateurTournament",lockDay:true,completed:false,desc:"業餘正式賽事。當天一般活動鎖定。"});
+ state.logs.push(`已報名${x.name}，賽事加入本週週${DAYS[x.day-1]}行程。`);save();render();
+}
+function runEventById(id){
+ const ev=todayPlan().find(x=>x.id===id);if(!ev||ev.completed)return;
+ if(ev.type==="duoAppointment"){let idx=slots().indexOf(ev.slot);if(idx>state.dayState.usedSlots){modal(`<h2>還沒到${ev.slot}</h2><p>先完成前面的時段，或提早結束今天。</p>${closeBtn()}`);return}playScheduledDuo(ev)}
+ if(ev.type==="tournament")playTournament(ev);
+ if(ev.type==="amateurTournament")playAmateur(ev);
+}
+function playAmateur(ev){
+ state.dayState.usedSlots=slots().length;state.dayState.actions=slots().map(x=>`${x}：${ev.title}`);
+ modal(`<h2>🏆 ${ev.title}</h2><p>這是累積正式比賽經驗的機會。你們要採取什麼策略？</p><div class="reply-grid"><button class="reply amat" data-v="stable">穩健營運</button><button class="reply amat" data-v="fight">主動打架</button><button class="reply amat" data-v="carry">讓夜鋒拿Carry角色</button></div>`);
+ document.querySelectorAll(".amat").forEach(b=>b.onclick=()=>finishAmateur(ev,b.dataset.v));
+}
+function finishAmateur(ev,v){
+ let p=state.player,bonus=v==="carry"?2:v==="stable"?1:0,roll=avg()+bonus+rand(-9,10),place=roll>65?"冠軍":roll>59?"四強":roll>53?"八強":"首輪淘汰";
+ ev.completed=true;let prize=place==="冠軍"?5000:place==="四強"?1500:0;p.cash+=prize;
+ let attention=place==="冠軍"?4:place==="四強"?2:0;p.proAttention=clamp(p.proAttention+attention,0,100);state.school.clubFame+=place==="冠軍"?8:2;
+ state.world.amateurHistory.unshift(`${ev.title}｜${place}`);
+ state.logs.push(`${ev.title}：${place}${prize?`，獎金 NT$${prize.toLocaleString()}`:""}。`);
+ if(place==="冠軍")state.news.unshift(`【快訊】${p.name}所屬隊伍拿下${ev.title}冠軍，在學生玩家圈開始受到討論。`);
+ save();document.querySelector(".modal-backdrop")?.remove();render();modal(`<h2>${place}</h2><p>${ev.title}</p><div class="stat-grid">${stat("獎金",`NT$${prize.toLocaleString()}`)}${stat("職業關注",`+${attention}`)}</div>${closeBtn()}`);
+}
+function chooseSocial(){
+ ensureV10();if(remain()<1)return;
+ const people=Object.values(state.characters).filter(c=>c.known);
+ modal(`<h2>社交 / 開黑</h2><div class="reply-grid">${people.map(c=>`<button class="reply social-choice" data-person="${c.name}">找 ${c.name}<div class="small">${relationTier(state.player.relations[c.name]||0)} · ${Math.round(state.player.relations[c.name]||0)}</div></button>`).join("")}<button class="reply social-choice" data-person="五排">揪朋友五排開黑</button></div>`);
+ document.querySelectorAll(".social-choice").forEach(b=>b.onclick=()=>b.dataset.person==="五排"?friendFiveStack():socialEvent(b.dataset.person));
+}
+function friendFiveStack(){
+ if(!consume("朋友五排",1))return;document.querySelector(".modal-backdrop")?.remove();
+ let p=state.player,win=avg()+rand(-9,10)>54,g=win?3:1;
+ ["阿哲","俊凱","小宇"].forEach(n=>p.relations[n]=clamp((p.relations[n]||0)+g,0,100));
+ p.mood=clamp(p.mood+(win?6:2),0,100);p.energy=clamp(p.energy-7,0,100);
+ state.logs.push(`朋友五排：${win?"連勝，語音裡超吵但氣氛很好。":"戰績普通，但大家約好下次再打。"} 好友關係 +${g}。`);
+ if(Math.random()<.25&&!state.characters.陳語彤.known){state.characters.陳語彤.known=true;p.relations.陳語彤=8;state.messages.push({id:"junior-"+Date.now(),from:"陳語彤",text:"學長你好，我是剛剛跟小宇一起五排的語彤，下次缺人可以找我。",unread:true,resolved:true,type:"normal"})}
+ save();render();
+}
+function maybeRumor(){
+ const p=state.player,candidates=["林雨晴","陳語彤","沈若晴","許安然"].filter(n=>state.characters[n]?.known&&(p.relations[n]||0)>=55);
+ if(!candidates.length||Math.random()>.28)return;
+ let n=candidates[rand(0,candidates.length-1)],r=`「${p.name}最近是不是常跟${n}待在一起？」班上的群組開始有人討論。`;
+ state.world.rumors.unshift(r);p.mood=clamp(p.mood+rand(-4,2),0,100);p.romance.rumorRisk=clamp(p.romance.rumorRisk+8,0,100);
+ state.logs.push(`校園緋聞出現：你和${n}的關係開始被注意。`);
+}
+function processExam(){
+ if(state.date.week!==state.school.examWeek||state.date.day!==5||state.school.lastExam)return;
+ let p=state.player,score=Math.round(clamp(p.school*.55+state.school.examPrepared*.45+rand(-8,8),0,100));
+ state.school.lastExam=score;
+ if(score<60){p.family=clamp(p.family-8,0,100);p.mood=clamp(p.mood-6,0,100);state.logs.push(`段考平均 ${score} 分。父母很不滿意，家庭支持 -8。`)}
+ else if(score>=85){p.family=clamp(p.family+5,0,100);p.mood=clamp(p.mood+4,0,100);state.logs.push(`段考平均 ${score} 分，成績很好。家庭支持 +5。`)}
+ else state.logs.push(`段考平均 ${score} 分，順利過關。`);
+}
+const _oldSimple=simple;
+function simple(name,cost,fn){
+ if(name==="讀書"){
+  if(!consume(name,cost))return;
+  state.player.school=clamp(state.player.school+1.2,0,100);state.player.family=clamp(state.player.family+.5,0,100);state.player.energy=clamp(state.player.energy-5,0,100);
+  state.school.examPrepared=clamp(state.school.examPrepared+8,0,100);
+  state.logs.push(`讀書：學業 +1.2、段考準備 +8。`);save();render();modal(`<h2>讀書完成</h2><p>學業 +1.2、段考準備 +8。</p>${closeBtn()}`);return;
+ }
+ return _oldSimple(name,cost,fn);
+}
+const _oldNextDay=nextDay;
+function nextDay(){
+ ensureV10();let oldWeek=state.date.week,oldDay=state.date.day;_oldNextDay();
+ if(state.date.week!==oldWeek){generateWeeklyNews();maybeRumor();
+   // long periods of ignoring a partner create jealousy; training-heavy weeks can also hurt romance
+   if(state.player.romance.partner&&Math.random()<.35){let n=state.player.romance.partner;state.player.relations[n]=clamp(state.player.relations[n]-2,0,100);state.logs.push(`${n}覺得你最近把太多時間放在遊戲上，感情 -2。`)}
+ }
+ processExam();
+ // school encounters unlock additional NPCs organically
+ if(state.date.week>=3&&!state.characters.沈若晴.known&&Math.random()<.08){state.characters.沈若晴.known=true;state.player.relations.沈若晴=7;state.logs.push("校園事件：學生會活動中認識了高三學姊沈若晴。")}
+ if(state.date.week>=4&&!state.characters.許安然.known&&Math.random()<.06){state.characters.許安然.known=true;state.player.relations.許安然=12;state.messages.push({id:"oldcrush-"+Date.now(),from:"許安然",text:"好久不見，我好像在朋友的限動看到你？你現在還在打遊戲喔？",unread:true,resolved:true,type:"normal"})}
+ save();render();
+}
+
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{activeTab=b.dataset.tab;render()});
 document.querySelector("#resetBtn").onclick=()=>{if(confirm("確定刪除目前存檔並重開嗎？")){[SAVE_KEY,...OLD_KEYS].forEach(k=>localStorage.removeItem(k));state=newGame();activeTab="home";render()}};
 if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
