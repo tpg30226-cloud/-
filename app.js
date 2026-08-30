@@ -15,7 +15,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.1.7",started:false,
+  version:"1.1.8",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -54,7 +54,7 @@ function normalize(s){
  if(!s.eventFlags)s.eventFlags={};
  if(!s.messages)s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.1.7";return s;
+ s.version="1.1.8";return s;
 }
 function load(){
  try{
@@ -145,7 +145,7 @@ function phone(){
  <section class="card"><h2>電競新聞</h2>${state.news.slice().reverse().map(n=>`<div class="log">${n}</div>`).join("")}</section>`;
 }
 function career(){
- const p=state.player;return `<section class="card"><h2>生涯檔案</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("阿哲關係",Math.round(p.relations.阿哲))}${stat("粉絲",p.followers)}</div></section>${masteryCard()}<section class="card"><h2>版本</h2><div class="log"><strong>V1.1.7</strong>｜事件/訊息/行程重構、正式比賽日、生活奇遇、角色熟練度、完整Rank與訓練回饋。</div></section>`;
+ const p=state.player;return `<section class="card"><h2>生涯檔案</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("阿哲關係",Math.round(p.relations.阿哲))}${stat("粉絲",p.followers)}</div></section>${masteryCard()}<section class="card"><h2>版本</h2><div class="log"><strong>V1.1.8</strong>｜事件/訊息/行程重構、正式比賽日、生活奇遇、角色熟練度、完整Rank與訓練回饋。</div></section>`;
 }
 function render(){
  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===activeTab));
@@ -533,7 +533,7 @@ function career(){
  return `<section class="card"><h2>生涯中心</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.1.7</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.1.8</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));
@@ -569,7 +569,7 @@ function signupAmateur(i){
 }
 function tournamentCandidates(){
  return Object.values(state.characters).filter(c=>c.known&&c.name!==state.player.name&&isEsportsFriend(c.name))
- .map(c=>({name:c.name,role:esportsRole(c.name),relation:state.player.relations[c.name]||0,rank:state.friends?.[c.name]?.rank||"未紀錄"}));
+ .map(c=>({name:c.name,role:esportsRole(c.name),relation:state.player.relations[c.name]||0,rank:(state.friends?.[c.name]?.rank||"未紀錄")+((state.friends?.[c.name]?.lp??null)!==null?` ${state.friends[c.name].lp}LP`:"")+((state.friends?.[c.name]?.form??0)>=8?" 🔥":(state.friends?.[c.name]?.form??0)<=-8?" ❄️":"")}));
 }
 function discoverTeammate(role,source){
  const names={上路:["承翰","Leo","柏宇"],打野:["宇辰","小凱","Rin"],中路:["子墨","Aki","哲宇"],ADC:["曜廷","Ming","小楓"],輔助:["恩碩","Naru","家豪"]};
@@ -702,6 +702,12 @@ function playAmateur(ev){
  modal(`<h2>🏆 ${ev.title}</h2><p class="small">${rosterText}</p><p>系列賽即將開始。這輪你想採取什麼方針？</p><div class="reply-grid"><button class="reply amat" data-v="stable">穩健營運</button><button class="reply amat" data-v="fight">主動打架</button><button class="reply amat" data-v="carry">圍繞夜鋒Carry</button></div>`);
  document.querySelectorAll(".amat").forEach(b=>b.onclick=()=>finishAmateur(ev,b.dataset.v));
 }
+const NPC_RANKS=["鐵牌 IV","鐵牌 III","鐵牌 II","鐵牌 I","銅牌 IV","銅牌 III","銅牌 II","銅牌 I","銀牌 IV","銀牌 III","銀牌 II","銀牌 I","金牌 IV","金牌 III","金牌 II","金牌 I","白金 IV","白金 III","白金 II","白金 I","翡翠 IV","翡翠 III","翡翠 II","翡翠 I","鑽石 IV","鑽石 III","鑽石 II","鑽石 I","大師","宗師","菁英"];
+function npcRankIndex(r){const i=NPC_RANKS.indexOf(r);return i<0?19:i}
+function npcPowerByName(name){const c=state.characters?.[name],f=state.friends?.[name]||{};return 42+npcRankIndex(f.rank||c?.rank||"白金 I")*1.65+(f.form??0)*.65}
+function simulateNpcRanks(){Object.values(state.characters||{}).forEach(c=>{if(!c.known||!isEsportsFriend(c.name))return;const f=state.friends[c.name]||(state.friends[c.name]={rank:c.rank||"白金 I"});f.form=f.form??0;f.lp=f.lp??rand(0,99);for(let i=0;i<rand(1,4);i++){const w=Math.random()<clamp(.5+f.form/100,.30,.70);f.lp+=w?rand(16,26):-rand(14,25);f.form=clamp(f.form+(w?rand(1,4):-rand(1,4)),-18,18);let ri=npcRankIndex(f.rank);if(f.lp>=100&&ri<NPC_RANKS.length-1){f.lp-=100;f.rank=NPC_RANKS[++ri];state.logs.push(`${c.name} 排位升至 ${f.rank}。`)}if(f.lp<0&&ri>0){f.lp+=100;f.rank=NPC_RANKS[--ri];state.logs.push(`${c.name} 近期連敗，掉至 ${f.rank}。`)}}})}
+function amateurTeamPower(t){return (t.roster||[]).reduce((s,a)=>s+(a.name===state.player.name||a.name==="夜鋒"?avg()+npcRankIndex(state.player.rank)*1.3:npcPowerByName(a.name)),0)/Math.max(1,(t.roster||[]).length)}
+function amateurRelations(t,win){(t.roster||[]).forEach(a=>{if(a.name===state.player.name||a.name==="夜鋒")return;const d=win?rand(0,2):-rand(1,3);state.player.relations[a.name]=clamp((state.player.relations[a.name]||0)+d,0,100);if(d)state.logs.push(`${a.name}：比賽${win?"勝利":"失利"}，關係 ${d>0?"+":""}${d}。`)})}
 function matchNarrative(win,strategy){
  const early=["3分鐘，雙方打野在河蟹區第一次碰撞。","6分鐘，夜鋒抓到對手走位失誤完成一波漂亮換血。","8分鐘，第一條小龍附近爆發4人會戰。"];
  const mid=["14分鐘，先鋒團雙方拉扯超過20秒，輔助率先開戰。","19分鐘，對手試圖抓邊，夜鋒及時後撤並呼叫隊友反包。","23分鐘，中路二塔前爆發關鍵團戰，雙方技能幾乎全交。"];
@@ -710,7 +716,7 @@ function matchNarrative(win,strategy){
 }
 function finishAmateur(ev,v){
  const p=state.player,t=state.world.tournaments.find(x=>x.id===ev.tournamentId);if(!t)return;
- const bonus=v==="carry"?2:v==="stable"?1:0,win=avg()+bonus+rand(-10,10)>=55;
+ const bonus=v==="carry"?2:v==="stable"?1:0,teamPower=amateurTeamPower(t),enemyPower=66+t.roundIndex*4+(t.name.includes("城市")?7:t.name.includes("校際")?3:0)+rand(-8,8),winChance=clamp(.50+(teamPower+bonus-enemyPower)/90,.18,.82),win=Math.random()<winChance;amateurRelations(t,win);
  ev.completed=true;p.energy=clamp(p.energy-18,0,100);p.stress=clamp(p.stress+6,0,100);
  const round=t.rounds[t.roundIndex],report=matchNarrative(win,v);t.history.push(`${round}：${win?"勝":"敗"}`);
  if(win && t.roundIndex<t.rounds.length-1){
@@ -826,6 +832,7 @@ function simple(name,cost,fn){
 }
 function nextDay(){
  ensureV10();let oldWeek=state.date.week,oldDay=state.date.day;baseNextDay();
+ if(state.date.day!==oldDay||state.date.week!==oldWeek)simulateNpcRanks();
  if(state.date.week!==oldWeek){generateWeeklyNews();advanceTournaments();maybeRumor();
    // long periods of ignoring a partner create jealousy; training-heavy weeks can also hurt romance
    if(state.player.romance.partner&&Math.random()<.35){let n=state.player.romance.partner;state.player.relations[n]=clamp(state.player.relations[n]-2,0,100);state.logs.push(`${n}覺得你最近把太多時間放在遊戲上，感情 -2。`)}
