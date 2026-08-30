@@ -87,3 +87,16 @@ button:disabled{opacity:.4;filter:saturate(.5)}
 .message-open{cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:rgba(110,231,249,.18)}
 .message-open:active{opacity:.72}
 .event-run{white-space:nowrap}
+
+/* V1.2.4 iPhone social modal fix */
+.modal-backdrop{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 10px;align-items:flex-end}
+.modal-content{max-height:82dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-bottom:max(24px,env(safe-area-inset-bottom))}
+.social-scroll{max-height:58dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:18px}
+.social-person,.social-act{min-height:58px;touch-action:manipulation}
+.social-close,.social-back{position:sticky;top:0;z-index:3}
+@supports not (height: 1dvh){.modal-content{max-height:82vh}.social-scroll{max-height:58vh}}
+
+/* V1.2.5 social tap fix */
+#socialPanel{position:relative;z-index:20;pointer-events:auto}
+#socialPanel button{pointer-events:auto!important;position:relative;z-index:21;-webkit-user-select:none;user-select:none}
+#socialPanel .social-scroll{pointer-events:auto;touch-action:pan-y}
