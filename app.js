@@ -15,7 +15,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.0",started:false,
+  version:"1.0.2",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -54,7 +54,7 @@ function normalize(s){
  if(!s.eventFlags)s.eventFlags={};
  if(!s.messages)s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.0";return s;
+ s.version="1.0.2";return s;
 }
 function load(){
  try{
@@ -145,7 +145,7 @@ function phone(){
  <section class="card"><h2>電競新聞</h2>${state.news.slice().reverse().map(n=>`<div class="log">${n}</div>`).join("")}</section>`;
 }
 function career(){
- const p=state.player;return `<section class="card"><h2>生涯檔案</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("阿哲關係",Math.round(p.relations.阿哲))}${stat("粉絲",p.followers)}</div></section>${masteryCard()}<section class="card"><h2>版本</h2><div class="log"><strong>V1.0</strong>｜事件/訊息/行程重構、正式比賽日、生活奇遇、角色熟練度、完整Rank與訓練回饋。</div></section>`;
+ const p=state.player;return `<section class="card"><h2>生涯檔案</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("阿哲關係",Math.round(p.relations.阿哲))}${stat("粉絲",p.followers)}</div></section>${masteryCard()}<section class="card"><h2>版本</h2><div class="log"><strong>V1.0.2</strong>｜事件/訊息/行程重構、正式比賽日、生活奇遇、角色熟練度、完整Rank與訓練回饋。</div></section>`;
 }
 function render(){
  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===activeTab));
@@ -396,20 +396,36 @@ function ensureV10(){
  if(!state.school)state.school={examWeek:7,examPrepared:0,lastExam:null,clubFame:0};
  if(!state.world)state.world={newsWeek:0,leaderboard:[],rumors:[],amateurHistory:[]};
  if(!state.friends)state.friends={俊凱:{known:true,relation:48,role:"上路",rank:"白金 I"},小宇:{known:true,relation:43,role:"輔助",rank:"翡翠 IV"}};
- if(!state.characters.俊凱)state.characters.俊凱={name:"俊凱",known:true,desc:"同班好友，個性外向，偶爾一起開黑。"};
- if(!state.characters.小宇)state.characters.小宇={name:"小宇",known:true,desc:"隔壁班朋友，主玩輔助，常約宵夜。"};
- if(!state.characters.陳語彤)state.characters.陳語彤={name:"陳語彤",known:false,desc:"高一學妹，校內電競社成員。"};
- if(!state.characters.沈若晴)state.characters.沈若晴={name:"沈若晴",known:false,desc:"高三學姊，學生會活動組。"};
- if(!state.characters.許安然)state.characters.許安然={name:"許安然",known:false,desc:"國中時曾暗戀過的同學。"};
+ if(!state.characters.俊凱)state.characters.俊凱={name:"俊凱",known:true,gender:"男",romanceable:false,desc:"同班好友，個性外向，偶爾一起開黑。"};
+ if(!state.characters.小宇)state.characters.小宇={name:"小宇",known:true,gender:"男",romanceable:false,desc:"隔壁班朋友，主玩輔助，常約宵夜。"};
+ if(!state.characters.陳語彤)state.characters.陳語彤={name:"陳語彤",known:false,gender:"女",romanceable:true,desc:"高一學妹，校內電競社成員。"};
+ if(!state.characters.沈若晴)state.characters.沈若晴={name:"沈若晴",known:false,gender:"女",romanceable:true,desc:"高三學姊，學生會活動組。"};
+ if(!state.characters.許安然)state.characters.許安然={name:"許安然",known:false,gender:"女",romanceable:true,desc:"國中時曾暗戀過的同學。"};
  ["俊凱","小宇","陳語彤","沈若晴","許安然"].forEach(n=>{if(p.relations[n]==null)p.relations[n]=state.friends[n]?.relation||0});
+ if(state.characters.阿哲){state.characters.阿哲.gender="男";state.characters.阿哲.romanceable=false}
+ if(state.characters.子辰){state.characters.子辰.gender="男";state.characters.子辰.romanceable=false}
+ if(state.characters.Kaito){state.characters.Kaito.gender="男";state.characters.Kaito.romanceable=false}
+ if(state.characters.林雨晴){state.characters.林雨晴.gender="女";state.characters.林雨晴.romanceable=true}
  if(!state.world.leaderboard.length)refreshLeaderboard();
  generateWeeklyNews();
 }
-function relationTier(v){let t=RELATION_TIERS[0];RELATION_TIERS.forEach(x=>{if(v>=x.min)t=x});return t.name}
+function relationTier(v,name){
+ const c=state.characters?.[name];
+ const romanceable=!!(c&&c.romanceable&&c.gender==="女");
+ const tiers=romanceable?RELATION_TIERS:[
+  {min:0,name:"陌生"},{min:20,name:"認識"},{min:40,name:"朋友"},{min:60,name:"好友"},{min:75,name:"摯友"},{min:88,name:"死黨"}
+ ];
+ let t=tiers[0];tiers.forEach(x=>{if(v>=x.min)t=x});return t.name
+}
 function refreshLeaderboard(){
  let arr=LADDER_NAMES.map((name,i)=>({name,lp:1900-i*58+rand(-30,30),role:ROLES[i%5],type:i%4===0?"職業選手":i%4===1?"青訓":i%4===2?"實況主":"路人王"}));
- let p=state.player,score=(p.rank==="菁英"?1500:p.rank==="宗師"?900:p.rank==="大師"?300:Math.max(0,p.lp-100));
- arr.push({name:p.name,lp:score,role:p.role,type:"玩家"});
+ let p=state.player;
+ // 全服菁英榜只屬於最高階競爭。大師/宗師不再硬塞進前20名。
+ // 玩家未達菁英時，保留NPC Top榜，但玩家顯示為「尚未進入菁英榜」。
+ if(p.rank==="菁英"){
+   const score=Math.max(1,p.lp);
+   arr.push({name:p.name,lp:score,role:p.role,type:"玩家"});
+ }
  arr.sort((a,b)=>b.lp-a.lp);state.world.leaderboard=arr;
 }
 function generateWeeklyNews(){
@@ -429,13 +445,14 @@ function generateWeeklyNews(){
 function relationshipCard(){
  const p=state.player,known=Object.values(state.characters).filter(c=>c.known);
  return `<section class="card"><div class="row space"><h2>人際關係</h2><span class="badge">${p.romance.partner?"交往中":"單身"}</span></div>
- ${known.map(c=>{let v=p.relations[c.name]||0;return `<div class="log"><div class="row space"><strong>${c.name}</strong><span>${relationTier(v)} · ${Math.round(v)}</span></div><div class="small">${c.desc}</div></div>`}).join("")}</section>`;
+ ${known.map(c=>{let v=p.relations[c.name]||0;return `<div class="log"><div class="row space"><strong>${c.name}</strong><span>${relationTier(v,c.name)} · ${Math.round(v)}</span></div><div class="small">${c.desc}</div></div>`}).join("")}</section>`;
 }
 function worldCards(){
  const p=state.player,rank=state.world.leaderboard.findIndex(x=>x.name===p.name)+1;
- return `<section class="card"><div class="row space"><h2>👑 全服菁英榜</h2><span class="badge">${rank?`目前 #${rank}`:"未上榜"}</span></div>
+ const ladderStatus=p.rank==="菁英"?(rank?`目前 #${rank}`:"等待榜單更新"):`${p.rank} · 尚未進榜`;
+ return `<section class="card"><div class="row space"><h2>👑 全服菁英榜</h2><span class="badge">${ladderStatus}</span></div>
  ${state.world.leaderboard.slice(0,10).map((x,i)=>`<div class="schedule-item ${x.name===p.name?"selected":""}"><div><strong>#${i+1} ${x.name}</strong><div class="small">${x.role} · ${x.type}</div></div><span>${x.lp} LP</span></div>`).join("")}
- <div class="notice">大師以上開始進入真正的全服排名競爭。排行榜NPC每週都會變動。</div></section>`;
+ <div class="notice">只有達到「菁英」後才會正式進入全服菁英榜。大師與宗師仍在衝分階段，不會被錯誤顯示成全服前20名。排行榜NPC每週都會變動。</div></section>`;
 }
 function schoolCard(){
  const s=state.school,left=s.examWeek-state.date.week;
@@ -463,6 +480,7 @@ function home(){
  ensureV10();const p=state.player,hard=hardEventToday();
  return `<section class="card hero"><div class="row space"><div><div class="small">${dateLabel()}</div><h2>${p.name} · ${p.age}歲 · ${p.role}</h2></div><span class="badge">綜合 ${avg().toFixed(1)}</span></div>
  <div class="stat-grid">${stat("Rank",`${p.rank} ${p.lp} LP`)}${stat("現金",`NT$${p.cash.toLocaleString()}`)}${stat("職業關注",`${p.proAttention}/100`)}${stat("聲譽",`${p.reputation}/100`)}</div></section>
+ <section class="card"><h2>今日狀態</h2><div class="stat-grid">${stat("體力",`${Math.round(p.energy)}/100`)}${stat("心情",`${Math.round(p.mood)}/100`)}${stat("壓力",`${Math.round(p.stress)}/100`)}${stat("遊戲熱情",`${Math.round(p.passion)}/100`)}</div></section>
  ${hard?lockedDayCard(hard):timeCard()}${schoolCard()}${appointmentCard()}
  ${hard?`<section class="card"><div class="notice">今天是正式賽事日，一般活動全部鎖定。</div></section>`:actionCard()}
  <section class="card"><h2>最近紀錄</h2>${state.logs.slice(-6).reverse().map(x=>`<div class="log">${x}</div>`).join("")}</section>`;
@@ -476,7 +494,7 @@ function career(){
  ensureV10();const p=state.player;
  return `<section class="card"><h2>生涯中心</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${amateurCard()}${shopCard()}${masteryCard()}
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.0</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.0.2</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));
@@ -526,7 +544,7 @@ function finishAmateur(ev,v){
 function chooseSocial(){
  ensureV10();if(remain()<1)return;
  const people=Object.values(state.characters).filter(c=>c.known);
- modal(`<h2>社交 / 開黑</h2><div class="reply-grid">${people.map(c=>`<button class="reply social-choice" data-person="${c.name}">找 ${c.name}<div class="small">${relationTier(state.player.relations[c.name]||0)} · ${Math.round(state.player.relations[c.name]||0)}</div></button>`).join("")}<button class="reply social-choice" data-person="五排">揪朋友五排開黑</button></div>`);
+ modal(`<h2>社交 / 開黑</h2><div class="reply-grid">${people.map(c=>`<button class="reply social-choice" data-person="${c.name}">找 ${c.name}<div class="small">${relationTier(state.player.relations[c.name]||0,c.name)} · ${Math.round(state.player.relations[c.name]||0)}</div></button>`).join("")}<button class="reply social-choice" data-person="五排">揪朋友五排開黑</button></div>`);
  document.querySelectorAll(".social-choice").forEach(b=>b.onclick=()=>b.dataset.person==="五排"?friendFiveStack():socialEvent(b.dataset.person));
 }
 function friendFiveStack(){
@@ -555,6 +573,18 @@ function processExam(){
 }
 const _oldSimple=simple;
 function simple(name,cost,fn){
+ if(name==="休息"){
+  if(!consume(name,cost))return;
+  const p=state.player;
+  const e0=p.energy,m0=p.mood,s0=p.stress;
+  p.energy=clamp(p.energy+24,0,100);
+  p.mood=clamp(p.mood+7,0,100);
+  p.stress=clamp(p.stress-14,0,100);
+  state.logs.push(`休息：體力 +${Math.round(p.energy-e0)}、心情 +${Math.round(p.mood-m0)}、壓力 -${Math.round(s0-p.stress)}。`);
+  save();render();
+  modal(`<h2>休息完成</h2><p>你放下遊戲，好好休息了一段時間。</p><div class="stat-grid">${stat("體力",`${Math.round(e0)} → ${Math.round(p.energy)}`)}${stat("心情",`${Math.round(m0)} → ${Math.round(p.mood)}`)}${stat("壓力",`${Math.round(s0)} → ${Math.round(p.stress)}`)}</div>${closeBtn()}`);
+  return;
+ }
  if(name==="讀書"){
   if(!consume(name,cost))return;
   state.player.school=clamp(state.player.school+1.2,0,100);state.player.family=clamp(state.player.family+.5,0,100);state.player.energy=clamp(state.player.energy-5,0,100);
