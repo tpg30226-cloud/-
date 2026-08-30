@@ -100,3 +100,8 @@ button:disabled{opacity:.4;filter:saturate(.5)}
 #socialPanel{position:relative;z-index:20;pointer-events:auto}
 #socialPanel button{pointer-events:auto!important;position:relative;z-index:21;-webkit-user-select:none;user-select:none}
 #socialPanel .social-scroll{pointer-events:auto;touch-action:pan-y}
+
+/* V1.2.6: social is a normal page, not a modal */
+.social-page-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.social-person-page,.social-action-page{min-height:76px;pointer-events:auto!important;touch-action:manipulation;position:relative;z-index:1}
+@media(max-width:430px){.social-page-grid{grid-template-columns:1fr}}
