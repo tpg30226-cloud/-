@@ -105,3 +105,5 @@ button:disabled{opacity:.4;filter:saturate(.5)}
 .social-page-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .social-person-page,.social-action-page{min-height:76px;pointer-events:auto!important;touch-action:manipulation;position:relative;z-index:1}
 @media(max-width:430px){.social-page-grid{grid-template-columns:1fr}}
+
+.social-page-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.social-page-grid .choice{width:100%;min-height:74px;pointer-events:auto!important;touch-action:manipulation}.social-page-grid .choice strong,.social-page-grid .choice span{pointer-events:none}@media(max-width:520px){.social-page-grid{grid-template-columns:1fr}}
