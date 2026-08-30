@@ -15,7 +15,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.3.1",started:false,
+  version:"1.3.2",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -67,7 +67,7 @@ function normalize(s){
  if(!Array.isArray(s.news))s.news=[];
  if(!Array.isArray(s.messages))s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.3.1";return s;
+ s.version="1.3.2";return s;
 }
 function load(){
  try{
@@ -537,6 +537,7 @@ function ensureV10(){
  if(state.characters.子辰){state.characters.子辰.gender="男";state.characters.子辰.romanceable=false}
  if(state.characters.Kaito){state.characters.Kaito.gender="男";state.characters.Kaito.romanceable=false}
  if(state.characters.林雨晴){state.characters.林雨晴.gender="女";state.characters.林雨晴.romanceable=true}
+ ["陳語彤","沈若晴","許安然"].forEach(n=>{if(state.characters[n]){state.characters[n].gender="女";state.characters[n].romanceable=true}});
 
  const personalities={"阿哲":["老實","講義氣"],"子辰":["努力","好勝"],"Kaito":["冷靜","心機"],"俊凱":["外向","衝動"],"小宇":["老實","溫和"],"林雨晴":["可愛","天然呆"],"陳語彤":["努力","可愛"],"沈若晴":["成熟","心機"],"許安然":["現實","拜金"]};
  Object.values(state.characters).forEach(c=>{
@@ -613,7 +614,7 @@ function generateWeeklyNews(){
 function relationshipCard(){
  const p=state.player,known=Object.values(state.characters||{}).filter(c=>c?.known),partners=p.romance.partners||[];
  return `<section class="card"><div class="row space"><h2>人際關係</h2><span class="badge">${partners.length?`交往中 ×${partners.length}`:"單身"}</span></div>
- ${known.map(c=>{let v=p.relations[c.name]||0,dating=partners.includes(c.name),traits=safeTraits(c);return `<div class="log"><div class="row space"><strong>${c.name}${dating?" 💞":""}</strong><span>${dating?"戀人":relationTier(v,c.name)} · ${Math.round(v)}</span></div><div class="small">${c.desc||""}${traits.length?`｜個性：${traits.join("、")}`:""}${isEsportsFriend(c.name)?`｜遊戲路線：${esportsRole(c.name)}`:""}</div><button class="ghost send-gift" data-name="${c.name}">🎁 送禮物</button></div>`}).join("")}</section>`;
+ ${known.map(c=>{let v=p.relations[c.name]||0,dating=partners.includes(c.name),traits=safeTraits(c);return `<div class="log"><div class="row space"><strong>${c.name}${dating?" 💞":""}</strong><span>${dating?"戀人":relationTier(v,c.name)} · ${Math.round(v)}</span></div><div class="small">${c.desc||""}｜性別：${c.gender||"未設定"}${traits.length?`｜個性：${traits.join("、")}`:""}${isEsportsFriend(c.name)?`｜遊戲路線：${esportsRole(c.name)}`:""}</div><button class="ghost send-gift" data-name="${c.name}">🎁 送禮物</button></div>`}).join("")}</section>`;
 }
 function worldCards(){
  const p=state.player,rank=state.world.playerEliteRank||null,cut=eliteCutoffLP();
@@ -634,6 +635,19 @@ function schoolCard(){
  <div class="log">${left===0?"本週是段考週。白天考試，晚上仍能安排活動，但考差可能影響家庭支持與心情。":left>0?"可以利用「讀書」累積段考準備；完全不準備會有明顯風險。":s.lastExam?`上次段考：${s.lastExam}分。`:"新的考試週之後還會再出現。"}</div></section>`;
 }
 
+function tournamentDateInfo(x){
+ const day=x.day||6;
+ let week=state.date.week;
+ if(state.date.day>day)week+=1;
+ const sameWeek=week===state.date.week;
+ const events=sameWeek?(state.weeklyPlan?.[day]||[]):[];
+ const conflicts=events.filter(e=>!e.completed && e.type!=="amateurTournament");
+ return {week,day,dayName:DAYS[day-1],sameWeek,conflicts,label:`第${week}週・週${DAYS[day-1]}・全天`};
+}
+function tournamentConflictText(info){
+ if(!info.conflicts.length)return "";
+ return info.conflicts.map(e=>`${e.slot||"全天"}｜${e.title}`).join("、");
+}
 function tournamentCatalog(){
  const all=[
   {name:"霓虹電競館夜戰盃",fee:300,day:6,id:"neon-cup",rounds:["八強","四強","冠軍戰"],prize:5500,rep:1,need:1,tier:"local"},
@@ -650,7 +664,7 @@ function tournamentCatalog(){
 }
 function amateurCard(){
  const upcoming=tournamentCatalog();
- return `<section class="card"><h2>🏆 本週可報名賽事</h2><div class="small">賽事池會隨週數輪替，不再固定只有同幾個盃賽。</div>${upcoming.map((x,i)=>`<div class="schedule-item"><div><strong>${x.name}</strong><div class="small">報名費 NT$${x.fee} · 冠軍 NT$${x.prize.toLocaleString()} · ${x.tier==="scout"?"青訓觀察":"業餘賽事"}</div></div><button class="ghost amateur-signup" data-i="${i}" ${state.date.week<x.need?"disabled":""}>${state.date.week<x.need?`第${x.need}週開放`:"報名"}</button></div>`).join("")}</section>`;
+ return `<section class="card"><h2>🏆 本週可報名賽事</h2><div class="small">報名前會先確認正式比賽日期；正式賽事為全天行程，若當天已有其他安排就不能報名。</div>${upcoming.map((x,i)=>{const info=tournamentDateInfo(x),conflict=info.conflicts.length>0,active=activeTournamentByBaseId(x.id);return `<div class="schedule-item"><div><strong>${x.name}</strong><div class="small">📅 ${info.label}</div><div class="small">報名費 NT$${x.fee} · 冠軍 NT$${x.prize.toLocaleString()} · ${x.tier==="scout"?"青訓觀察":"業餘賽事"}</div>${conflict?`<div class="small badtext">⚠️ 行程衝突：${tournamentConflictText(info)}</div>`:""}</div><button class="ghost amateur-signup" data-i="${i}" ${(state.date.week<x.need||conflict||active)?"disabled":""}>${active?"已報名・進行中":state.date.week<x.need?`第${x.need}週開放`:conflict?"行程衝突":"查看／報名"}</button></div>`}).join("")}</section>`;
 }
 function shopCard(){
  return `<section class="card"><div class="row space"><h2>🛍️ 商店與消費</h2><span class="badge">NT$${state.player.cash.toLocaleString()}</span></div>
@@ -679,7 +693,7 @@ function career(){
  return `<section class="card"><h2>生涯中心</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.3.1</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.3.2</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));
@@ -705,9 +719,16 @@ function buyItem(id){
 function activeTournamentByBaseId(baseId){return (state.world?.tournaments||[]).find(t=>t.id&&t.id.startsWith(baseId+"-")&&["進行中","等待下一輪"].includes(t.status))}
 function syncTournamentSchedule(){if(!state.world?.tournaments)return;state.world.tournaments.forEach(t=>{if(!["進行中","等待下一輪"].includes(t.status))return;if(t.nextWeek<state.date.week){t.nextWeek=state.date.week;t.status="進行中"}if(t.nextWeek===state.date.week){const d=t.nextDay||6;if(state.date.day>d){t.nextWeek=state.date.week+1;t.status="等待下一輪";return}t.status="進行中";if(!(state.weeklyPlan?.[d]||[]).some(e=>e.tournamentId===t.id&&!e.completed))addPlan(d,{id:"round-"+t.id+"-"+t.roundIndex,title:`${t.name}｜${t.rounds[t.roundIndex]}`,slot:"全天",type:"amateurTournament",lockDay:true,completed:false,tournamentId:t.id,week:state.date.week,roster:t.roster,desc:`正式比賽日：${t.rounds[t.roundIndex]}。全天鎖定，只能比賽。`})}})}
 function signupAmateur(i){
- const x=tournamentCatalog()[i];if(!x||state.player.cash<x.fee)return;
+ const x=tournamentCatalog()[i];if(!x)return;
+ const info=tournamentDateInfo(x);
+ if(state.date.week<x.need){modal(`<h2>🏆 尚未開放</h2><p>${x.name} 將於第 ${x.need} 週後開放報名。</p>${closeBtn()}`);return}
+ if(state.player.cash<x.fee){modal(`<h2>現金不足</h2><p>報名費需要 NT$${x.fee.toLocaleString()}。</p>${closeBtn()}`);return}
  const active=activeTournamentByBaseId(x.id);if(active){modal(`<h2>🏆 已報名</h2><p>${active.name}目前進行到 <strong>${active.rounds[active.roundIndex]}</strong>。賽事結束前不能再次報名。</p>${closeBtn()}`);return}
- openTeamBuilder(x);
+ if(info.conflicts.length){
+   modal(`<h2>⚠️ 無法報名｜行程衝突</h2><p><strong>${x.name}</strong></p><p>正式比賽日期：<strong>${info.label}</strong></p><div class="notice">當天已有行程：${tournamentConflictText(info)}</div><p>正式賽事會鎖定全天，因此無法與其他行程重疊。</p>${closeBtn()}`);return;
+ }
+ modal(`<h2>🏆 賽事資訊確認</h2><p><strong>${x.name}</strong></p><div class="log">📅 比賽日期：<strong>${info.label}</strong><br>💰 報名費：NT$${x.fee.toLocaleString()}<br>🏆 冠軍獎金：NT$${x.prize.toLocaleString()}<br>🎮 首輪：${x.rounds[0]}</div><p>比賽日為全天鎖定行程。確認日期沒有問題後，再進入組隊邀請。</p><button id="continueTournamentSignup" class="primary" style="width:100%">日期沒問題，開始組隊</button>${closeBtn()}`);
+ document.querySelector("#continueTournamentSignup").onclick=()=>{document.querySelector(".modal-backdrop")?.remove();openTeamBuilder({...x,targetWeek:info.week,targetDay:info.day})};
 }
 function tournamentCandidates(){
  return Object.values(state.characters).filter(c=>c.known&&c.name!==state.player.name&&isEsportsFriend(c.name))
@@ -739,7 +760,9 @@ function openTeamBuilder(x){
  }
  function complete(){return need.every(r=>picked[r]&&accepted[picked[r]]===true)}
  function draw(){
+   const dateInfo={week:x.targetWeek||tournamentDateInfo(x).week,day:x.targetDay||x.day,label:`第${x.targetWeek||tournamentDateInfo(x).week}週・週${DAYS[(x.targetDay||x.day)-1]}・全天`};
    modal(`<h2>👥 組隊報名｜${x.name}</h2>
+   <div class="notice">📅 正式比賽：<strong>${dateInfo.label}</strong></div>
    <p>你主打 <strong>${myRole}</strong>。四名隊友都必須<strong>答應邀請</strong>後才能報名。</p>
    <div class="notice">需要：${need.join("、")}</div>
    <div class="reply-grid">${validCandidates().map(c=>`<button class="reply invite-player" data-name="${c.name}" data-role="${c.role}"><strong>${c.name}</strong><div class="small">${c.role} · ${c.rank} · 關係 ${Math.round(c.relation)} ${accepted[c.name]===true?"· ✅ 已答應":accepted[c.name]===false?"· ❌ 已婉拒":""}</div></button>`).join("")||"<div class='small'>目前沒有可邀請的電競好友，請使用下方方式找人。</div>"}</div>
@@ -802,23 +825,24 @@ function resolveTournamentInvite(name,role,x,picked,accepted){
 }
 function confirmTeamSignup(x,picked,accepted){
  const duplicate=activeTournamentByBaseId(x.id);if(duplicate){alert(`你已經報名 ${duplicate.name}，請先完成目前賽事。`);return}
- const myRole=normalizeRole(state.player.role);
- const need=["上路","打野","中路","ADC","輔助"].filter(r=>r!==myRole);
+ const myRole=normalizeRole(state.player.role),need=["上路","打野","中路","ADC","輔助"].filter(r=>r!==myRole);
  const missing=need.filter(r=>!picked[r]||accepted[picked[r]]!==true);
  if(missing.length){alert(`陣容尚未完成：${missing.join("、")}`);return}
  if(state.player.cash<x.fee){alert("現金不足，無法支付報名費。");return}
+ const targetWeek=x.targetWeek||tournamentDateInfo(x).week,targetDay=x.targetDay||x.day;
+ if(targetWeek===state.date.week){
+   const conflicts=(state.weeklyPlan?.[targetDay]||[]).filter(e=>!e.completed&&e.type!=="amateurTournament");
+   if(conflicts.length){alert(`行程發生衝突：${conflicts.map(e=>e.title).join("、")}。目前無法報名。`);return}
+ }
  const roster=[{name:state.player.name,role:myRole},...need.map(r=>({name:picked[r],role:r}))];
  if(new Set(roster.map(a=>a.name)).size!==5){alert("陣容資料重複，請重新選擇隊友。");return}
  state.player.cash-=x.fee;
- const t={id:x.id+"-"+Date.now(),name:x.name,roster,rounds:x.rounds,roundIndex:0,status:"進行中",nextWeek:state.date.week,nextDay:x.day,prize:x.prize,rep:x.rep,history:[]};
- state.world.tournaments.push(t);
- state.teamDraft=null;
- scheduleTournamentRound(t);
- save();
- document.querySelector(".modal-backdrop")?.remove();
- render();
- const when=t.status==="等待下一輪"?`第 ${t.nextWeek} 週${DAYS[(t.nextDay||6)-1]}`:`本週${DAYS[(t.nextDay||6)-1]}`;
- modal(`<h2>✅ 報名完成</h2><p>${x.name}首輪 <strong>${x.rounds[0]}</strong> 已安排：<strong>${when}</strong></p><div class="log">${roster.map(a=>`${a.role}：${a.name}`).join("<br>")}</div><p>比賽日會全天鎖定，只能進行正式賽事。</p>${closeBtn()}`);
+ const t={id:x.id+"-"+Date.now(),name:x.name,roster,rounds:x.rounds,roundIndex:0,status:targetWeek>state.date.week?"等待下一輪":"進行中",nextWeek:targetWeek,nextDay:targetDay,prize:x.prize,rep:x.rep,tier:x.tier||"local",history:[]};
+ state.world.tournaments.push(t);state.teamDraft=null;
+ if(targetWeek===state.date.week)scheduleTournamentRound(t);
+ save();document.querySelector(".modal-backdrop")?.remove();render();
+ const when=`第 ${t.nextWeek} 週・週${DAYS[(t.nextDay||6)-1]}・全天`;
+ modal(`<h2>✅ 報名完成</h2><p>${x.name}首輪 <strong>${x.rounds[0]}</strong> 已安排：<strong>${when}</strong></p><div class="log">${roster.map(a=>`${a.role}：${a.name}`).join("<br>")}</div><p>正式比賽日會全天鎖定，不能安排其他活動。</p>${closeBtn()}`);
 }
 function scheduleTournamentRound(t){
  if(t.status!=="進行中")return;
