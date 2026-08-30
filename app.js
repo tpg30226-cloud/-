@@ -15,7 +15,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.2.1",started:false,
+  version:"1.2.2",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -54,7 +54,7 @@ function normalize(s){
  if(!s.eventFlags)s.eventFlags={};
  if(!s.messages)s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.2.1";return s;
+ s.version="1.2.2";return s;
 }
 function load(){
  try{
@@ -145,14 +145,21 @@ function phone(){
  <section class="card"><h2>電競新聞</h2>${state.news.slice().reverse().map(n=>`<div class="log">${n}</div>`).join("")}</section>`;
 }
 function career(){
- const p=state.player;return `<section class="card"><h2>生涯檔案</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("阿哲關係",Math.round(p.relations.阿哲))}${stat("粉絲",p.followers)}</div></section>${masteryCard()}<section class="card"><h2>版本</h2><div class="log"><strong>V1.2.1</strong>｜事件/訊息/行程重構、正式比賽日、生活奇遇、角色熟練度、完整Rank與訓練回饋。</div></section>`;
+ const p=state.player;return `<section class="card"><h2>生涯檔案</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("阿哲關係",Math.round(p.relations.阿哲))}${stat("粉絲",p.followers)}</div></section>${masteryCard()}<section class="card"><h2>版本</h2><div class="log"><strong>V1.2.2</strong>｜事件/訊息/行程重構、正式比賽日、生活奇遇、角色熟練度、完整Rank與訓練回饋。</div></section>`;
 }
 function render(){
- document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===activeTab));
- const main=document.querySelector("#main");
- if(!state.started){main.innerHTML=startScreen();bindStart();return}
- main.innerHTML=activeTab==="home"?home():activeTab==="schedule"?schedule():activeTab==="rank"?rankPage():activeTab==="phone"?phone():career();
- bind();
+ try{
+  ensureV10();
+  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===activeTab));
+  const main=document.querySelector("#main");
+  if(!state.started){main.innerHTML=startScreen();bindStart();return}
+  main.innerHTML=activeTab==="home"?home():activeTab==="schedule"?schedule():activeTab==="rank"?rankPage():activeTab==="phone"?phone():career();
+  bind();
+ }catch(err){
+  console.error(err);
+  const main=document.querySelector("#main");
+  if(main)main.innerHTML=`<section class="card"><h2>⚠️ 存檔相容性修復</h2><p>新版讀取舊存檔時遇到資料異常。</p><button class="primary" onclick="ensureV10();save();location.reload()">修復並重新載入</button><div class="small">${String(err.message||err)}</div></section>`;
+ }
 }
 function bindStart(){
  document.querySelectorAll("[data-role]").forEach(b=>b.onclick=()=>{document.querySelectorAll("[data-role]").forEach(x=>x.classList.remove("selected"));b.classList.add("selected");state.player.role=b.dataset.role});
@@ -211,9 +218,12 @@ function adjustRank(){
  const p=state.player,order=["鑽石 IV","鑽石 III","鑽石 II","鑽石 I"];let i=order.indexOf(p.rank);
  while(i>=0&&p.lp>=100){p.lp-=100;if(i<3){i++;p.rank=order[i]}else{p.rank="大師";break}}
  if(p.rank==="大師"&&p.lp>=500){p.lp-=500;p.rank="宗師"}
- // 菁英不再是固定800分晉級：只有伺服器前200名。
- if(p.rank==="宗師"&&p.lp>=eliteCutoffLP()){p.rank="菁英"}
- if(p.rank==="菁英"&&p.lp<eliteCutoffLP()-35)p.rank="宗師";
+ // 宗師之後不再有固定晉級分數：LP持續累積，真正進入全服前200才變成菁英。
+ if(["宗師","菁英"].includes(p.rank)){
+   refreshLeaderboard();
+   const inTop200=state.world.leaderboard.some(x=>x.name===p.name);
+   p.rank=inTop200?"菁英":"宗師";
+ }
  if(p.lp<0)p.lp=0;
 }
 function training(){
@@ -238,13 +248,13 @@ function chooseStream(){
 }
 function chooseSocial(){
  if(remain()<1)return;
- const people=Object.values(state.characters).filter(c=>c.known);
+ const people=Object.values(state.characters||{}).filter(c=>c&&c.known&&c.name);
  modal(`<h2>👥 找誰社交？</h2><div class="reply-grid">${people.map(c=>`<button class="reply social-choice" data-person="${c.name}">找 ${c.name}<div class="small">${c.gender==="女"?"女生":"男生"} · ${c.traits?.join("、")||"個性尚未熟悉"} · 關係 ${Math.round(state.player.relations[c.name]||0)}</div></button>`).join("")}<button class="reply social-choice" data-person="同學群">班上同學群體活動</button></div>`);
  document.querySelectorAll(".social-choice").forEach(b=>b.onclick=()=>openSocialActivities(b.dataset.person));
 }
 function openSocialActivities(person){
  if(person==="同學群"){socialActivity(person,"group");return}
- const c=state.characters[person],rel=state.player.relations[person]||0,dating=(state.player.romance.partners||[]).includes(person),esports=isEsportsFriend(person);
+ const c=state.characters?.[person];if(!c){modal(`<h2>角色資料異常</h2><p>這名角色的舊存檔資料不完整，已略過本次互動。</p>${closeBtn()}`);return}const rel=state.player.relations?.[person]||0,dating=(state.player.romance?.partners||[]).includes(person),esports=isEsportsFriend(person);
  let opts=c?.gender==="女"?[
   ["chat","聊天散步","免費 · 關係較穩定"],
   ["food","一起吃飯","約 NT$350 · 輕鬆增加關係"],
@@ -486,7 +496,19 @@ function ensureV10(){
  if(state.characters.子辰){state.characters.子辰.gender="男";state.characters.子辰.romanceable=false}
  if(state.characters.Kaito){state.characters.Kaito.gender="男";state.characters.Kaito.romanceable=false}
  if(state.characters.林雨晴){state.characters.林雨晴.gender="女";state.characters.林雨晴.romanceable=true}
- if(!state.world.leaderboard.length)refreshLeaderboard();
+ // V1.2.2：舊版只有20名榜單，或沒有Top200門檻時，強制重建排行榜。
+ if(!state.world.leaderboard || state.world.leaderboard.length<100 || !state.world.eliteCutoff){
+   // 舊版「宗師800→菁英」會把800分扣掉；升級時把這段分數補回，避免資料失真。
+   if(p.rank==="菁英" && !state.world.eliteMigrated){
+     p.lp=(p.lp||0)+800;
+     state.world.eliteMigrated=true;
+   }
+   refreshLeaderboard();
+ }
+ // 舊存檔欄位補齊，避免新版社交/戀愛讀到 undefined。
+ if(!Array.isArray(p.romance.partners))p.romance.partners=p.romance.partner?[p.romance.partner]:[];
+ p.romance.flags=p.romance.flags||{};
+ p.gifts=p.gifts||{};
  generateWeeklyNews();
 }
 function esportsRole(name){
@@ -505,23 +527,26 @@ function relationTier(v,name){
 function eliteCutoffLP(){return state.world?.eliteCutoff||820}
 function refreshLeaderboard(){
  const p=state.player;
- // 模擬完整伺服器前200，而不是只有20個NPC。分數由第一名一路降到第200名門檻。
  const topNames=["Raven","Luna","Kaito","Zero9","Mori","Nox","Aster","Haku","ViperX","Nagi","Frost","Mika","Rex","Nova","Sena","Crow","Yuzu","Kairos","Melo","Tide"];
- const cutoff=800+rand(-25,35);state.world.eliteCutoff=cutoff;
+ // 每週門檻小幅波動，但不會每次render就亂跳。
+ const weekSeed=(state.date?.week||1);
+ const cutoff=805+((weekSeed*17)%41); // 約805~845
+ state.world.eliteCutoff=cutoff;
  let arr=[];
  for(let i=0;i<200;i++){
    const name=i<topNames.length?topNames[i]:`菁英路人${String(i+1).padStart(3,"0")}`;
-   const lp=Math.round(2050-(2050-cutoff)*(i/199)+rand(-8,8));
-   arr.push({name,lp,role:ROLES[i%5],type:i%7===0?"職業選手":i%7===1?"青訓":"高分路人"});
+   const curve=2050-(2050-cutoff)*(i/199);
+   const wobble=((i*13+weekSeed*7)%17)-8;
+   arr.push({name,lp:Math.round(curve+wobble),role:ROLES[i%5],type:i%8===0?"職業選手":i%8===1?"青訓":"高分路人"});
  }
- // 只有分數真正擠進前200，玩家才屬於菁英。
- const qualifies=p.lp>=cutoff;
- if(qualifies){
-   if(p.rank==="宗師")p.rank="菁英";
+ // 玩家只有分數高於當週第200名門檻時才參與排名。
+ if((p.lp||0)>=cutoff){
    arr.push({name:p.name,lp:p.lp,role:p.role,type:"玩家"});
- }else if(p.rank==="菁英")p.rank="宗師";
- arr.sort((a,b)=>b.lp-a.lp);arr=arr.slice(0,200);
- state.world.leaderboard=arr;
+ }
+ arr.sort((a,b)=>b.lp-a.lp);
+ state.world.leaderboard=arr.slice(0,200);
+ const idx=state.world.leaderboard.findIndex(x=>x.name===p.name);
+ state.world.playerEliteRank=idx>=0?idx+1:null;
 }
 function generateWeeklyNews(){
  if(state.world.newsWeek===state.date.week)return;
@@ -543,11 +568,13 @@ function relationshipCard(){
  ${known.map(c=>{let v=p.relations[c.name]||0,dating=partners.includes(c.name);return `<div class="log"><div class="row space"><strong>${c.name}${dating?" 💞":""}</strong><span>${dating?"戀人":relationTier(v,c.name)} · ${Math.round(v)}</span></div><div class="small">${c.desc}${c.traits?.length?`｜個性：${c.traits.join("、")}`:""}${isEsportsFriend(c.name)?`｜遊戲路線：${esportsRole(c.name)}`:""}</div><button class="ghost send-gift" data-name="${c.name}">🎁 送禮物</button></div>`}).join("")}</section>`;
 }
 function worldCards(){
- const p=state.player,rank=state.world.leaderboard.findIndex(x=>x.name===p.name)+1,cut=eliteCutoffLP();
- const ladderStatus=rank?`菁英 #${rank}`:`${p.rank} · 距前200門檻 ${Math.max(0,cut-p.lp)} LP`;
+ const p=state.player,rank=state.world.playerEliteRank||null,cut=eliteCutoffLP();
+ const ladderStatus=rank?`菁英 #${rank}`:`宗師 · 距前200門檻 ${Math.max(0,cut-(p.lp||0))} LP`;
+ const playerRow=rank&&rank>10?`<div class="schedule-item selected"><div><strong>#${rank} ${p.name}</strong><div class="small">${p.role} · 玩家</div></div><span>${p.lp} LP</span></div>`:"";
  return `<section class="card"><div class="row space"><h2>👑 伺服器菁英 Top 200</h2><span class="badge">${ladderStatus}</span></div>
  ${state.world.leaderboard.slice(0,10).map((x,i)=>`<div class="schedule-item ${x.name===p.name?"selected":""}"><div><strong>#${i+1} ${x.name}</strong><div class="small">${x.role} · ${x.type}</div></div><span>${x.lp} LP</span></div>`).join("")}
- <div class="notice">本週第200名門檻：約 ${cut} LP。只有實際擠進伺服器前200名才會成為菁英；剛進榜通常接近 #200，不會再出現剛升菁英卻顯示 #21 的情況。</div></section>`;
+ ${playerRow}
+ <div class="notice">本週第200名門檻：${cut} LP。只有真正位於伺服器前200才會顯示「菁英」。剛跨過門檻通常會落在 #190～#200附近，不會再出現剛升菁英卻直接 #21。</div></section>`;
 }
 function schoolCard(){
  const s=state.school,left=s.examWeek-state.date.week;
@@ -590,7 +617,7 @@ function career(){
  return `<section class="card"><h2>生涯中心</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.2.1</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.2.2</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));
