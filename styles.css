@@ -96,14 +96,10 @@ button:disabled{opacity:.4;filter:saturate(.5)}
 .social-close,.social-back{position:sticky;top:0;z-index:3}
 @supports not (height: 1dvh){.modal-content{max-height:82vh}.social-scroll{max-height:58vh}}
 
-/* V1.2.5 social tap fix */
-#socialPanel{position:relative;z-index:20;pointer-events:auto}
-#socialPanel button{pointer-events:auto!important;position:relative;z-index:21;-webkit-user-select:none;user-select:none}
-#socialPanel .social-scroll{pointer-events:auto;touch-action:pan-y}
 
-/* V1.2.6: social is a normal page, not a modal */
-.social-page-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.social-person-page,.social-action-page{min-height:76px;pointer-events:auto!important;touch-action:manipulation;position:relative;z-index:1}
-@media(max-width:430px){.social-page-grid{grid-template-columns:1fr}}
-
-.social-page-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.social-page-grid .choice{width:100%;min-height:72px;pointer-events:auto!important;touch-action:manipulation}.social-page-grid .choice>*{pointer-events:none}@media(max-width:520px){.social-page-grid{grid-template-columns:1fr}}
+/* V1.3.0 stable mobile social page */
+.top-actions{display:flex;gap:8px}
+.social-page-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.social-page-grid .choice{width:100%;min-height:72px;pointer-events:auto;touch-action:manipulation}
+.social-page-grid .choice>*{pointer-events:none}
+@media(max-width:520px){.social-page-grid{grid-template-columns:1fr}}

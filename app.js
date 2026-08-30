@@ -6,16 +6,16 @@ const DAYS=["一","二","三","四","五","六","日"];
 const WEEKDAY_SLOTS=["放學後","晚間","深夜"];
 const WEEKEND_SLOTS=["上午","下午","傍晚","晚間","深夜"];
 const HEROES=[
- {id:"liyue",name:"璃月",type:"幻術法師"},
- {id:"yingren",name:"影刃",type:"刺客"},
- {id:"xinghuo",name:"星火",type:"爆發法師"},
- {id:"canglan",name:"蒼嵐",type:"控制法師"},
- {id:"lingfeng",name:"凌風",type:"機動戰士"}
+ {id:"liyue",name:"璃月",type:"幻術法師"},{id:"yingren",name:"影刃",type:"刺客"},
+ {id:"xinghuo",name:"星火",type:"爆發法師"},{id:"canglan",name:"蒼嵐",type:"控制法師"},
+ {id:"lingfeng",name:"凌風",type:"機動戰士"},{id:"xuanshuang",name:"玄霜",type:"冰霜法師"},
+ {id:"chiyan",name:"赤焰",type:"近戰法刺"},{id:"shiguang",name:"時光",type:"支援法師"},
+ {id:"leiming",name:"雷鳴",type:"爆發刺客"},{id:"xingchen",name:"星辰",type:"遠程炮台"}
 ];
 
 function newGame(){
  return {
-  version:"1.2.9",started:false,
+  version:"1.3.1",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -45,16 +45,29 @@ function newGame(){
  };
 }
 function normalize(s){
- if(!s.player)s=newGame();
- if(!s.player.mastery)s.player.mastery=newGame().player.mastery;
- if(!s.player.relations)s.player.relations={阿哲:64,林雨晴:0,Kaito:0,子辰:0};
- if(!s.dayState)s.dayState={usedSlots:0,actions:[]};
- if(!s.weeklyPlan)s.weeklyPlan={};
- if(!s.characters)s.characters=newGame().characters;
- if(!s.eventFlags)s.eventFlags={};
- if(!s.messages)s.messages=[];
+ const base=newGame();
+ if(!s||typeof s!=="object")return base;
+ if(!s.player||typeof s.player!=="object")s.player=base.player;
+ const p=s.player,bp=base.player;
+ ["name","age","role","cash","rank","lp","wins","losses","followers","proAttention","energy","stress","mood","passion","school","family"].forEach(k=>{if(p[k]==null)p[k]=bp[k]});
+ p.stats={...bp.stats,...(p.stats||{})};
+ p.mastery=p.mastery||{};
+ Object.entries(bp.mastery).forEach(([id,m])=>{p.mastery[id]={...m,...(p.mastery[id]||{})}});
+ HEROES.forEach((h,i)=>{if(!p.mastery[h.id])p.mastery[h.id]={level:Math.max(3,22-i*2),games:0,wins:0}});
+ p.relations={...bp.relations,...(p.relations||{})};
+ if(!s.date||typeof s.date!=="object")s.date={...base.date};
+ ["year","month","week","day"].forEach(k=>{if(s.date[k]==null)s.date[k]=base.date[k]});
+ if(!s.dayState||typeof s.dayState!=="object")s.dayState={usedSlots:0,actions:[]};
+ if(!Array.isArray(s.dayState.actions))s.dayState.actions=[];
+ if(!Number.isFinite(s.dayState.usedSlots))s.dayState.usedSlots=0;
+ if(!s.weeklyPlan||typeof s.weeklyPlan!=="object")s.weeklyPlan={};
+ if(!s.characters||typeof s.characters!=="object")s.characters={...base.characters};
+ if(!s.eventFlags||typeof s.eventFlags!=="object")s.eventFlags={};
+ if(!Array.isArray(s.logs))s.logs=[];
+ if(!Array.isArray(s.news))s.news=[];
+ if(!Array.isArray(s.messages))s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.2.9";return s;
+ s.version="1.3.1";return s;
 }
 function load(){
  try{
@@ -97,16 +110,7 @@ function startScreen(){
  return `<section class="card hero"><div class="eyebrow">2026 · 一切從零開始</div><h2 style="font-size:28px">登頂之路：夜鋒</h2><p class="small">16歲，高二。生活、課業、朋友與職業夢都會一起前進。</p></section>
  <section class="card"><input id="nameInput" value="夜鋒" style="width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:#0b1324;color:white"><h3>選擇主位置</h3><div class="choice-grid">${ROLES.map(r=>`<button class="choice ${r==="中路"?"selected":""}" data-role="${r}"><strong>${r}</strong><span class="small">影響成長與事件</span></button>`).join("")}</div><button id="startBtn" class="btn" style="width:100%;margin-top:12px">開始新生涯</button></section>`;
 }
-function home(){
- const p=state.player,hard=hardEventToday();
- return `<section class="card hero"><div class="row space"><div><div class="small">${dateLabel()}</div><h2>${p.name} · ${p.age}歲 · ${p.role}</h2></div><span class="badge">綜合 ${avg().toFixed(1)}</span></div>
- <div class="stat-grid">${stat("Rank",`${p.rank} ${p.lp} LP`)}${stat("現金",`NT$${p.cash.toLocaleString()}`)}${stat("職業關注",`${p.proAttention}/100`)}${stat("粉絲",p.followers)}</div></section>
- ${hard?lockedDayCard(hard):timeCard()}
- <section class="card"><h2>今日狀態</h2>${bar("體力",p.energy)}${bar("心情",p.mood)}${bar("壓力",100-p.stress,true)}${bar("遊戲熱情",p.passion)}</section>
- ${appointmentCard()}
- ${hard?`<section class="card"><div class="notice">今天是正式賽事日。一般 Rank、訓練、社交、直播、打工與逛街全部鎖定。</div></section>`:actionCard()}
- <section class="card"><h2>最近紀錄</h2>${state.logs.slice(-6).reverse().map(x=>`<div class="log">${x}</div>`).join("")}</section>`;
-}
+
 function timeCard(){
  return `<section class="card"><div class="row space"><h2>今日時間</h2><span class="badge">剩餘 ${remain()} 格</span></div><div class="slot-grid">${slots().map((x,i)=>`<div class="slot ${i<state.dayState.usedSlots?"used":""} ${i===state.dayState.usedSlots?"current":""}"><strong>${x}</strong><div class="small">${i<state.dayState.actions.length?(state.dayState.actions[i].split("：")[1]||"已使用"):"未安排"}</div></div>`).join("")}</div></section>`;
 }
@@ -138,15 +142,8 @@ function rankPage(){
 function masteryCard(){
  return `<section class="card"><div class="row space"><h2>角色熟練度</h2><span class="badge">角色池</span></div>${HEROES.map(h=>{let m=state.player.mastery[h.id]||{level:0,games:0,wins:0};let wr=m.games?Math.round(m.wins/m.games*100):0;return `<div class="log"><div class="row space"><strong>${h.name}｜${h.type}</strong><span>${m.level.toFixed(1)}/100</span></div><div class="small">${m.games}場 · ${m.wins}勝 · 勝率${wr}%</div><div class="bar"><span style="width:${m.level}%"></span></div></div>`}).join("")}</section>`;
 }
-function phone(){
- const unread=state.messages.filter(m=>m.unread).length;
- return `<section class="card"><div class="row space"><h2>訊息</h2><span class="badge">${unread} 未讀</span></div>${state.messages.slice().reverse().map(m=>`<div class="message ${m.unread?"unread":""}"><button class="message-open" data-msg="${m.id}" style="width:100%;border:0;background:transparent;color:white;text-align:left;padding:0"><div class="meta"><strong>${m.from}</strong><span class="small">${m.resolved?"已處理":m.unread?"未讀":"待回覆"}</span></div><div style="margin-top:6px;white-space:pre-line">${m.text}</div><div class="small" style="margin-top:8px">點擊開啟對話 ›</div></button></div>`).join("")}</section>
- <section class="card"><h2>人物</h2>${Object.values(state.characters).filter(c=>c.known).map(c=>`<div class="log"><strong>${c.name}</strong><div class="small">${c.desc}</div><div class="small">關係 ${Math.round(state.player.relations[c.name]||0)}/100</div></div>`).join("")}</section>
- <section class="card"><h2>電競新聞</h2>${state.news.slice().reverse().map(n=>`<div class="log">${n}</div>`).join("")}</section>`;
-}
-function career(){
- const p=state.player;return `<section class="card"><h2>生涯檔案</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("阿哲關係",Math.round(p.relations.阿哲))}${stat("粉絲",p.followers)}</div></section>${masteryCard()}<section class="card"><h2>版本</h2><div class="log"><strong>V1.2.9</strong>｜事件/訊息/行程重構、正式比賽日、生活奇遇、角色熟練度、完整Rank與訓練回饋。</div></section>`;
-}
+
+
 function render(){
  try{
   ensureV10();
@@ -165,12 +162,7 @@ function bindStart(){
  document.querySelectorAll("[data-role]").forEach(b=>b.onclick=()=>{document.querySelectorAll("[data-role]").forEach(x=>x.classList.remove("selected"));b.classList.add("selected");state.player.role=b.dataset.role});
  document.querySelector("#startBtn").onclick=()=>{let n=document.querySelector("#nameInput").value.trim();if(n)state.player.name=n;state.started=true;save();render()}
 }
-function bind(){
- document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));
- document.querySelector("#nextDayBtn")?.addEventListener("click",nextDay);
- document.querySelectorAll(".message-open").forEach(b=>b.onclick=e=>{e.preventDefault();openMessage(b.dataset.msg)});
- document.querySelectorAll(".event-run").forEach(b=>b.onclick=()=>runEventById(b.dataset.event));
-}
+
 function act(t){
  const lockedTournament=(todayPlan()||[]).find(e=>e.lockDay&&!e.completed&&e.type==="amateurTournament");
  if(lockedTournament){
@@ -197,34 +189,44 @@ function playRank(isDuo=false){
  if(remain()<1)return;
  chooseHero(heroId=>{
   if(!consume(isDuo?"雙排 Rank":"Rank",1))return;
-  const p=state.player,m=p.mastery[heroId],hero=HEROES.find(h=>h.id===heroId);
-  const beforeLP=p.lp,beforeMastery=m.level;
-  const win=avg()+m.level*.07+(p.mood-50)*.04-p.stress*.04+rand(-10,10)>=58;
-  const k=rand(win?4:1,win?12:7),d=rand(win?1:3,win?6:10),a=rand(2,14),cs=rand(175,295),damage=rand(18000,39000);
-  let delta=win?rand(19,27):-rand(17,24);
-  if(win){p.wins++;p.lp+=delta;p.mood=clamp(p.mood+3,0,100);m.wins++}else{p.losses++;p.lp+=delta;p.mood=clamp(p.mood-4,0,100);p.stress=clamp(p.stress+4,0,100)}
-  m.games++;m.level=clamp(m.level+(win?.18:.11),0,100);
-  p.energy=clamp(p.energy-6,0,100);p.stats.對線+=.04;p.stats.決策+=.03;adjustRank();
-  const lane=["A+","A","A-","B+","B"][rand(0,4)],team=["A","A-","B+","B","B-"][rand(0,4)];
-  state.logs.push(`${isDuo?"雙排":"Rank"} ${win?"勝利":"敗北"}｜${hero.name}｜${k}/${d}/${a}｜${delta>0?"+":""}${delta} LP`);
+  const p=state.player,m=p.mastery[heroId],hero=HEROES.find(h=>h.id===heroId),beforeLP=p.lp,beforeMastery=m.level;
+  const high=["宗師","菁英"].includes(p.rank),elite=p.rank==="菁英";
+  const masteryPenalty=m.level<30?(30-m.level)*.38:m.level<50?(50-m.level)*.16:0;
+  const masteryBonus=m.level>=70?Math.min(5,(m.level-70)*.12):0;
+  const heartbreak=p.emotion?.betrayalUntil>=p.date?.week?0:0;
+  const betrayalPenalty=(p.emotion?.betrayalUntil||0)>=state.date.week?7:0;
+  const opponent=high?rand(66,78):p.rank==="大師"?rand(61,71):rand(54,66);
+  let score=avg()*.72+m.level*.22+masteryBonus-masteryPenalty+(p.mood-50)*.035-p.stress*.045-betrayalPenalty+(isDuo?1.5:0)+rand(-8,9);
+  let win=score>=opponent;
+  const proChance=elite?.46:p.rank==="宗師"?.24:p.rank==="大師"?.08:0;
+  const metPro=Math.random()<proChance;
+  const proNames=["Eclipse.Raven","KNG.Nox","Vortex.Luna","Astra.Zero9","Nova.Mori","Titan.Haku"];
+  const pro=metPro?proNames[rand(0,proNames.length-1)]:null;
+  if(metPro){score-=2.5;if(score<opponent+1)win=false}
+  const k=rand(win?3:0,win?10:6),d=rand(win?1:4,win?7:11),a=rand(2,13),cs=rand(165,300),damage=rand(16000,40000);
+  let delta=win?rand(high?14:17,high?22:26):-rand(high?19:16,high?28:24);
+  if(m.level<25)delta+=win?-3:-3;
+  if(win){p.wins++;p.lp+=delta;p.mood=clamp(p.mood+2,0,100);m.wins++}
+  else{p.losses++;p.lp+=delta;p.mood=clamp(p.mood-4,0,100);p.stress=clamp(p.stress+5,0,100)}
+  m.games++;m.level=clamp(m.level+(win?.14:.09),0,100);
+  p.energy=clamp(p.energy-6,0,100);p.stats.對線+=.025;p.stats.決策+=.02;adjustRank();
+  if(metPro&&win){p.proAttention=clamp(p.proAttention+rand(1,3),0,100);state.logs.push(`高分Rank：你在對局中擊敗職業圈玩家 ${pro}，受到一些關注。`)}
+  else if(metPro)state.logs.push(`高分Rank：你排到職業圈玩家 ${pro}，對局強度明顯提升。`);
+  state.logs.push(`${isDuo?"雙排":"Rank"} ${win?"勝利":"敗北"}｜${hero.name} 熟練${m.level.toFixed(0)}｜${delta>0?"+":""}${delta} LP`);
   save();render();
-  modal(`<h2 class="${win?"goodtext":"badtext"}">${win?"勝利":"敗北"}</h2><div class="big-number">${k} / ${d} / ${a}</div>
-   <div class="stat-grid">${stat("使用角色",hero.name)}${stat("LP",`${beforeLP} → ${p.lp}`)}${stat("補刀",cs)}${stat("傷害",damage.toLocaleString())}</div>
-   <div class="log">對線評級：<strong>${lane}</strong>　團戰評級：<strong>${team}</strong></div>
-   <div class="log">${hero.name} 熟練度：${beforeMastery.toFixed(1)} → <strong>${m.level.toFixed(1)}</strong>（+${(m.level-beforeMastery).toFixed(2)}）</div>${closeBtn()}`);
+  modal(`<h2 class="${win?"goodtext":"badtext"}">${win?"勝利":"敗北"}</h2>${metPro?`<div class="notice">🔥 本局遇到職業圈玩家 <strong>${pro}</strong>。菁英局的容錯率非常低。</div>`:""}<div class="big-number">${k} / ${d} / ${a}</div>
+  <div class="stat-grid">${stat("使用角色",hero.name)}${stat("熟練度",m.level.toFixed(1))}${stat("對手強度",opponent)}${stat("LP",`${beforeLP} → ${p.lp}`)}</div>
+  ${m.level<30?`<div class="notice badtext">角色熟練度過低：對線、技能連段與團戰判斷受到明顯懲罰。高分段不建議直接拿來上分。</div>`:""}
+  ${betrayalPenalty?`<div class="notice badtext">感情受創：專注力下降，本週Rank發揮受到影響。</div>`:""}
+  <div class="log">${hero.name} 熟練度：${beforeMastery.toFixed(1)} → <strong>${m.level.toFixed(1)}</strong></div>${closeBtn()}`);
  });
 }
 function adjustRank(){
  const p=state.player,order=["鑽石 IV","鑽石 III","鑽石 II","鑽石 I"];let i=order.indexOf(p.rank);
  while(i>=0&&p.lp>=100){p.lp-=100;if(i<3){i++;p.rank=order[i]}else{p.rank="大師";break}}
  if(p.rank==="大師"&&p.lp>=500){p.lp-=500;p.rank="宗師"}
- // 宗師之後不再有固定晉級分數：LP持續累積，真正進入全服前200才變成菁英。
- if(["宗師","菁英"].includes(p.rank)){
-   refreshLeaderboard();
-   const inTop200=state.world.leaderboard.some(x=>x.name===p.name);
-   p.rank=inTop200?"菁英":"宗師";
- }
  if(p.lp<0)p.lp=0;
+ if(["宗師","菁英"].includes(p.rank))refreshLeaderboard();
 }
 function training(){
  if(remain()<1)return;
@@ -237,8 +239,11 @@ function finishTraining(type){
   return;
  }
  if(!consume(type==="review"?"復盤研究":"基礎訓練",1))return;
- const p=state.player,keys=type==="review"?["遊戲理解","地圖意識","決策"]:["操作","反應","對線","補刀","換血","團戰"];
- const k=keys[rand(0,keys.length-1)],before=p.stats[k],gain=Math.random()*.18+.08;p.stats[k]+=gain;p.energy=clamp(p.energy-8,0,100);p.stress=clamp(p.stress+2,0,100);
+ const p=state.player,keys=type==="review"?["遊戲理解","地圖意識","決策","溝通"]:["操作","反應","對線","補刀","換血","團戰"];
+ const k=keys[rand(0,keys.length-1)],before=p.stats[k];let gain=Math.random()*.18+.08;
+ if(type!=="review"&&p.inventory?.includes("mouse"))gain*=1.05;
+ if(k==="溝通"&&p.inventory?.includes("headset"))gain*=1.08;
+ p.stats[k]+=gain;p.energy=clamp(p.energy-8,0,100);p.stress=clamp(p.stress+2,0,100);
  state.logs.push(`訓練：${k} ${before.toFixed(2)} → ${p.stats[k].toFixed(2)}`);save();render();
  modal(`<h2>訓練完成</h2><p>${k}</p><div class="big-number">${before.toFixed(2)} → ${p.stats[k].toFixed(2)}</div><p class="goodtext">+${gain.toFixed(2)}</p>${closeBtn()}`);
 }
@@ -246,38 +251,26 @@ function chooseStream(){
  if(remain()<1)return;modal(`<h2>直播內容</h2><div class="reply-grid">${["Rank實況","教學台","雜談","娛樂場"].map(x=>`<button class="reply stream-choice" data-v="${x}">${x}</button>`).join("")}</div>`);
  document.querySelectorAll(".stream-choice").forEach(b=>b.onclick=()=>{if(!consume("直播",1))return;let g=rand(2,9);state.player.followers+=g;state.player.energy=clamp(state.player.energy-7,0,100);state.logs.push(`直播「${b.dataset.v}」，新增${g}位粉絲。`);save();document.querySelector(".modal-backdrop")?.remove();render();modal(`<h2>直播結束</h2><p>新增 ${g} 位粉絲。</p>${closeBtn()}`)});
 }
-function safeTraits(c){
- const t=c?.traits;
- if(Array.isArray(t))return t;
+function fallbackTraits(c){
+ const male=["努力","老實","外向","冷靜","好勝","溫和","講義氣","謹慎"];
+ const female=["努力","老實","可愛","天然呆","成熟","現實","溫柔","好勝"];
+ const pool=c?.gender==="女"?female:male,name=String(c?.name||"角色");
+ let h=0;for(const ch of name)h=(h*31+ch.charCodeAt(0))>>>0;
+ const a=pool[h%pool.length],b=pool[(Math.floor(h/7)+3)%pool.length];
+ return a===b?[a]:[a,b];
+}
+function normalizeTraits(c){
+ if(!c)return[];
+ const t=c.traits;
+ if(Array.isArray(t))return t.filter(Boolean);
  if(typeof t==="string")return t.split(/[、,，/]/).map(x=>x.trim()).filter(Boolean);
  return [];
 }
-function legacyChooseSocial(){
- if(remain()<1){modal(`<h2>今天沒有剩餘時段</h2><p>社交需要 1 個時段。</p>${closeBtn()}`);return}
- showSocialPeople();
-}
-function showSocialPeople(){
- const main=document.querySelector("#main");if(!main)return;
- const people=Object.values(state.characters||{}).filter(c=>c&&c.known&&c.name);
- main.innerHTML=`<section class="card"><div class="row space"><h2>👥 社交／閒聊</h2><button id="socialCancel" class="ghost">返回首頁</button></div><p class="small">選擇要互動的角色。</p><div class="social-page-grid">${people.map(c=>`<button class="choice social-person-page" data-person="${c.name}"><strong>找 ${c.name}</strong><span class="small">${c.gender==="女"?"女生":"男生"} · ${safeTraits(c).join("、")||"個性尚未熟悉"} · 關係 ${Math.round(state.player.relations?.[c.name]||0)}</span></button>`).join("")}</div><button id="socialGroup" class="btn secondary" style="width:100%;margin-top:12px">揪朋友五排開黑</button></section>`;
- document.querySelector("#socialCancel").onclick=()=>render();
- document.querySelector("#socialGroup").onclick=()=>socialActivity("同學群","group");
- document.querySelectorAll(".social-person-page").forEach(b=>b.onclick=()=>showSocialActivities(b.dataset.person));
-}
-function openSocialActivities(person){showSocialActivities(person)}
-function showSocialActivities(person){
- const main=document.querySelector("#main"),c=state.characters?.[person];if(!main||!c){render();return}
- const rel=state.player.relations?.[person]||0,dating=(state.player.romance?.partners||[]).includes(person),esports=isEsportsFriend(person);
- let opts=c.gender==="女"?[
- ["chat","聊天散步","免費 · 穩定增加關係"],["food","一起吃飯","NT$350 · 輕鬆聊天"],["cafe","咖啡廳","NT$280 · 適合慢慢相處"],["movie","看電影","NT$650 · 親近後效果較好"],["date","正式約會",`NT$900 · ${rel>=75||dating?"可進行":"需要關係75+"}`]
- ]:[
- ["food","吃飯聊天","NT$350 · 朋友型活動"],["arcade","去電競館","NT$250 · 電競朋友加成"],["hangout","逛街／閒晃","NT$180 · 放鬆"],["game","一起打遊戲","NT$100 · 遊戲朋友加成"],["latefood","吃宵夜","NT$220 · 好友型活動"]
- ];
- if(esports)opts.splice(c.gender==="女"?2:1,0,["duo","Rank雙排","免費 · 受雙方狀態影響"]);
- main.innerHTML=`<section class="card"><div class="row space"><h2>${c.gender==="女"?"💗":"🤝"} ${person}</h2><button id="socialBack" class="ghost">← 換人</button></div><p class="small">個性：${safeTraits(c).join("、")||"尚未熟悉"}｜關係 ${Math.round(rel)}</p><div class="social-page-grid">${opts.map(o=>`<button class="choice social-action-page" data-v="${o[0]}" ${(o[0]==="date"&&rel<75&&!dating)?"disabled":""}><strong>${o[1]}</strong><span class="small">${o[2]}</span></button>`).join("")}</div></section>`;
- document.querySelector("#socialBack").onclick=showSocialPeople;
- document.querySelectorAll(".social-action-page").forEach(b=>b.onclick=()=>socialActivity(person,b.dataset.v));
-}
+function safeTraits(c){return normalizeTraits(c)}
+
+
+
+
 function socialActivity(person,type){
  const costs={group:200,chat:0,food:350,cafe:280,movie:650,date:900,arcade:250,hangout:180,game:100,latefood:220,duo:0};
  const cost=costs[type]??0;
@@ -295,6 +288,7 @@ function socialActivity(person,type){
  if(!c){save();render();return}
  const traits=safeTraits(c);
  let gain={chat:2,food:3,cafe:3,movie:4,date:5,arcade:3,hangout:2,game:3,latefood:3,duo:3}[type]||2;
+ if(state.player.inventory?.includes("phone"))gain+=1;
  if(traits.includes("拜金")&&["food","cafe","movie","date"].includes(type))gain+=type==="date"?2:1;
  if(traits.includes("天然呆")&&["chat","cafe","hangout"].includes(type))gain+=1;
  if(traits.includes("努力")&&["duo","game","arcade"].includes(type))gain+=1;
@@ -340,7 +334,7 @@ function randomEncounter(context){
  if(context==="mall"&&!state.eventFlags.mallRain){
   state.eventFlags.mallRain=true;state.characters.林雨晴.known=true;state.player.relations.林雨晴=Math.max(state.player.relations.林雨晴,6);
   modal(`<h2>🎲 奇遇｜商場</h2><p>你在飲料店排隊時碰到同班的林雨晴。她也認出了你：「欸？你一個人來喔？」</p><div class="reply-grid"><button class="reply mall-e" data-e="invite">問她要不要一起逛</button><button class="reply mall-e" data-e="chat">聊幾句就好</button><button class="reply mall-e" data-e="shy">打招呼後離開</button></div>`);
-  document.querySelectorAll(".mall-e").forEach(b=>b.onclick=()=>{let e=b.dataset.e,g=e==="invite"?4:e==="chat"?2:0;state.player.relations.林雨晴+=g;state.player.mood+=e==="invite"?4:1;state.messages.push({id:"yu-"+Date.now(),from:"林雨晴",text:e==="invite"?"今天滿好玩的，下次學校見。":"剛剛在商場遇到你好巧 😂",unread:true,resolved:true,type:"normal"});state.logs.push("奇遇後續：你和林雨晴第一次在學校外互動。");save();document.querySelector(".modal-backdrop")?.remove();render()});return;
+  document.querySelectorAll(".mall-e").forEach(b=>b.onclick=()=>{let e=b.dataset.e,g=e==="invite"?4:e==="chat"?2:0;state.player.relations.林雨晴=clamp((state.player.relations.林雨晴||0)+g,0,100);state.player.mood=clamp(state.player.mood+(e==="invite"?4:1),0,100);state.messages.push({id:"yu-"+Date.now(),from:"林雨晴",text:e==="invite"?"今天滿好玩的，下次學校見。":"剛剛在商場遇到你好巧 😂",unread:true,resolved:true,type:"normal"});state.logs.push("奇遇後續：你和林雨晴第一次在學校外互動。");save();document.querySelector(".modal-backdrop")?.remove();render()});return;
  }
  const texts={
   cafe:"你安靜坐了一會兒，意外把最近累積的壓力放掉不少。",
@@ -353,8 +347,8 @@ function randomEncounter(context){
 }
 function resolveArcade(e){
  document.querySelector(".modal-backdrop")?.remove();
- if(e==="join"){state.player.relations.子辰+=5;state.player.mood+=4;state.messages.push({id:"zc-"+Date.now(),from:"子辰",text:"剛才那場謝啦。你操作不錯，我們有時會缺人，下次再找你。",unread:true,resolved:true,type:"normal"});state.logs.push("奇遇後續：你替子辰的隊伍補了一場，留下了聯絡方式。")}
- else if(e==="ask"){state.player.relations.子辰+=2;state.messages.push({id:"zc2-"+Date.now(),from:"子辰",text:"我們大概翡翠到鑽石啦。下次缺人我再問你。",unread:true,resolved:true,type:"normal"});state.logs.push("奇遇後續：你和子辰交換了遊戲ID。")}
+ if(e==="join"){state.player.relations.子辰=clamp((state.player.relations.子辰||0)+5,0,100);state.player.mood=clamp(state.player.mood+4,0,100);state.messages.push({id:"zc-"+Date.now(),from:"子辰",text:"剛才那場謝啦。你操作不錯，我們有時會缺人，下次再找你。",unread:true,resolved:true,type:"normal"});state.logs.push("奇遇後續：你替子辰的隊伍補了一場，留下了聯絡方式。")}
+ else if(e==="ask"){state.player.relations.子辰=clamp((state.player.relations.子辰||0)+2,0,100);state.messages.push({id:"zc2-"+Date.now(),from:"子辰",text:"我們大概翡翠到鑽石啦。下次缺人我再問你。",unread:true,resolved:true,type:"normal"});state.logs.push("奇遇後續：你和子辰交換了遊戲ID。")}
  else if(e==="watch"){state.player.stats.遊戲理解+=.12;state.logs.push("你觀戰了幾局，遊戲理解 +0.12。")}
  else state.logs.push("你婉拒了陌生隊伍，繼續自己的行程。");
  save();render();
@@ -377,14 +371,14 @@ function openMessage(id){
 }
 function resolveMessage(m,r){
  if(m.type==="duoInvite"){
-  if(r==="yes"){addPlan(state.date.day,{id:"duo-"+state.date.week+"-"+state.date.day,title:"與阿哲雙排",slot:"晚間",type:"duoAppointment",lockDay:false,completed:false,desc:"你已經答應阿哲，別忘記上線。"});state.player.relations.阿哲+=1;state.messages.push({id:"duo-ok-"+Date.now(),from:"阿哲",text:"好，那九點上線！",unread:true,resolved:true,type:"normal"});state.logs.push("約定已加入行程：晚間與阿哲雙排。")}
-  if(r==="no"){state.player.relations.阿哲-=.5;state.messages.push({id:"duo-no-"+Date.now(),from:"阿哲",text:"OK，下次再約。",unread:true,resolved:true,type:"normal"})}
+  if(r==="yes"){addPlan(state.date.day,{id:"duo-"+state.date.week+"-"+state.date.day,title:"與阿哲雙排",slot:"晚間",type:"duoAppointment",lockDay:false,completed:false,desc:"你已經答應阿哲，別忘記上線。"});state.player.relations.阿哲=clamp((state.player.relations.阿哲||0)+1,0,100);state.messages.push({id:"duo-ok-"+Date.now(),from:"阿哲",text:"好，那九點上線！",unread:true,resolved:true,type:"normal"});state.logs.push("約定已加入行程：晚間與阿哲雙排。")}
+  if(r==="no"){state.player.relations.阿哲=clamp((state.player.relations.阿哲||0)-.5,0,100);state.messages.push({id:"duo-no-"+Date.now(),from:"阿哲",text:"OK，下次再約。",unread:true,resolved:true,type:"normal"})}
   if(r==="later"){state.messages.push({id:"duo-later-"+Date.now(),from:"阿哲",text:"行，有空再敲我。",unread:true,resolved:true,type:"normal"})}
  }
  if(m.type==="teamInvite"){
-  if(r==="join"){registerTournament();state.player.relations.阿哲+=3;state.messages.push({id:"team-ok-"+Date.now(),from:"阿哲",text:"太好了！我去拉人。賽程確定後我傳給你。",unread:true,resolved:true,type:"normal"})}
+  if(r==="join"){registerTournament();state.player.relations.阿哲=clamp((state.player.relations.阿哲||0)+3,0,100);state.messages.push({id:"team-ok-"+Date.now(),from:"阿哲",text:"太好了！我去拉人。賽程確定後我傳給你。",unread:true,resolved:true,type:"normal"})}
   if(r==="ask"){state.messages.push({id:"team-info-"+Date.now(),from:"阿哲",text:"預賽在下週六，BO1。現在還缺打野跟輔助。你想打的話我就先報名。",unread:true,resolved:false,type:"teamInvite"})}
-  if(r==="decline"){state.player.relations.阿哲-=1;state.messages.push({id:"team-no-"+Date.now(),from:"阿哲",text:"可惜，那我再找別人。",unread:true,resolved:true,type:"normal"})}
+  if(r==="decline"){state.player.relations.阿哲=clamp((state.player.relations.阿哲||0)-1,0,100);state.messages.push({id:"team-no-"+Date.now(),from:"阿哲",text:"可惜，那我再找別人。",unread:true,resolved:true,type:"normal"})}
  }
  m.resolved=true;save();document.querySelector(".modal-backdrop")?.remove();render();
 }
@@ -394,19 +388,11 @@ function registerTournament(){
  addPlan(targetDay,{id:"hs-cup-1",title:"高中電競盃秋季預賽",slot:"全天",type:"tournament",lockDay:true,completed:false,desc:"正式賽事。比賽日全天鎖定。"});
  state.logs.push("報名成功：高中電競盃秋季預賽已寫入週六行程。");
 }
-function runEventById(id){
- const ev=todayPlan().find(x=>x.id===id);if(!ev||ev.completed)return;
- if(ev.type==="duoAppointment"){
-  let idx=slots().indexOf(ev.slot);
-  if(idx>state.dayState.usedSlots){modal(`<h2>還沒到${ev.slot}</h2><p>先完成前面的時段，或按「提早結束今天」，系統會推進到約定時間。</p>${closeBtn()}`);return}
-  playScheduledDuo(ev);
- }
- if(ev.type==="tournament")playTournament(ev);
-}
+
 function playScheduledDuo(ev){
  if(!consume("與阿哲雙排",1))return;ev.completed=true;
  const p=state.player,win=avg()+rand(-8,8)>=54,delta=win?rand(18,25):-rand(16,22);
- if(win){p.wins++;p.lp+=delta}else{p.losses++;p.lp+=delta}p.relations.阿哲+=2;p.energy=clamp(p.energy-6,0,100);adjustRank();
+ if(win){p.wins++;p.lp+=delta}else{p.losses++;p.lp+=delta}p.relations.阿哲=clamp((p.relations.阿哲||0)+2,0,100);p.energy=clamp(p.energy-6,0,100);adjustRank();
  state.logs.push(`約定完成：與阿哲雙排，${win?"勝利":"敗北"} ${delta>0?"+":""}${delta} LP。`);
  state.messages.push({id:"afterduo-"+Date.now(),from:"阿哲",text:win?"今天手感不錯欸。對了，要不要乾脆組隊報高中盃？":"今天有點可惜。對了，高中盃快報名了，要不要找人組隊？",unread:true,resolved:false,type:"teamInvite"});
  save();render();modal(`<h2>與阿哲雙排</h2><p>${win?"你們成功拿下這局。":"你們輸掉這局，但阿哲似乎有別的事情想跟你談。"}</p><p>${delta>0?"+":""}${delta} LP · 阿哲關係 +2</p>${closeBtn()}`);
@@ -420,8 +406,8 @@ function finishTournament(ev,strategy){
  const p=state.player,bonus=strategy==="mid"?2:strategy==="safe"?1:0;
  const win=avg()+bonus+rand(-7,8)>=54;
  ev.completed=true;state.tournament.played=true;p.energy=clamp(p.energy-22,0,100);p.stress=clamp(p.stress+8,0,100);
- if(win){p.proAttention=clamp(p.proAttention+3,0,100);p.relations.阿哲+=4;state.logs.push("高中電競盃：首輪勝利，職業關注 +3。");state.messages.push({id:"cupwin-"+Date.now(),from:"阿哲",text:"我們真的贏了！下一輪對手更強，回去要不要研究一下？",unread:true,resolved:true,type:"normal"})}
- else{p.relations.阿哲+=2;state.logs.push("高中電競盃：首輪落敗。這次經驗成為新的起點。");state.messages.push({id:"cuplose-"+Date.now(),from:"阿哲",text:"輸了有點不甘心。不過我覺得我們可以繼續組。",unread:true,resolved:true,type:"normal"})}
+ if(win){p.proAttention=clamp(p.proAttention+3,0,100);p.relations.阿哲=clamp((p.relations.阿哲||0)+4,0,100);state.logs.push("高中電競盃：首輪勝利，職業關注 +3。");state.messages.push({id:"cupwin-"+Date.now(),from:"阿哲",text:"我們真的贏了！下一輪對手更強，回去要不要研究一下？",unread:true,resolved:true,type:"normal"})}
+ else{p.relations.阿哲=clamp((p.relations.阿哲||0)+2,0,100);state.logs.push("高中電競盃：首輪落敗。這次經驗成為新的起點。");state.messages.push({id:"cuplose-"+Date.now(),from:"阿哲",text:"輸了有點不甘心。不過我覺得我們可以繼續組。",unread:true,resolved:true,type:"normal"})}
  save();document.querySelector(".modal-backdrop")?.remove();render();modal(`<h2>${win?"首輪勝利！":"首輪落敗"}</h2><p>${win?"你們的第一次正式賽事取得勝利。":"正式比賽的壓力和Rank完全不同。"}</p><p>今天已被比賽完整占用，無法再進行其他活動。</p>${closeBtn()}`);
 }
 function repairTodayBeforeAdvance(){
@@ -467,7 +453,7 @@ function scriptedEvents(){
   state.eventFlags.rain=true;state.characters.林雨晴.known=true;state.player.relations.林雨晴=Math.max(state.player.relations.林雨晴,5);
   state.messages.push({id:"rainmsg-"+Date.now(),from:"林雨晴",text:"今天謝謝你提醒我外面下雨，不然我真的直接走出去了 😂",unread:true,resolved:true,type:"normal"});
   modal(`<h2>🎲 放學奇遇</h2><p>外面突然下起大雨。你在走廊碰到同班的林雨晴，她正站在窗邊看著雨。</p><div class="reply-grid"><button class="reply rain-e" data-v="umbrella">問她要不要一起撐傘</button><button class="reply rain-e" data-v="wait">陪她等雨小一點</button><button class="reply rain-e" data-v="bye">提醒她下雨後先離開</button></div>`);
-  setTimeout(()=>document.querySelectorAll(".rain-e").forEach(b=>b.onclick=()=>{let g=b.dataset.v==="umbrella"?4:b.dataset.v==="wait"?3:1;state.player.relations.林雨晴+=g;state.logs.push(`奇遇後續：和林雨晴的關係 +${g}。`);save();document.querySelector(".modal-backdrop")?.remove();render()}),0);
+  setTimeout(()=>document.querySelectorAll(".rain-e").forEach(b=>b.onclick=()=>{let g=b.dataset.v==="umbrella"?4:b.dataset.v==="wait"?3:1;state.player.relations.林雨晴=clamp((state.player.relations.林雨晴||0)+g,0,100);state.logs.push(`奇遇後續：和林雨晴的關係 +${g}。`);save();document.querySelector(".modal-backdrop")?.remove();render()}),0);
  }
 }
 
@@ -492,22 +478,55 @@ const SHOP_ITEMS=[
 const LADDER_NAMES=["Raven","Luna","Kaito","Zero9","Mori","Nox","Aster","Haku","ViperX","Nagi","Frost","Mika","Rex","Nova","Sena","Crow","Yuzu","Kairos","Melo","Tide"];
 
 function ensureV10(){
+ const previousVersion=state?.version||"";
+ state=normalize(state);
  const p=state.player;
- if(!p.inventory)p.inventory=[];
- if(!p.reputation&&p.reputation!==0)p.reputation=5;
- // 舊版曾把新角色聲望直接設為50；尚未有大型履歷的存檔降回合理起點。
+ if(!Array.isArray(p.inventory))p.inventory=[];
+ if(p.reputation==null)p.reputation=5;
  if(p.reputation===50 && (!state.world?.amateurHistory || state.world.amateurHistory.length<3))p.reputation=5;
- if(!p.romance)p.romance={partner:null,trust:{},jealousy:{},rumorRisk:0};
+ if(!p.romance||typeof p.romance!=="object")p.romance={partner:null,trust:{},jealousy:{},rumorRisk:0};
  if(!Array.isArray(p.romance.partners))p.romance.partners=p.romance.partner?[p.romance.partner]:[];
+ p.romance.partners=[...new Set(p.romance.partners.filter(Boolean))];
+ p.romance.partner=p.romance.partners[0]||null;
  p.romance.flags=p.romance.flags||{};
+ p.romance.trust=p.romance.trust||{};
+ p.romance.jealousy=p.romance.jealousy||{};
+ p.romance.rumorRisk=Number.isFinite(p.romance.rumorRisk)?p.romance.rumorRisk:0;
  p.gifts=p.gifts||{};
- const personalities={"阿哲":["老實","講義氣"],"子辰":["努力","好勝"],"Kaito":["冷靜","心機"],"俊凱":["外向","衝動"],"小宇":["老實","溫和"],"林雨晴":["可愛","天然呆"],"陳語彤":["努力","可愛"],"沈若晴":["成熟","心機"],"許安然":["現實","拜金"]};
- Object.entries(personalities).forEach(([n,traits])=>{if(state.characters[n])state.characters[n].traits=state.characters[n].traits||traits});
- if(!state.school)state.school={examWeek:7,examPrepared:0,lastExam:null,clubFame:0};
+ if(!p.emotion||typeof p.emotion!=="object")p.emotion={betrayalUntil:0,betrayalBy:null};
+ if(!Number.isFinite(p.emotion.betrayalUntil))p.emotion.betrayalUntil=0;
+
+ if(!state.school||typeof state.school!=="object")state.school={};
+ if(!Number.isFinite(state.school.examWeek))state.school.examWeek=7;
+ if(!Number.isFinite(state.school.examPrepared))state.school.examPrepared=0;
+ if(!Array.isArray(state.school.examHistory))state.school.examHistory=[];
+ if(state.school.examProcessedWeek==null)state.school.examProcessedWeek=state.school.lastExam!=null?state.school.examWeek:null;
+ if(state.school.lastExam!=null&&!state.school.examHistory.length)state.school.examHistory.push({week:state.school.examProcessedWeek,score:state.school.lastExam});
+ if(state.school.clubFame==null)state.school.clubFame=0;
  if(!state.school.esportsClub)state.school.esportsClub={joined:false,coachRelation:0,clubRep:0,officer:false,scrims:0};
- if(!state.world)state.world={newsWeek:0,leaderboard:[],rumors:[],amateurHistory:[]};
- if(!state.world.tournaments)state.world.tournaments=[];
- if(!state.friends)state.friends={俊凱:{known:true,relation:48,role:"上路",rank:"白金 I"},小宇:{known:true,relation:43,role:"輔助",rank:"翡翠 IV"}};
+ if(state.school.lastExam!=null && state.school.examWeek<state.date.week){
+   while(state.school.examWeek<state.date.week)state.school.examWeek+=8;
+ }
+
+ if(!state.world||typeof state.world!=="object")state.world={};
+ if(!Number.isFinite(state.world.newsWeek))state.world.newsWeek=0;
+ if(!Array.isArray(state.world.leaderboard))state.world.leaderboard=[];
+ if(!Array.isArray(state.world.rumors))state.world.rumors=[];
+ if(!Array.isArray(state.world.amateurHistory))state.world.amateurHistory=[];
+ if(!Array.isArray(state.world.tournaments))state.world.tournaments=[];
+
+ if(!state.friends||typeof state.friends!=="object")state.friends={};
+ Object.entries(newGame().characters).forEach(([n,c])=>{if(!state.characters[n])state.characters[n]={...c}});
+ const fixed={
+  俊凱:{known:true,relation:48,role:"上路",rank:"白金 I"},
+  小宇:{known:true,relation:43,role:"輔助",rank:"翡翠 IV"},
+  阿哲:{known:true,relation:p.relations.阿哲||64,role:"ADC",rank:"翡翠 IV"},
+  子辰:{known:!!state.characters.子辰?.known,relation:p.relations.子辰||0,role:"打野",rank:"翡翠 I"},
+  Kaito:{known:!!state.characters.Kaito?.known,relation:p.relations.Kaito||0,role:"輔助",rank:"宗師"},
+  陳語彤:{known:!!state.characters.陳語彤?.known,relation:p.relations.陳語彤||0,role:"ADC",rank:"白金 I"}
+ };
+ Object.entries(fixed).forEach(([n,d])=>state.friends[n]={...d,...(state.friends[n]||{})});
+
  if(!state.characters.俊凱)state.characters.俊凱={name:"俊凱",known:true,gender:"男",romanceable:false,desc:"同班好友，個性外向，偶爾一起開黑。"};
  if(!state.characters.小宇)state.characters.小宇={name:"小宇",known:true,gender:"男",romanceable:false,desc:"隔壁班朋友，主玩輔助，常約宵夜。"};
  if(!state.characters.陳語彤)state.characters.陳語彤={name:"陳語彤",known:false,gender:"女",romanceable:true,desc:"高一學妹，校內電競社成員。"};
@@ -518,19 +537,27 @@ function ensureV10(){
  if(state.characters.子辰){state.characters.子辰.gender="男";state.characters.子辰.romanceable=false}
  if(state.characters.Kaito){state.characters.Kaito.gender="男";state.characters.Kaito.romanceable=false}
  if(state.characters.林雨晴){state.characters.林雨晴.gender="女";state.characters.林雨晴.romanceable=true}
- // V1.2.2：舊版只有20名榜單，或沒有Top200門檻時，強制重建排行榜。
- if(!state.world.leaderboard || state.world.leaderboard.length<100 || !state.world.eliteCutoff){
-   // 舊版「宗師800→菁英」會把800分扣掉；升級時把這段分數補回，避免資料失真。
-   if(p.rank==="菁英" && !state.world.eliteMigrated){
+
+ const personalities={"阿哲":["老實","講義氣"],"子辰":["努力","好勝"],"Kaito":["冷靜","心機"],"俊凱":["外向","衝動"],"小宇":["老實","溫和"],"林雨晴":["可愛","天然呆"],"陳語彤":["努力","可愛"],"沈若晴":["成熟","心機"],"許安然":["現實","拜金"]};
+ Object.values(state.characters).forEach(c=>{
+   if(!c||!c.name)return;
+   if(!c.gender)c.gender="男";
+   c.romanceable=c.gender==="女";
+   let t=normalizeTraits(c);
+   if(!t.length)t=personalities[c.name]||fallbackTraits(c);
+   c.traits=t;
+ });
+
+ if(!state.world.leaderboard.length || state.world.leaderboard.length<100 || !state.world.eliteCutoff){
+   const legacyEliteVersions=["1.0","1.0.1","1.0.2","1.0.3","1.0.4","1.1","1.1.1","1.1.2","1.1.3","1.1.4","1.1.5","1.1.6","1.1.7","1.1.8","1.2.0","1.2.1"];
+   if(p.rank==="菁英" && !state.world.eliteMigrated && legacyEliteVersions.includes(previousVersion)){
      p.lp=(p.lp||0)+800;
-     state.world.eliteMigrated=true;
    }
+   state.world.eliteMigrated=true;
+   refreshLeaderboard();
+ }else{
    refreshLeaderboard();
  }
- // 舊存檔欄位補齊，避免新版社交/戀愛讀到 undefined。
- if(!Array.isArray(p.romance.partners))p.romance.partners=p.romance.partner?[p.romance.partner]:[];
- p.romance.flags=p.romance.flags||{};
- p.gifts=p.gifts||{};
  generateWeeklyNews();
 }
 function esportsRole(name){
@@ -550,25 +577,24 @@ function eliteCutoffLP(){return state.world?.eliteCutoff||820}
 function refreshLeaderboard(){
  const p=state.player;
  const topNames=["Raven","Luna","Kaito","Zero9","Mori","Nox","Aster","Haku","ViperX","Nagi","Frost","Mika","Rex","Nova","Sena","Crow","Yuzu","Kairos","Melo","Tide"];
- // 每週門檻小幅波動，但不會每次render就亂跳。
  const weekSeed=(state.date?.week||1);
- const cutoff=805+((weekSeed*17)%41); // 約805~845
- state.world.eliteCutoff=cutoff;
- let arr=[];
+ const baseCut=805+((weekSeed*17)%41);
+ let npcs=[];
  for(let i=0;i<200;i++){
    const name=i<topNames.length?topNames[i]:`菁英路人${String(i+1).padStart(3,"0")}`;
-   const curve=2050-(2050-cutoff)*(i/199);
-   const wobble=((i*13+weekSeed*7)%17)-8;
-   arr.push({name,lp:Math.round(curve+wobble),role:ROLES[i%5],type:i%8===0?"職業選手":i%8===1?"青訓":"高分路人"});
+   const curve=2050-(2050-baseCut)*(i/199),wobble=((i*13+weekSeed*7)%17)-8;
+   npcs.push({name,lp:Math.round(curve+wobble),role:ROLES[i%5],type:i%8===0?"職業選手":i%8===1?"青訓":"高分路人",isPlayer:false});
  }
- // 玩家只有分數高於當週第200名門檻時才參與排名。
- if((p.lp||0)>=cutoff){
-   arr.push({name:p.name,lp:p.lp,role:p.role,type:"玩家"});
- }
- arr.sort((a,b)=>b.lp-a.lp);
+ npcs.sort((a,b)=>b.lp-a.lp);
+ const cutoff=(npcs[199]?.lp||baseCut)+1;
+ state.world.eliteCutoff=cutoff;
+ let arr=npcs;
+ if((p.lp||0)>=cutoff)arr=[...npcs,{name:p.name,lp:p.lp,role:p.role,type:"玩家",isPlayer:true}];
+ arr.sort((a,b)=>b.lp-a.lp||(a.isPlayer?-1:b.isPlayer?1:0));
  state.world.leaderboard=arr.slice(0,200);
- const idx=state.world.leaderboard.findIndex(x=>x.name===p.name);
+ const idx=state.world.leaderboard.findIndex(x=>x.isPlayer===true);
  state.world.playerEliteRank=idx>=0?idx+1:null;
+ if(["宗師","菁英"].includes(p.rank))p.rank=idx>=0?"菁英":"宗師";
 }
 function generateWeeklyNews(){
  if(state.world.newsWeek===state.date.week)return;
@@ -585,18 +611,21 @@ function generateWeeklyNews(){
  if(state.news.length>20)state.news.length=20;
 }
 function relationshipCard(){
- const p=state.player,known=Object.values(state.characters).filter(c=>c.known),partners=p.romance.partners||[];
+ const p=state.player,known=Object.values(state.characters||{}).filter(c=>c?.known),partners=p.romance.partners||[];
  return `<section class="card"><div class="row space"><h2>人際關係</h2><span class="badge">${partners.length?`交往中 ×${partners.length}`:"單身"}</span></div>
- ${known.map(c=>{let v=p.relations[c.name]||0,dating=partners.includes(c.name);return `<div class="log"><div class="row space"><strong>${c.name}${dating?" 💞":""}</strong><span>${dating?"戀人":relationTier(v,c.name)} · ${Math.round(v)}</span></div><div class="small">${c.desc}${c.traits?.length?`｜個性：${c.traits.join("、")}`:""}${isEsportsFriend(c.name)?`｜遊戲路線：${esportsRole(c.name)}`:""}</div><button class="ghost send-gift" data-name="${c.name}">🎁 送禮物</button></div>`}).join("")}</section>`;
+ ${known.map(c=>{let v=p.relations[c.name]||0,dating=partners.includes(c.name),traits=safeTraits(c);return `<div class="log"><div class="row space"><strong>${c.name}${dating?" 💞":""}</strong><span>${dating?"戀人":relationTier(v,c.name)} · ${Math.round(v)}</span></div><div class="small">${c.desc||""}${traits.length?`｜個性：${traits.join("、")}`:""}${isEsportsFriend(c.name)?`｜遊戲路線：${esportsRole(c.name)}`:""}</div><button class="ghost send-gift" data-name="${c.name}">🎁 送禮物</button></div>`}).join("")}</section>`;
 }
 function worldCards(){
  const p=state.player,rank=state.world.playerEliteRank||null,cut=eliteCutoffLP();
- const ladderStatus=rank?`菁英 #${rank}`:`宗師 · 距前200門檻 ${Math.max(0,cut-(p.lp||0))} LP`;
+ let ladderStatus;
+ if(rank)ladderStatus=`菁英 #${rank}`;
+ else if(["宗師","菁英"].includes(p.rank))ladderStatus=`宗師 · 距前200門檻 ${Math.max(0,cut-(p.lp||0))} LP`;
+ else ladderStatus=`${p.rank} · 尚未進入菁英榜競爭`;
  const playerRow=rank&&rank>10?`<div class="schedule-item selected"><div><strong>#${rank} ${p.name}</strong><div class="small">${p.role} · 玩家</div></div><span>${p.lp} LP</span></div>`:"";
  return `<section class="card"><div class="row space"><h2>👑 伺服器菁英 Top 200</h2><span class="badge">${ladderStatus}</span></div>
- ${state.world.leaderboard.slice(0,10).map((x,i)=>`<div class="schedule-item ${x.name===p.name?"selected":""}"><div><strong>#${i+1} ${x.name}</strong><div class="small">${x.role} · ${x.type}</div></div><span>${x.lp} LP</span></div>`).join("")}
+ ${state.world.leaderboard.slice(0,10).map((x,i)=>`<div class="schedule-item ${x.isPlayer?"selected":""}"><div><strong>#${i+1} ${x.name}</strong><div class="small">${x.role} · ${x.type}</div></div><span>${x.lp} LP</span></div>`).join("")}
  ${playerRow}
- <div class="notice">本週第200名門檻：${cut} LP。只有真正位於伺服器前200才會顯示「菁英」。剛跨過門檻通常會落在 #190～#200附近，不會再出現剛升菁英卻直接 #21。</div></section>`;
+ <div class="notice">本週第200名實際門檻：${cut} LP。只有真正擠進伺服器前200才會顯示「菁英」，門檻會隨每週榜單浮動。</div></section>`;
 }
 function schoolCard(){
  const s=state.school,left=s.examWeek-state.date.week;
@@ -604,13 +633,24 @@ function schoolCard(){
  ${stat("學業",Math.round(state.player.school))}${stat("段考準備",`${Math.round(s.examPrepared)}/100`)}${stat("電競社",s.esportsClub?.joined?"社員":"未加入")}
  <div class="log">${left===0?"本週是段考週。白天考試，晚上仍能安排活動，但考差可能影響家庭支持與心情。":left>0?"可以利用「讀書」累積段考準備；完全不準備會有明顯風險。":s.lastExam?`上次段考：${s.lastExam}分。`:"新的考試週之後還會再出現。"}</div></section>`;
 }
-function amateurCard(){
- const upcoming=[
-  {name:"網咖週末盃",fee:300,reward:"冠軍 NT$5,000",need:1},
-  {name:"校際電競盃",fee:0,reward:"校際榮譽＋職業關注",need:2},
-  {name:"城市青年盃",fee:500,reward:"冠軍 NT$20,000",need:4}
+
+function tournamentCatalog(){
+ const all=[
+  {name:"霓虹電競館夜戰盃",fee:300,day:6,id:"neon-cup",rounds:["八強","四強","冠軍戰"],prize:5500,rep:1,need:1,tier:"local"},
+  {name:"高校聯盟交流賽",fee:0,day:6,id:"school-league",rounds:["16強","八強","四強","冠軍戰"],prize:8000,rep:2,need:2,tier:"school"},
+  {name:"城市青年公開賽",fee:500,day:7,id:"city-open",rounds:["32強","16強","八強","四強","冠軍戰"],prize:20000,rep:3,need:4,tier:"city"},
+  {name:"週末線上挑戰賽",fee:200,day:7,id:"online-weekend",rounds:["64強","32強","16強","八強","四強","冠軍戰"],prize:9000,rep:1,need:3,tier:"online"},
+  {name:"HyperX校園贊助盃",fee:0,day:6,id:"sponsor-campus",rounds:["小組出線戰","八強","四強","冠軍戰"],prize:15000,rep:3,need:6,tier:"sponsor"},
+  {name:"主播明星邀請賽",fee:0,day:7,id:"streamer-invite",rounds:["首輪","八強","四強","冠軍戰"],prize:18000,rep:3,need:8,tier:"invite"},
+  {name:"北區業餘菁英賽",fee:600,day:6,id:"regional-elite",rounds:["32強","16強","八強","四強","冠軍戰"],prize:30000,rep:4,need:10,tier:"regional"},
+  {name:"青訓觀察公開賽",fee:400,day:7,id:"academy-scout",rounds:["資格賽","32強","16強","八強","四強","冠軍戰"],prize:25000,rep:5,need:12,tier:"scout"}
  ];
- return `<section class="card"><h2>🏆 業餘賽事</h2>${upcoming.map((x,i)=>`<div class="schedule-item"><div><strong>${x.name}</strong><div class="small">報名費 NT$${x.fee} · ${x.reward}</div></div><button class="ghost amateur-signup" data-i="${i}" ${state.date.week<x.need?"disabled":""}>${state.date.week<x.need?`第${x.need}週開放`:"報名"}</button></div>`).join("")}</section>`;
+ const w=state.date.week||1,start=(w*3)%all.length;
+ return [all[start],all[(start+1)%all.length],all[(start+3)%all.length]];
+}
+function amateurCard(){
+ const upcoming=tournamentCatalog();
+ return `<section class="card"><h2>🏆 本週可報名賽事</h2><div class="small">賽事池會隨週數輪替，不再固定只有同幾個盃賽。</div>${upcoming.map((x,i)=>`<div class="schedule-item"><div><strong>${x.name}</strong><div class="small">報名費 NT$${x.fee} · 冠軍 NT$${x.prize.toLocaleString()} · ${x.tier==="scout"?"青訓觀察":"業餘賽事"}</div></div><button class="ghost amateur-signup" data-i="${i}" ${state.date.week<x.need?"disabled":""}>${state.date.week<x.need?`第${x.need}週開放`:"報名"}</button></div>`).join("")}</section>`;
 }
 function shopCard(){
  return `<section class="card"><div class="row space"><h2>🛍️ 商店與消費</h2><span class="badge">NT$${state.player.cash.toLocaleString()}</span></div>
@@ -639,7 +679,7 @@ function career(){
  return `<section class="card"><h2>生涯中心</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.2.9</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.3.1</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));
@@ -648,8 +688,8 @@ function bind(){
  document.querySelectorAll(".event-run").forEach(b=>b.onclick=()=>runEventById(b.dataset.event));
  document.querySelectorAll(".buy-item").forEach(b=>b.onclick=()=>buyItem(b.dataset.item));
  document.querySelectorAll(".send-gift").forEach(b=>b.onclick=()=>openGift(b.dataset.name));
- document.querySelector("#uiBack")?.addEventListener("click",()=>{const m=document.querySelector(".modal-backdrop");if(m)m.remove();else{activeTab="home";render()}});
- document.querySelectorAll(".amateur-signup").forEach(b=>{const ids=["cafe-cup","school-cup","city-cup"],a=activeTournamentByBaseId(ids[Number(b.dataset.i)]);if(a){b.disabled=true;b.textContent="已報名・進行中"}else b.onclick=()=>signupAmateur(Number(b.dataset.i))});
+ const uiBack=document.querySelector("#uiBack");if(uiBack)uiBack.onclick=()=>{const m=document.querySelector(".modal-backdrop");if(m)m.remove();else{activeTab="home";render()}};
+ document.querySelectorAll(".amateur-signup").forEach(b=>{const x=tournamentCatalog()[Number(b.dataset.i)],a=x&&activeTournamentByBaseId(x.id);if(a){b.disabled=true;b.textContent="已報名・進行中"}else b.onclick=()=>signupAmateur(Number(b.dataset.i))});
  document.querySelector("#exportSaveBtn")?.addEventListener("click",exportSaveJSON);
  document.querySelector("#importSaveBtn")?.addEventListener("click",()=>document.querySelector("#importSaveFile")?.click());
  document.querySelector("#importSaveFile")?.addEventListener("change",importSaveJSON);
@@ -665,12 +705,7 @@ function buyItem(id){
 function activeTournamentByBaseId(baseId){return (state.world?.tournaments||[]).find(t=>t.id&&t.id.startsWith(baseId+"-")&&["進行中","等待下一輪"].includes(t.status))}
 function syncTournamentSchedule(){if(!state.world?.tournaments)return;state.world.tournaments.forEach(t=>{if(!["進行中","等待下一輪"].includes(t.status))return;if(t.nextWeek<state.date.week){t.nextWeek=state.date.week;t.status="進行中"}if(t.nextWeek===state.date.week){const d=t.nextDay||6;if(state.date.day>d){t.nextWeek=state.date.week+1;t.status="等待下一輪";return}t.status="進行中";if(!(state.weeklyPlan?.[d]||[]).some(e=>e.tournamentId===t.id&&!e.completed))addPlan(d,{id:"round-"+t.id+"-"+t.roundIndex,title:`${t.name}｜${t.rounds[t.roundIndex]}`,slot:"全天",type:"amateurTournament",lockDay:true,completed:false,tournamentId:t.id,week:state.date.week,roster:t.roster,desc:`正式比賽日：${t.rounds[t.roundIndex]}。全天鎖定，只能比賽。`})}})}
 function signupAmateur(i){
- const list=[
-  {name:"網咖週末盃",fee:300,day:6,id:"cafe-cup",rounds:["八強","四強","冠軍戰"],gap:1,prize:5000,rep:1},
-  {name:"校際電競盃",fee:0,day:6,id:"school-cup",rounds:["16強","八強","四強","冠軍戰"],gap:1,prize:8000,rep:2},
-  {name:"城市青年盃",fee:500,day:7,id:"city-cup",rounds:["32強","16強","八強","四強","冠軍戰"],gap:1,prize:20000,rep:3}
- ],x=list[i];
- if(!x||state.player.cash<x.fee)return;
+ const x=tournamentCatalog()[i];if(!x||state.player.cash<x.fee)return;
  const active=activeTournamentByBaseId(x.id);if(active){modal(`<h2>🏆 已報名</h2><p>${active.name}目前進行到 <strong>${active.rounds[active.roundIndex]}</strong>。賽事結束前不能再次報名。</p>${closeBtn()}`);return}
  openTeamBuilder(x);
 }
@@ -679,13 +714,14 @@ function tournamentCandidates(){
  .map(c=>({name:c.name,role:esportsRole(c.name),relation:state.player.relations[c.name]||0,rank:(state.friends?.[c.name]?.rank||"未紀錄")+((state.friends?.[c.name]?.lp??null)!==null?` ${state.friends[c.name].lp}LP`:"")+((state.friends?.[c.name]?.form??0)>=8?" 🔥":(state.friends?.[c.name]?.form??0)<=-8?" ❄️":"")}));
 }
 function discoverTeammate(role,source){
- const names={上路:["承翰","Leo","柏宇"],打野:["宇辰","小凱","Rin"],中路:["子墨","Aki","哲宇"],ADC:["曜廷","Ming","小楓"],輔助:["恩碩","Naru","家豪"]};
- const pool=names[role]||["新朋友"];let name=pool.find(n=>!state.characters[n])||`${role}玩家${rand(10,99)}`;
- state.characters[name]={name,known:true,gender:"男",romanceable:false,role,desc:`透過${source}認識的電競好友，主打${role}。`};
- state.player.relations[name]=rand(18,32);
+ const male={上路:["承翰","Leo","柏宇"],打野:["宇辰","小凱","Rin"],中路:["子墨","Aki","哲宇"],ADC:["曜廷","Ming","小楓"],輔助:["恩碩","Naru","家豪"]};
+ const female={上路:["若彤","夏寧"],打野:["凜月","語芯"],中路:["沐晴","星妍"],ADC:["心妤","若璃"],輔助:["雨柔","可欣"]};
+ const gender=Math.random()<.34?"女":"男",pool=(gender==="女"?female:male)[role]||["新朋友"];
+ let name=pool.find(n=>!state.characters[n])||`${gender==="女"?"女":"男"}${role}玩家${rand(10,99)}`;
+ state.characters[name]={name,known:true,gender,romanceable:gender==="女",role,desc:`透過${source}認識的${gender==="女"?"女性":"男性"}電競好友，主打${role}。`};
+ state.characters[name].traits=fallbackTraits(state.characters[name]);state.player.relations[name]=rand(18,32);
  if(!state.friends)state.friends={};state.friends[name]={known:true,relation:state.player.relations[name],role,rank:["白金 I","翡翠 III","翡翠 I","鑽石 IV"][rand(0,3)]};
- state.logs.push(`新好友：透過${source}認識了${name}（${role}）。`);
- save();return name;
+ state.logs.push(`新好友：透過${source}認識了${name}（${gender}・${role}）。`);save();return name;
 }
 function normalizeRole(r){
  const m={"Top":"上路","上":"上路","上路":"上路","Jungle":"打野","JG":"打野","野":"打野","打野":"打野","Mid":"中路","MID":"中路","中":"中路","中路":"中路","ADC":"ADC","AD":"ADC","下路":"ADC","射手":"ADC","Bot":"ADC","Support":"輔助","SUP":"輔助","輔助":"輔助","輔":"輔助"};
@@ -812,7 +848,32 @@ function playAmateur(ev){
 const NPC_RANKS=["鐵牌 IV","鐵牌 III","鐵牌 II","鐵牌 I","銅牌 IV","銅牌 III","銅牌 II","銅牌 I","銀牌 IV","銀牌 III","銀牌 II","銀牌 I","金牌 IV","金牌 III","金牌 II","金牌 I","白金 IV","白金 III","白金 II","白金 I","翡翠 IV","翡翠 III","翡翠 II","翡翠 I","鑽石 IV","鑽石 III","鑽石 II","鑽石 I","大師","宗師","菁英"];
 function npcRankIndex(r){const i=NPC_RANKS.indexOf(r);return i<0?19:i}
 function npcPowerByName(name){const c=state.characters?.[name],f=state.friends?.[name]||{};return 42+npcRankIndex(f.rank||c?.rank||"白金 I")*1.65+(f.form??0)*.65}
-function simulateNpcRanks(){Object.values(state.characters||{}).forEach(c=>{if(!c.known||!isEsportsFriend(c.name))return;const f=state.friends[c.name]||(state.friends[c.name]={rank:c.rank||"白金 I"});f.form=f.form??0;f.lp=f.lp??rand(0,99);for(let i=0;i<rand(1,4);i++){const w=Math.random()<clamp(.5+f.form/100,.30,.70);f.lp+=w?rand(16,26):-rand(14,25);f.form=clamp(f.form+(w?rand(1,4):-rand(1,4)),-18,18);let ri=npcRankIndex(f.rank);if(f.lp>=100&&ri<NPC_RANKS.length-1){f.lp-=100;f.rank=NPC_RANKS[++ri];state.logs.push(`${c.name} 排位升至 ${f.rank}。`)}if(f.lp<0&&ri>0){f.lp+=100;f.rank=NPC_RANKS[--ri];state.logs.push(`${c.name} 近期連敗，掉至 ${f.rank}。`)}}})}
+function simulateNpcRanks(){
+ Object.values(state.characters||{}).forEach(c=>{
+  if(!c?.known||!isEsportsFriend(c.name))return;
+  const f=state.friends[c.name]||(state.friends[c.name]={rank:c.rank||"白金 I"});
+  f.form=f.form??0;
+  if(!Number.isFinite(f.lp))f.lp=rand(0,f.rank==="大師"?499:99);
+  for(let g=0;g<rand(1,4);g++){
+   const w=Math.random()<clamp(.5+f.form/100,.30,.70);
+   f.lp+=w?rand(16,26):-rand(14,25);f.form=clamp(f.form+(w?rand(1,4):-rand(1,4)),-18,18);
+   let ri=npcRankIndex(f.rank);
+   if(ri<28){
+    if(f.lp>=100){f.lp-=100;f.rank=NPC_RANKS[ri+1];state.logs.push(`${c.name} 排位升至 ${f.rank}。`)}
+    else if(f.lp<0&&ri>0){f.lp+=100;f.rank=NPC_RANKS[ri-1];state.logs.push(`${c.name} 近期連敗，掉至 ${f.rank}。`)}
+    else if(f.lp<0&&ri===0)f.lp=0;
+   }else if(f.rank==="大師"){
+    if(f.lp>=500){f.lp-=500;f.rank="宗師";state.logs.push(`${c.name} 排位升至 宗師。`)}
+    else if(f.lp<0){f.rank="鑽石 I";f.lp=75;state.logs.push(`${c.name} 近期連敗，掉至 鑽石 I。`)}
+   }else if(f.rank==="宗師"){
+    if(f.lp>=eliteCutoffLP()){f.rank="菁英";state.logs.push(`${c.name} 擠進伺服器菁英門檻。`)}
+    else if(f.lp<0){f.rank="大師";f.lp=475;state.logs.push(`${c.name} 近期連敗，掉至 大師。`)}
+   }else if(f.rank==="菁英"&&f.lp<eliteCutoffLP()-25){
+    f.rank="宗師";state.logs.push(`${c.name} 掉出伺服器前200，回到宗師。`);
+   }
+  }
+ })
+}
 function amateurTeamPower(t){return (t.roster||[]).reduce((s,a)=>s+(a.name===state.player.name||a.name==="夜鋒"?avg()+npcRankIndex(state.player.rank)*1.3:npcPowerByName(a.name)),0)/Math.max(1,(t.roster||[]).length)}
 function amateurRelations(t,win){(t.roster||[]).forEach(a=>{if(a.name===state.player.name||a.name==="夜鋒")return;const d=win?rand(0,2):-rand(1,3);state.player.relations[a.name]=clamp((state.player.relations[a.name]||0)+d,0,100);if(d)state.logs.push(`${a.name}：比賽${win?"勝利":"失利"}，關係 ${d>0?"+":""}${d}。`)})}
 function matchNarrative(win,strategy){
@@ -847,19 +908,19 @@ function advanceTournaments(){
  state.world.tournaments.filter(t=>t.status==="等待下一輪"&&t.nextWeek<=state.date.week).forEach(t=>{t.status="進行中";scheduleTournamentRound(t)});
 }
 function chooseSocial(){
- ensureV10();if(remain()<1)return;
+ ensureV10();if(remain()<1){modal(`<h2>今天沒有剩餘時段</h2><p>社交需要 1 個時段。</p>${closeBtn()}`);return}
  const people=Object.values(state.characters||{}).filter(c=>c&&c.known&&c.name),main=document.querySelector("#main");
- main.innerHTML=`<section class="card"><div class="row space"><h2>👥 社交／閒聊</h2><button id="socialReturn" class="ghost">← 返回</button></div><p class="small">選擇要互動的角色。</p><div class="social-page-grid">${people.map(c=>`<button type="button" class="choice social-person-page" data-person="${c.name}"><strong>找 ${c.name}</strong><span class="small">${relationTier(state.player.relations?.[c.name]||0,c.name)} · ${Math.round(state.player.relations?.[c.name]||0)}${c.role?" · "+c.role:""}</span></button>`).join("")}</div><button id="socialFive" class="btn secondary" style="width:100%;margin-top:12px">揪朋友五排開黑</button></section>`;
- document.querySelector("#socialReturn").onclick=render;document.querySelector("#socialFive").onclick=friendFiveStack;
- document.querySelectorAll(".social-person-page").forEach(b=>b.onclick=()=>openSocialPersonPage(b.dataset.person));
+ main.innerHTML=`<section class="card"><div class="row space"><h2>👥 社交／閒聊</h2><button id="socialReturn" class="ghost">← 返回</button></div><p class="small">選擇要互動的角色。</p><div class="social-page-grid">${people.map(c=>`<button type="button" class="choice social-person-page" data-person="${c.name}"><strong>找 ${c.name}</strong><span class="small">${relationTier(state.player.relations?.[c.name]||0,c.name)} · ${Math.round(state.player.relations?.[c.name]||0)} · ${safeTraits(c).join("、")||"個性尚未熟悉"}${esportsRole(c.name)?" · "+esportsRole(c.name):""}</span></button>`).join("")}</div><button id="socialFive" class="btn secondary" style="width:100%;margin-top:12px">揪朋友五排開黑</button></section>`;
+ document.querySelector("#socialReturn")?.addEventListener("click",render);document.querySelector("#socialFive")?.addEventListener("click",friendFiveStack);
+ document.querySelectorAll(".social-person-page").forEach(b=>b.addEventListener("click",()=>openSocialPersonPage(b.dataset.person)));
 }
 function openSocialPersonPage(name){
  const c=state.characters?.[name];if(!c){chooseSocial();return}
- const rel=state.player.relations?.[name]||0,female=c.gender==="女",esports=isEsportsFriend(name);
- let acts=female?[["chat","聊天散步"],["food","一起吃飯"],["cafe","咖啡廳"],["movie","看電影"],["date","正式約會"]]:[["food","吃飯聊天"],["arcade","去電競館"],["hangout","逛街／閒晃"],["game","一起打遊戲"],["latefood","吃宵夜"]];
+ const rel=state.player.relations?.[name]||0,female=c.gender==="女",esports=isEsportsFriend(name),dating=(state.player.romance?.partners||[]).includes(name);
+ let acts=female?[["chat","聊天散步"],["food","一起吃飯"],["cafe","咖啡廳"],["movie","看電影"],["date","正式約會"],["confess","💗 告白"]]:[["food","吃飯聊天"],["arcade","去電競館"],["hangout","逛街／閒晃"],["game","一起打遊戲"],["latefood","吃宵夜"]];
  if(esports)acts.splice(1,0,["duo","Rank雙排"]);
- document.querySelector("#main").innerHTML=`<section class="card"><div class="row space"><h2>${female?"💗":"🤝"} ${name}</h2><button id="socialBack" class="ghost">← 換人</button></div><p class="small">${relationTier(rel,name)} · 關係 ${Math.round(rel)}</p><div class="social-page-grid">${acts.map(a=>`<button type="button" class="choice social-act-page" data-act="${a[0]}" ${(a[0]==="date"&&rel<75)?"disabled":""}><strong>${a[1]}</strong></button>`).join("")}</div></section>`;
- document.querySelector("#socialBack").onclick=chooseSocial;document.querySelectorAll(".social-act-page").forEach(b=>b.onclick=()=>socialActivity(name,b.dataset.act));
+ document.querySelector("#main").innerHTML=`<section class="card"><div class="row space"><h2>${female?"💗":"🤝"} ${name}</h2><button id="socialBack" class="ghost">← 換人</button></div><p class="small">${dating?"戀人":relationTier(rel,name)} · 關係 ${Math.round(rel)}｜性別：${c.gender}｜個性：${safeTraits(c).join("、")||"尚未熟悉"}</p><div class="social-page-grid">${acts.map(a=>`<button type="button" class="choice social-act-page" data-act="${a[0]}" ${(a[0]==="date"&&rel<75&&!dating)||(a[0]==="confess"&&(rel<75||dating))?"disabled":""}><strong>${a[1]}</strong></button>`).join("")}</div>${female&&!dating?`<div class="small">關係75以上可以主動告白；對方也可能在日常事件中主動向夜鋒告白。</div>`:""}</section>`;
+ document.querySelector("#socialBack")?.addEventListener("click",chooseSocial);document.querySelectorAll(".social-act-page").forEach(b=>b.addEventListener("click",()=>b.dataset.act==="confess"?resolveRomance(name,"confess"):socialActivity(name,b.dataset.act)));
 }
 function friendFiveStack(){
  if(!consume("朋友五排",1))return;document.querySelector(".modal-backdrop")?.remove();
@@ -877,7 +938,7 @@ function exportSaveJSON(){
 }
 function importSaveJSON(ev){
  const f=ev.target.files?.[0];if(!f)return;const reader=new FileReader();
- reader.onload=()=>{try{const data=JSON.parse(reader.result);if(!data.player||!data.date)throw 0;state=data;ensureV10();save();render();modal(`<h2>📥 匯入完成</h2><p>第 ${state.date.week} 週・${DAYS[state.date.day-1]}</p>${closeBtn()}`)}catch(e){alert("無效的夜鋒存檔 JSON。")}};
+ reader.onload=()=>{try{const data=JSON.parse(reader.result);if(!data.player||!data.date)throw 0;state=normalize(data);ensureV10();save();render();modal(`<h2>📥 匯入完成</h2><p>第 ${state.date.week} 週・${DAYS[state.date.day-1]}</p>${closeBtn()}`)}catch(e){alert("無效的夜鋒存檔 JSON。")}};
  reader.readAsText(f);ev.target.value="";
 }
 function recoverWeek15Friday(){
@@ -918,19 +979,22 @@ function maybeRumor(){
  state.logs.push(`校園緋聞出現：你和${n}的關係開始被注意。`);
 }
 function processExam(){
- if(state.date.week!==state.school.examWeek||state.date.day!==5||state.school.lastExam)return;
- let p=state.player,score=Math.round(clamp(p.school*.55+state.school.examPrepared*.45+rand(-8,8),0,100));
- state.school.lastExam=score;
+ const s=state.school;
+ if(state.date.week!==s.examWeek||state.date.day!==5||s.examProcessedWeek===state.date.week)return;
+ let p=state.player,score=Math.round(clamp(p.school*.55+s.examPrepared*.45+rand(-8,8),0,100));
+ s.lastExam=score;s.examProcessedWeek=state.date.week;s.examHistory.unshift({week:state.date.week,score});
+ if(s.examHistory.length>8)s.examHistory.length=8;
  if(score<60){p.family=clamp(p.family-8,0,100);p.mood=clamp(p.mood-6,0,100);state.logs.push(`段考平均 ${score} 分。父母很不滿意，家庭支持 -8。`)}
  else if(score>=85){p.family=clamp(p.family+5,0,100);p.mood=clamp(p.mood+4,0,100);state.logs.push(`段考平均 ${score} 分，成績很好。家庭支持 +5。`)}
  else state.logs.push(`段考平均 ${score} 分，順利過關。`);
+ s.examPrepared=0;s.examWeek+=8;
 }
 function simple(name,cost,fn){
  if(name==="休息"){
   if(!consume(name,cost))return;
   const p=state.player;
   const e0=p.energy,m0=p.mood,s0=p.stress;
-  p.energy=clamp(p.energy+24,0,100);
+  p.energy=clamp(p.energy+24+(p.inventory?.includes("chair")?2:0),0,100);
   p.mood=clamp(p.mood+7,0,100);
   p.stress=clamp(p.stress-14,0,100);
   state.logs.push(`休息：體力 +${Math.round(p.energy-e0)}、心情 +${Math.round(p.mood-m0)}、壓力 -${Math.round(s0-p.stress)}。`);
@@ -948,22 +1012,27 @@ function simple(name,cost,fn){
 }
 function maybeRomanceEvent(){
  const p=state.player,partners=p.romance.partners||[];
- const cs=Object.values(state.characters||{}).filter(c=>c.known&&c.gender==="女"&&c.romanceable&&!partners.includes(c.name)&&(p.relations[c.name]||0)>=75&&!p.romance.flags[c.name]?.friendOnly);
+ const cs=Object.values(state.characters||{}).filter(c=>c?.known&&c.gender==="女"&&!partners.includes(c.name)&&(p.relations[c.name]||0)>=75&&!p.romance.flags[c.name]?.friendOnly);
  if(!cs.length)return;
  cs.sort((a,b)=>(p.relations[b.name]||0)-(p.relations[a.name]||0));const c=cs[0],rel=p.relations[c.name]||0,f=p.romance.flags[c.name]||{};
  if(f.cooldown&&state.date.week<f.cooldown)return;
- const personality=(c.traits||[]),chance=rel>=90?.48:rel>=85?.28:.14;
+ let chance=rel>=90?.34:rel>=85?.18:.08;
+ if(safeTraits(c).includes("害羞"))chance*=.65;if(safeTraits(c).includes("外向"))chance*=1.25;
  if(Math.random()>chance)return;
- modal(`<h2>💗 ${c.name}｜關係事件</h2><p>你和 ${c.name} 最近的距離已經不太像普通朋友。${partners.length?"你目前已經有交往中的對象。":""}</p><div class="reply-grid"><button class="reply romance-go" data-n="${c.name}" data-v="confess">確認彼此心意</button><button class="reply romance-go" data-n="${c.name}" data-v="wait">先維持曖昧</button><button class="reply romance-go" data-n="${c.name}" data-v="friend">只當朋友</button></div>`);
+ modal(`<h2>💌 ${c.name} 主動告白</h2><p>${c.name} 找到只有你們兩人的時候，認真告訴你：「我好像真的喜歡上你了。」${partners.length?"她知道你目前可能已經有交往中的對象。":""}</p><div class="reply-grid"><button class="reply romance-go" data-n="${c.name}" data-v="accept">接受告白</button><button class="reply romance-go" data-n="${c.name}" data-v="wait">我需要想一下</button><button class="reply romance-go" data-n="${c.name}" data-v="friend">婉拒，只當朋友</button></div>`);
  document.querySelectorAll(".romance-go").forEach(b=>b.onclick=()=>resolveRomance(b.dataset.n,b.dataset.v));
 }
 function resolveRomance(name,v){
- const p=state.player,c=state.characters[name],rel=p.relations[name]||0;
+ const p=state.player,c=state.characters[name],rel=p.relations[name]||0;if(!c||c.gender!=="女")return;
  if(v==="wait"){p.romance.flags[name]={cooldown:state.date.week+1};state.logs.push(`你和 ${name} 暫時維持曖昧。`)}
  else if(v==="friend"){p.romance.flags[name]={cooldown:state.date.week+4,friendOnly:true};state.logs.push(`你決定和 ${name} 維持朋友關係。`)}
- else{
-  let chance=.40+(rel-75)*.025;if(c.traits?.includes("現實"))chance-=.05;if(c.traits?.includes("天然呆"))chance-=.03;chance=clamp(chance,.35,.90);
-  if(Math.random()<chance){p.romance.partners.push(name);p.romance.partner=p.romance.partners[0];p.relations[name]=clamp(rel+3,0,100);state.logs.push(`💞 你和 ${name} 正式開始交往。`)}
+ else if(v==="accept"){
+   if(!p.romance.partners.includes(name))p.romance.partners.push(name);p.romance.partner=p.romance.partners[0]||name;p.relations[name]=clamp(rel+3,0,100);state.logs.push(`💞 你接受了 ${name} 的告白，正式開始交往。`);
+ }else{
+  let chance=.38+(rel-75)*.023;const tr=safeTraits(c);
+  if(tr.includes("現實"))chance-=.05;if(tr.includes("天然呆"))chance-=.03;if(tr.includes("拜金")&&p.cash<10000)chance-=.10;if(tr.includes("老實"))chance+=.04;
+  chance=clamp(chance,.28,.88);
+  if(Math.random()<chance){if(!p.romance.partners.includes(name))p.romance.partners.push(name);p.romance.partner=p.romance.partners[0]||name;p.relations[name]=clamp(rel+3,0,100);state.logs.push(`💞 ${name} 接受你的告白，你們正式開始交往。`)}
   else{p.relations[name]=clamp(rel-2,0,100);p.romance.flags[name]={cooldown:state.date.week+3};state.logs.push(`${name} 還沒有準備好成為戀人。`)}
  }
  save();document.querySelector(".modal-backdrop")?.remove();render();
@@ -989,15 +1058,38 @@ function giveGift(name,id){
  p.relations[name]=clamp((p.relations[name]||0)+gain,0,100);state.logs.push(`🎁 送給 ${name}「${x.name}」，關係 +${gain}。`);
  save();document.querySelector(".modal-backdrop")?.remove();render();
 }
+
+function maybePartnerBetrayal(){
+ const p=state.player,ps=p.romance.partners||[];if(!ps.length)return;
+ for(const name of [...ps]){
+  const c=state.characters?.[name];if(!c)continue;
+  const tr=safeTraits(c),rel=p.relations[name]||0;
+  let chance=.004+(rel<65?.012:0)+(tr.includes("心機")?.008:0)+(tr.includes("拜金")&&p.cash<5000?.006:0)-(tr.includes("老實")?.004:0);
+  if(Math.random()>=clamp(chance,0,.035))continue;
+  p.romance.partners=p.romance.partners.filter(x=>x!==name);p.romance.partner=p.romance.partners[0]||null;
+  p.relations[name]=clamp(rel-25,0,100);p.mood=clamp(p.mood-28,0,100);p.stress=clamp(p.stress+24,0,100);
+  p.emotion={betrayalUntil:state.date.week+2,betrayalBy:name};
+  state.world.rumors.unshift(`${name} 被人看到和別人過度親密，你們的感情因此破裂。`);
+  state.logs.push(`💔 ${name} 劈腿。夜鋒受到很大打擊，未來兩週Rank與比賽發揮下降。`);
+  state.messages.push({id:"betray-"+Date.now(),from:name,text:"對不起……我做了很傷你的事。我們可能沒辦法再像以前一樣了。",unread:true,resolved:true,type:"normal"});
+  break;
+ }
+}
 function nextDay(){
  ensureV10();let oldWeek=state.date.week,oldDay=state.date.day;baseNextDay();
- if(state.date.day!==oldDay||state.date.week!==oldWeek){simulateNpcRanks();maybeRomanceExposure();maybeRomanceEvent();}
- if(state.date.week!==oldWeek){generateWeeklyNews();advanceTournaments();maybeRumor();
-   // long periods of ignoring a partner create jealousy; training-heavy weeks can also hurt romance
-   if(state.player.romance.partner&&Math.random()<.35){let n=state.player.romance.partner;state.player.relations[n]=clamp(state.player.relations[n]-2,0,100);state.logs.push(`${n}覺得你最近把太多時間放在遊戲上，感情 -2。`)}
+ const advanced=state.date.day!==oldDay||state.date.week!==oldWeek;
+ if(!advanced)return;
+ simulateNpcRanks();maybeRomanceExposure();maybePartnerBetrayal();maybeRomanceEvent();
+ if(state.date.week!==oldWeek){
+   generateWeeklyNews();advanceTournaments();maybeRumor();
+   (state.player.romance.partners||[]).forEach(n=>{
+     if(Math.random()<.25){
+       state.player.relations[n]=clamp((state.player.relations[n]||0)-2,0,100);
+       state.logs.push(`${n}覺得你最近把太多時間放在其他事情上，感情 -2。`);
+     }
+   });
  }
  processExam();
- // school encounters unlock additional NPCs organically
  if(state.date.week>=3&&!state.characters.沈若晴.known&&Math.random()<.08){state.characters.沈若晴.known=true;state.player.relations.沈若晴=7;state.logs.push("校園事件：學生會活動中認識了高三學姊沈若晴。")}
  if(state.date.week>=4&&!state.characters.許安然.known&&Math.random()<.06){state.characters.許安然.known=true;state.player.relations.許安然=12;state.messages.push({id:"oldcrush-"+Date.now(),from:"許安然",text:"好久不見，我好像在朋友的限動看到你？你現在還在打遊戲喔？",unread:true,resolved:true,type:"normal"})}
  save();render();
@@ -1005,5 +1097,5 @@ function nextDay(){
 
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{activeTab=b.dataset.tab;render()});
 document.querySelector("#resetBtn").onclick=()=>{if(confirm("確定刪除目前存檔並重開嗎？")){[SAVE_KEY,...OLD_KEYS].forEach(k=>localStorage.removeItem(k));state=newGame();activeTab="home";render()}};
-if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js",{updateViaCache:"none"}).then(r=>r.update()).catch(()=>{}));
 render();
