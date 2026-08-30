@@ -15,7 +15,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.2.2",started:false,
+  version:"1.2.3",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -54,7 +54,7 @@ function normalize(s){
  if(!s.eventFlags)s.eventFlags={};
  if(!s.messages)s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.2.2";return s;
+ s.version="1.2.3";return s;
 }
 function load(){
  try{
@@ -145,12 +145,14 @@ function phone(){
  <section class="card"><h2>電競新聞</h2>${state.news.slice().reverse().map(n=>`<div class="log">${n}</div>`).join("")}</section>`;
 }
 function career(){
- const p=state.player;return `<section class="card"><h2>生涯檔案</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("阿哲關係",Math.round(p.relations.阿哲))}${stat("粉絲",p.followers)}</div></section>${masteryCard()}<section class="card"><h2>版本</h2><div class="log"><strong>V1.2.2</strong>｜事件/訊息/行程重構、正式比賽日、生活奇遇、角色熟練度、完整Rank與訓練回饋。</div></section>`;
+ const p=state.player;return `<section class="card"><h2>生涯檔案</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("阿哲關係",Math.round(p.relations.阿哲))}${stat("粉絲",p.followers)}</div></section>${masteryCard()}<section class="card"><h2>版本</h2><div class="log"><strong>V1.2.3</strong>｜事件/訊息/行程重構、正式比賽日、生活奇遇、角色熟練度、完整Rank與訓練回饋。</div></section>`;
 }
 function render(){
  try{
   ensureV10();
-  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===activeTab));
+  window.openSocialActivities=openSocialActivities;
+window.socialActivity=socialActivity;
+document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===activeTab));
   const main=document.querySelector("#main");
   if(!state.started){main.innerHTML=startScreen();bindStart();return}
   main.innerHTML=activeTab==="home"?home():activeTab==="schedule"?schedule():activeTab==="rank"?rankPage():activeTab==="phone"?phone():career();
@@ -246,55 +248,87 @@ function chooseStream(){
  if(remain()<1)return;modal(`<h2>直播內容</h2><div class="reply-grid">${["Rank實況","教學台","雜談","娛樂場"].map(x=>`<button class="reply stream-choice" data-v="${x}">${x}</button>`).join("")}</div>`);
  document.querySelectorAll(".stream-choice").forEach(b=>b.onclick=()=>{if(!consume("直播",1))return;let g=rand(2,9);state.player.followers+=g;state.player.energy=clamp(state.player.energy-7,0,100);state.logs.push(`直播「${b.dataset.v}」，新增${g}位粉絲。`);save();document.querySelector(".modal-backdrop")?.remove();render();modal(`<h2>直播結束</h2><p>新增 ${g} 位粉絲。</p>${closeBtn()}`)});
 }
+function safeTraits(c){
+ const t=c?.traits;
+ if(Array.isArray(t))return t;
+ if(typeof t==="string")return t.split(/[、,，/]/).map(x=>x.trim()).filter(Boolean);
+ return [];
+}
 function chooseSocial(){
- if(remain()<1)return;
+ if(remain()<1){modal(`<h2>今天沒有剩餘時段</h2><p>社交需要 1 個時段。</p>${closeBtn()}`);return}
  const people=Object.values(state.characters||{}).filter(c=>c&&c.known&&c.name);
- modal(`<h2>👥 找誰社交？</h2><div class="reply-grid">${people.map(c=>`<button class="reply social-choice" data-person="${c.name}">找 ${c.name}<div class="small">${c.gender==="女"?"女生":"男生"} · ${c.traits?.join("、")||"個性尚未熟悉"} · 關係 ${Math.round(state.player.relations[c.name]||0)}</div></button>`).join("")}<button class="reply social-choice" data-person="同學群">班上同學群體活動</button></div>`);
- document.querySelectorAll(".social-choice").forEach(b=>b.onclick=()=>openSocialActivities(b.dataset.person));
+ const rows=people.map(c=>{
+   const traits=safeTraits(c).join("、")||"個性尚未熟悉";
+   const rel=Math.round(state.player.relations?.[c.name]||0);
+   return `<button type="button" class="reply" onclick="openSocialActivities(${JSON.stringify(c.name)})"><strong>找 ${c.name}</strong><span class="small">${c.gender==="女"?"女生":"男生"} · ${traits} · 關係 ${rel}</span></button>`;
+ }).join("");
+ modal(`<h2>👥 找誰社交？</h2><div class="reply-grid">${rows}<button type="button" class="reply" onclick="socialActivity('同學群','group')"><strong>班上同學群體活動</strong></button></div>`);
 }
 function openSocialActivities(person){
- if(person==="同學群"){socialActivity(person,"group");return}
- const c=state.characters?.[person];if(!c){modal(`<h2>角色資料異常</h2><p>這名角色的舊存檔資料不完整，已略過本次互動。</p>${closeBtn()}`);return}const rel=state.player.relations?.[person]||0,dating=(state.player.romance?.partners||[]).includes(person),esports=isEsportsFriend(person);
- let opts=c?.gender==="女"?[
-  ["chat","聊天散步","免費 · 關係較穩定"],
-  ["food","一起吃飯","約 NT$350 · 輕鬆增加關係"],
-  ["cafe","咖啡廳","約 NT$280 · 適合慢慢聊天"],
-  ["movie","看電影","約 NT$650 · 親近後效果較好"],
-  ["date","正式約會",`約 NT$900 · ${rel>=75||dating?"可進行":"需要關係75+"}`]
+ const c=state.characters?.[person];
+ if(!c){modal(`<h2>角色資料異常</h2><p>這名角色的資料不完整，已略過。</p>${closeBtn()}`);return}
+ const rel=state.player.relations?.[person]||0;
+ const dating=(state.player.romance?.partners||[]).includes(person);
+ const esports=isEsportsFriend(person);
+ let opts=c.gender==="女"?[
+  ["chat","聊天散步","免費 · 穩定增加關係"],
+  ["food","一起吃飯","NT$350 · 輕鬆聊天"],
+  ["cafe","咖啡廳","NT$280 · 適合慢慢相處"],
+  ["movie","看電影","NT$650 · 親近後效果較好"],
+  ["date","正式約會",`NT$900 · ${rel>=75||dating?"可進行":"需要關係75+"}`]
  ]:[
-  ["food","吃飯聊天","約 NT$300 · 朋友型活動"],
-  ["arcade","去電競館","約 NT$250 · 玩家朋友容易加深關係"],
-  ["hangout","逛街／閒晃","約 NT$180 · 放鬆"],
-  ["game","一起打遊戲","約 NT$100 · 遊戲朋友效果較好"],
-  ["latefood","吃宵夜","約 NT$220 · 好友型活動"]
+  ["food","吃飯聊天","NT$350 · 朋友型活動"],
+  ["arcade","去電競館","NT$250 · 電競朋友加成"],
+  ["hangout","逛街／閒晃","NT$180 · 放鬆"],
+  ["game","一起打遊戲","NT$100 · 遊戲朋友加成"],
+  ["latefood","吃宵夜","NT$220 · 好友型活動"]
  ];
- if(esports)opts.splice(c?.gender==="女"?2:1,0,["duo","Rank雙排","免費 · Rank與友情都有可能變化"]);
- modal(`<h2>${c?.gender==="女"?"💗":"🤝"} 和 ${person} 做什麼？</h2><div class="small">個性：${c?.traits?.join("、")||"尚未熟悉"}｜目前關係 ${Math.round(rel)}</div><div class="reply-grid">${opts.map(o=>`<button class="reply social-act" data-person="${person}" data-v="${o[0]}" ${(o[0]==="date"&&rel<75&&!dating)?"disabled":""}>${o[1]}<div class="small">${o[2]}</div></button>`).join("")}</div>`);
- document.querySelectorAll(".social-act").forEach(b=>b.onclick=()=>socialActivity(b.dataset.person,b.dataset.v));
+ if(esports)opts.splice(c.gender==="女"?2:1,0,["duo","Rank雙排","免費 · 受雙方狀態影響"]);
+ const buttons=opts.map(o=>{
+   const disabled=o[0]==="date"&&rel<75&&!dating;
+   return `<button type="button" class="reply" ${disabled?"disabled":""} onclick="socialActivity(${JSON.stringify(person)},${JSON.stringify(o[0])})"><strong>${o[1]}</strong><span class="small">${o[2]}</span></button>`;
+ }).join("");
+ modal(`<h2>${c.gender==="女"?"💗":"🤝"} 和 ${person} 做什麼？</h2><div class="small">個性：${safeTraits(c).join("、")||"尚未熟悉"}｜目前關係 ${Math.round(rel)}</div><div class="reply-grid">${buttons}</div>`);
 }
 function socialActivity(person,type){
- const costs={group:200,chat:0,food:350,cafe:280,movie:650,date:900,arcade:250,hangout:180,game:100,latefood:220,duo:0},cost=costs[type]??0;
- if(state.player.cash<cost){modal(`<h2>錢不夠</h2><p>這個活動需要約 NT$${cost.toLocaleString()}。</p>${closeBtn()}`);return}
+ const costs={group:200,chat:0,food:350,cafe:280,movie:650,date:900,arcade:250,hangout:180,game:100,latefood:220,duo:0};
+ const cost=costs[type]??0;
+ if(remain()<1){modal(`<h2>今天沒有剩餘時段</h2><p>社交需要 1 個時段。</p>${closeBtn()}`);return}
+ if(state.player.cash<cost){modal(`<h2>錢不夠</h2><p>這個活動需要 NT$${cost.toLocaleString()}。</p>${closeBtn()}`);return}
  if(!consume("社交",1))return;
- document.querySelector(".modal-backdrop")?.remove();state.player.cash-=cost;
- if(person==="同學群"){state.player.mood=clamp(state.player.mood+4,0,100);state.logs.push(`社交：和班上同學一起聚會，支出 NT$${cost}。`);save();render();return}
- const c=state.characters[person],traits=c?.traits||[];let gain={chat:2,food:3,cafe:3,movie:4,date:5,arcade:3,hangout:2,game:3,latefood:3,duo:3}[type]||2;
+ document.querySelector(".modal-backdrop")?.remove();
+ state.player.cash-=cost;
+ if(person==="同學群"){
+   state.player.mood=clamp(state.player.mood+4,0,100);
+   state.logs.push(`社交：和班上同學一起聚會，支出 NT$${cost}。`);
+   save();render();return;
+ }
+ const c=state.characters?.[person];
+ if(!c){save();render();return}
+ const traits=safeTraits(c);
+ let gain={chat:2,food:3,cafe:3,movie:4,date:5,arcade:3,hangout:2,game:3,latefood:3,duo:3}[type]||2;
  if(traits.includes("拜金")&&["food","cafe","movie","date"].includes(type))gain+=type==="date"?2:1;
  if(traits.includes("天然呆")&&["chat","cafe","hangout"].includes(type))gain+=1;
  if(traits.includes("努力")&&["duo","game","arcade"].includes(type))gain+=1;
  if(traits.includes("老實")&&["food","latefood","chat"].includes(type))gain+=1;
  if(traits.includes("心機")&&type==="chat"&&Math.random()<.35)gain=1;
- if(type==="date"&&(state.player.relations[person]||0)>=88)gain+=1;
- state.player.relations[person]=clamp((state.player.relations[person]||0)+gain,0,100);state.player.mood=clamp(state.player.mood+3,0,100);
+ if(type==="date"&&(state.player.relations?.[person]||0)>=88)gain+=1;
+ state.player.relations=state.player.relations||{};
+ state.player.relations[person]=clamp((state.player.relations[person]||0)+gain,0,100);
+ state.player.mood=clamp(state.player.mood+3,0,100);
  if(type==="duo"){
    const f=state.friends?.[person],npcForm=f?.form??0,win=Math.random()<clamp(.50+npcForm/100,.30,.70);
-   state.logs.push(`社交：和 ${person} Rank雙排，${win?"配合順利拿下一勝":"這場配合不順輸掉了"}。關係 +${gain}。`);
-   if(!win&&Math.random()<.25){state.player.relations[person]=clamp(state.player.relations[person]-2,0,100);state.logs.push(`${person} 對這場失利有點煩躁，關係額外 -2。`)}
+   state.logs.push(`社交：和 ${person} Rank雙排，${win?"拿下一勝":"這場輸掉了"}，關係 +${gain}。`);
+   if(!win&&Math.random()<.25){
+     state.player.relations[person]=clamp(state.player.relations[person]-2,0,100);
+     state.logs.push(`${person} 因失利心情不好，關係額外 -2。`);
+   }
  }else{
    const labels={chat:"聊天散步",food:"一起吃飯",cafe:"去咖啡廳",movie:"看電影",date:"正式約會",arcade:"去電競館",hangout:"逛街閒晃",game:"一起打遊戲",latefood:"吃宵夜"};
    state.logs.push(`社交：和 ${person}${labels[type]||"相處"}，支出 NT$${cost.toLocaleString()}，關係 +${gain}。`);
  }
- save();render();maybeRomanceEvent();
+ save();render();
+ setTimeout(()=>maybeRomanceEvent(),0);
 }
 function chooseOuting(){
  if(remain()<1)return;
@@ -617,7 +651,7 @@ function career(){
  return `<section class="card"><h2>生涯中心</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.2.2</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.2.3</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));
