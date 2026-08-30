@@ -15,7 +15,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.1.6",started:false,
+  version:"1.1.7",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -54,7 +54,7 @@ function normalize(s){
  if(!s.eventFlags)s.eventFlags={};
  if(!s.messages)s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.1.6";return s;
+ s.version="1.1.7";return s;
 }
 function load(){
  try{
@@ -145,7 +145,7 @@ function phone(){
  <section class="card"><h2>電競新聞</h2>${state.news.slice().reverse().map(n=>`<div class="log">${n}</div>`).join("")}</section>`;
 }
 function career(){
- const p=state.player;return `<section class="card"><h2>生涯檔案</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("阿哲關係",Math.round(p.relations.阿哲))}${stat("粉絲",p.followers)}</div></section>${masteryCard()}<section class="card"><h2>版本</h2><div class="log"><strong>V1.1.6</strong>｜事件/訊息/行程重構、正式比賽日、生活奇遇、角色熟練度、完整Rank與訓練回饋。</div></section>`;
+ const p=state.player;return `<section class="card"><h2>生涯檔案</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("阿哲關係",Math.round(p.relations.阿哲))}${stat("粉絲",p.followers)}</div></section>${masteryCard()}<section class="card"><h2>版本</h2><div class="log"><strong>V1.1.7</strong>｜事件/訊息/行程重構、正式比賽日、生活奇遇、角色熟練度、完整Rank與訓練回饋。</div></section>`;
 }
 function render(){
  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===activeTab));
@@ -356,14 +356,32 @@ function finishTournament(ev,strategy){
  else{p.relations.阿哲+=2;state.logs.push("高中電競盃：首輪落敗。這次經驗成為新的起點。");state.messages.push({id:"cuplose-"+Date.now(),from:"阿哲",text:"輸了有點不甘心。不過我覺得我們可以繼續組。",unread:true,resolved:true,type:"normal"})}
  save();document.querySelector(".modal-backdrop")?.remove();render();modal(`<h2>${win?"首輪勝利！":"首輪落敗"}</h2><p>${win?"你們的第一次正式賽事取得勝利。":"正式比賽的壓力和Rank完全不同。"}</p><p>今天已被比賽完整占用，無法再進行其他活動。</p>${closeBtn()}`);
 }
+function repairTodayBeforeAdvance(){
+ const plan=todayPlan();
+ // 社課、雙排約定等非正式全天賽事不應鎖死換日。
+ plan.forEach(e=>{if(["clubSession","duoAppointment"].includes(e.type))e.lockDay=false});
+ // 舊版本留下的未知 lockDay 事件直接解除，避免永久卡關。
+ plan.forEach(e=>{if(e.lockDay&&!["tournament","amateurTournament"].includes(e.type)){e.lockDay=false;state.logs.push(`系統修復：已解除異常鎖定行程「${e.title||e.id}」。`)}});
+}
+function skipOptionalAppointmentsForNextDay(){
+ const pending=pendingAppointments().filter(e=>!e.lockDay);
+ pending.forEach(e=>{
+   e.completed=true;e.skipped=true;
+   if(e.type==="clubSession"){
+     if(state.school?.esportsClub){state.school.esportsClub.coachRelation=clamp((state.school.esportsClub.coachRelation||0)-1,0,100)}
+     state.logs.push(`你沒有參加「${e.title}」，教練評價 -1。`);
+   }else state.logs.push(`未完成行程「${e.title}」已略過。`);
+ });
+}
 function baseNextDay(){
- const hard=hardEventToday();if(hard){runEventById(hard.id);return}
- const pending=pendingAppointments().find(x=>!x.completed);
- if(pending){
-  let idx=slots().indexOf(pending.slot);
-  while(idx>=0&&state.dayState.usedSlots<idx)consume("自由時間",1);
-  runEventById(pending.id);return;
+ repairTodayBeforeAdvance();
+ const hard=hardEventToday();
+ if(hard){
+   modal(`<h2>🏆 今天有正式賽事</h2><p><strong>${hard.title}</strong> 是全天必要行程，完成比賽後才能進入下一天。</p><button class="btn primary" onclick="runEventById('${hard.id}')">前往比賽</button>${closeBtn()}`);
+   return;
  }
+ // 一般約定/社課不再攔截換日；玩家選擇下一天即視為略過未完成行程。
+ skipOptionalAppointmentsForNextDay();
  state.date.day++;state.player.energy=clamp(state.player.energy+10,0,100);state.player.stress=clamp(state.player.stress-2,0,100);state.dayState={usedSlots:0,actions:[]};
  if(state.date.day>7){state.date.day=1;state.date.week++;state.weeklyPlan={};state.player.cash+=750;state.logs.push(`第${state.date.week-1}週結束：上週行程已歸檔，零用錢入帳 NT$750。`)}
  scriptedEvents();
@@ -514,8 +532,8 @@ function career(){
  ensureV10();const p=state.player;
  return `<section class="card"><h2>生涯中心</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${amateurCard()}${shopCard()}${masteryCard()}
- <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.1.6</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.1.7</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));
@@ -529,6 +547,7 @@ function bind(){
  document.querySelector("#importSaveBtn")?.addEventListener("click",()=>document.querySelector("#importSaveFile")?.click());
  document.querySelector("#importSaveFile")?.addEventListener("change",importSaveJSON);
  document.querySelector("#recoverW15Btn")?.addEventListener("click",recoverWeek15Friday);
+ document.querySelector("#repairAdvanceBtn")?.addEventListener("click",()=>{repairTodayBeforeAdvance();save();render();modal(`<h2>🔧 行程鎖定已檢查</h2><p>已解除社課、約定或舊版本異常事件造成的換日鎖定。正式比賽日仍會正常鎖定。</p>${closeBtn()}`)});
 }
 function buyItem(id){
  const x=SHOP_ITEMS.find(a=>a.id===id);if(!x||state.player.cash<x.price)return;
@@ -537,7 +556,7 @@ function buyItem(id){
  modal(`<h2>購買完成</h2><p>${x.name}｜NT$${x.price.toLocaleString()}</p><p>${x.desc}</p>${closeBtn()}`);
 }
 function activeTournamentByBaseId(baseId){return (state.world?.tournaments||[]).find(t=>t.id&&t.id.startsWith(baseId+"-")&&["進行中","等待下一輪"].includes(t.status))}
-function syncTournamentSchedule(){if(!state.world?.tournaments)return;state.world.tournaments.forEach(t=>{if(!["進行中","等待下一輪"].includes(t.status))return;if(t.nextWeek<state.date.week){t.nextWeek=state.date.week;t.status="進行中"}if(t.nextWeek===state.date.week){t.status="進行中";const d=t.nextDay||6;if(!(state.weeklyPlan?.[d]||[]).some(e=>e.tournamentId===t.id&&!e.completed))addPlan(d,{id:"round-"+t.id+"-"+t.roundIndex,title:`${t.name}｜${t.rounds[t.roundIndex]}`,slot:"全天",type:"amateurTournament",lockDay:true,completed:false,tournamentId:t.id,week:state.date.week,roster:t.roster,desc:`正式比賽日：${t.rounds[t.roundIndex]}。全天鎖定，只能比賽。`})}})}
+function syncTournamentSchedule(){if(!state.world?.tournaments)return;state.world.tournaments.forEach(t=>{if(!["進行中","等待下一輪"].includes(t.status))return;if(t.nextWeek<state.date.week){t.nextWeek=state.date.week;t.status="進行中"}if(t.nextWeek===state.date.week){const d=t.nextDay||6;if(state.date.day>d){t.nextWeek=state.date.week+1;t.status="等待下一輪";return}t.status="進行中";if(!(state.weeklyPlan?.[d]||[]).some(e=>e.tournamentId===t.id&&!e.completed))addPlan(d,{id:"round-"+t.id+"-"+t.roundIndex,title:`${t.name}｜${t.rounds[t.roundIndex]}`,slot:"全天",type:"amateurTournament",lockDay:true,completed:false,tournamentId:t.id,week:state.date.week,roster:t.roster,desc:`正式比賽日：${t.rounds[t.roundIndex]}。全天鎖定，只能比賽。`})}})}
 function signupAmateur(i){
  const list=[
   {name:"網咖週末盃",fee:300,day:6,id:"cafe-cup",rounds:["八強","四強","冠軍戰"],gap:1,prize:5000,rep:1},
