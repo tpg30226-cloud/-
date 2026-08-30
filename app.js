@@ -15,7 +15,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.1.5",started:false,
+  version:"1.1.6",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -54,7 +54,7 @@ function normalize(s){
  if(!s.eventFlags)s.eventFlags={};
  if(!s.messages)s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.1.5";return s;
+ s.version="1.1.6";return s;
 }
 function load(){
  try{
@@ -145,7 +145,7 @@ function phone(){
  <section class="card"><h2>電競新聞</h2>${state.news.slice().reverse().map(n=>`<div class="log">${n}</div>`).join("")}</section>`;
 }
 function career(){
- const p=state.player;return `<section class="card"><h2>生涯檔案</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("阿哲關係",Math.round(p.relations.阿哲))}${stat("粉絲",p.followers)}</div></section>${masteryCard()}<section class="card"><h2>版本</h2><div class="log"><strong>V1.1.5</strong>｜事件/訊息/行程重構、正式比賽日、生活奇遇、角色熟練度、完整Rank與訓練回饋。</div></section>`;
+ const p=state.player;return `<section class="card"><h2>生涯檔案</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("阿哲關係",Math.round(p.relations.阿哲))}${stat("粉絲",p.followers)}</div></section>${masteryCard()}<section class="card"><h2>版本</h2><div class="log"><strong>V1.1.6</strong>｜事件/訊息/行程重構、正式比賽日、生活奇遇、角色熟練度、完整Rank與訓練回饋。</div></section>`;
 }
 function render(){
  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===activeTab));
@@ -367,6 +367,7 @@ function baseNextDay(){
  state.date.day++;state.player.energy=clamp(state.player.energy+10,0,100);state.player.stress=clamp(state.player.stress-2,0,100);state.dayState={usedSlots:0,actions:[]};
  if(state.date.day>7){state.date.day=1;state.date.week++;state.weeklyPlan={};state.player.cash+=750;state.logs.push(`第${state.date.week-1}週結束：上週行程已歸檔，零用錢入帳 NT$750。`)}
  scriptedEvents();
+ syncTournamentSchedule();
  if(state.school?.esportsClub?.joined && state.date.day===5 && !(state.weeklyPlan[5]||[]).some(e=>e.type==="clubSession")){
    addPlan(5,{id:"club-"+state.date.week,title:"電競社固定社課",slot:"放學後",type:"clubSession",lockDay:false,completed:false,desc:"教練課、隊內賽、覆盤或他校訓練賽。"});
  }
@@ -514,7 +515,7 @@ function career(){
  return `<section class="card"><h2>生涯中心</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.1.5</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.1.6</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));
@@ -522,7 +523,8 @@ function bind(){
  document.querySelectorAll(".message-open").forEach(b=>b.onclick=e=>{e.preventDefault();openMessage(b.dataset.msg)});
  document.querySelectorAll(".event-run").forEach(b=>b.onclick=()=>runEventById(b.dataset.event));
  document.querySelectorAll(".buy-item").forEach(b=>b.onclick=()=>buyItem(b.dataset.item));
- document.querySelectorAll(".amateur-signup").forEach(b=>b.onclick=()=>signupAmateur(Number(b.dataset.i)));
+ document.querySelector("#uiBack")?.addEventListener("click",()=>{const m=document.querySelector(".modal-backdrop");if(m)m.remove();else{activeTab="home";render()}});
+ document.querySelectorAll(".amateur-signup").forEach(b=>{const ids=["cafe-cup","school-cup","city-cup"],a=activeTournamentByBaseId(ids[Number(b.dataset.i)]);if(a){b.disabled=true;b.textContent="已報名・進行中"}else b.onclick=()=>signupAmateur(Number(b.dataset.i))});
  document.querySelector("#exportSaveBtn")?.addEventListener("click",exportSaveJSON);
  document.querySelector("#importSaveBtn")?.addEventListener("click",()=>document.querySelector("#importSaveFile")?.click());
  document.querySelector("#importSaveFile")?.addEventListener("change",importSaveJSON);
@@ -534,6 +536,8 @@ function buyItem(id){
  state.logs.push(`消費：購買${x.name}，支出 NT$${x.price.toLocaleString()}。`);save();render();
  modal(`<h2>購買完成</h2><p>${x.name}｜NT$${x.price.toLocaleString()}</p><p>${x.desc}</p>${closeBtn()}`);
 }
+function activeTournamentByBaseId(baseId){return (state.world?.tournaments||[]).find(t=>t.id&&t.id.startsWith(baseId+"-")&&["進行中","等待下一輪"].includes(t.status))}
+function syncTournamentSchedule(){if(!state.world?.tournaments)return;state.world.tournaments.forEach(t=>{if(!["進行中","等待下一輪"].includes(t.status))return;if(t.nextWeek<state.date.week){t.nextWeek=state.date.week;t.status="進行中"}if(t.nextWeek===state.date.week){t.status="進行中";const d=t.nextDay||6;if(!(state.weeklyPlan?.[d]||[]).some(e=>e.tournamentId===t.id&&!e.completed))addPlan(d,{id:"round-"+t.id+"-"+t.roundIndex,title:`${t.name}｜${t.rounds[t.roundIndex]}`,slot:"全天",type:"amateurTournament",lockDay:true,completed:false,tournamentId:t.id,week:state.date.week,roster:t.roster,desc:`正式比賽日：${t.rounds[t.roundIndex]}。全天鎖定，只能比賽。`})}})}
 function signupAmateur(i){
  const list=[
   {name:"網咖週末盃",fee:300,day:6,id:"cafe-cup",rounds:["八強","四強","冠軍戰"],gap:1,prize:5000,rep:1},
@@ -541,6 +545,7 @@ function signupAmateur(i){
   {name:"城市青年盃",fee:500,day:7,id:"city-cup",rounds:["32強","16強","八強","四強","冠軍戰"],gap:1,prize:20000,rep:3}
  ],x=list[i];
  if(!x||state.player.cash<x.fee)return;
+ const active=activeTournamentByBaseId(x.id);if(active){modal(`<h2>🏆 已報名</h2><p>${active.name}目前進行到 <strong>${active.rounds[active.roundIndex]}</strong>。賽事結束前不能再次報名。</p>${closeBtn()}`);return}
  openTeamBuilder(x);
 }
 function tournamentCandidates(){
@@ -634,6 +639,7 @@ function resolveTournamentInvite(name,role,x,picked,accepted){
  return {yes:false,message:`❌ <strong>${name}</strong>婉拒：${reasons[rand(0,reasons.length-1)]}（本次成功率約 ${chance}%）`};
 }
 function confirmTeamSignup(x,picked,accepted){
+ const duplicate=activeTournamentByBaseId(x.id);if(duplicate){alert(`你已經報名 ${duplicate.name}，請先完成目前賽事。`);return}
  const myRole=normalizeRole(state.player.role);
  const need=["上路","打野","中路","ADC","輔助"].filter(r=>r!==myRole);
  const missing=need.filter(r=>!picked[r]||accepted[picked[r]]!==true);
