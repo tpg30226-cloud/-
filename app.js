@@ -15,7 +15,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.1.3",started:false,
+  version:"1.1.4",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -54,7 +54,7 @@ function normalize(s){
  if(!s.eventFlags)s.eventFlags={};
  if(!s.messages)s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.1.3";return s;
+ s.version="1.1.4";return s;
 }
 function load(){
  try{
@@ -145,7 +145,7 @@ function phone(){
  <section class="card"><h2>電競新聞</h2>${state.news.slice().reverse().map(n=>`<div class="log">${n}</div>`).join("")}</section>`;
 }
 function career(){
- const p=state.player;return `<section class="card"><h2>生涯檔案</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("阿哲關係",Math.round(p.relations.阿哲))}${stat("粉絲",p.followers)}</div></section>${masteryCard()}<section class="card"><h2>版本</h2><div class="log"><strong>V1.1.3</strong>｜事件/訊息/行程重構、正式比賽日、生活奇遇、角色熟練度、完整Rank與訓練回饋。</div></section>`;
+ const p=state.player;return `<section class="card"><h2>生涯檔案</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("阿哲關係",Math.round(p.relations.阿哲))}${stat("粉絲",p.followers)}</div></section>${masteryCard()}<section class="card"><h2>版本</h2><div class="log"><strong>V1.1.4</strong>｜事件/訊息/行程重構、正式比賽日、生活奇遇、角色熟練度、完整Rank與訓練回饋。</div></section>`;
 }
 function render(){
  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===activeTab));
@@ -513,7 +513,7 @@ function career(){
  ensureV10();const p=state.player;
  return `<section class="card"><h2>生涯中心</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${amateurCard()}${shopCard()}${masteryCard()}
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.1.3</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.1.4</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));
@@ -551,91 +551,101 @@ function discoverTeammate(role,source){
  state.logs.push(`新好友：透過${source}認識了${name}（${role}）。`);
  save();return name;
 }
+function normalizeRole(r){
+ const m={"Top":"上路","上":"上路","上路":"上路","Jungle":"打野","JG":"打野","野":"打野","打野":"打野","Mid":"中路","MID":"中路","中":"中路","中路":"中路","ADC":"ADC","AD":"ADC","下路":"ADC","射手":"ADC","Bot":"ADC","Support":"輔助","SUP":"輔助","輔助":"輔助","輔":"輔助"};
+ return m[r]||r;
+}
 function openTeamBuilder(x){
- const need=ROLES.filter(r=>r!==state.player.role);
- const picked={};
- const accepted={};
+ const myRole=normalizeRole(state.player.role);
+ const need=["上路","打野","中路","ADC","輔助"].filter(r=>r!==myRole);
+ // Persist draft while modal is open/re-rendered.
+ if(!state.teamDraft||state.teamDraft.tournament!==x.id)state.teamDraft={tournament:x.id,picked:{},accepted:{}};
+ const picked=state.teamDraft.picked,accepted=state.teamDraft.accepted;
 
- function candidates(){return tournamentCandidates()}
+ function validCandidates(){
+   return tournamentCandidates().map(c=>({...c,role:normalizeRole(c.role)})).filter(c=>need.includes(c.role));
+ }
+ function complete(){return need.every(r=>picked[r]&&accepted[picked[r]]===true)}
  function draw(){
    modal(`<h2>👥 組隊報名｜${x.name}</h2>
-   <p>你主打 <strong>${state.player.role}</strong>。先邀請其他四條路線的玩家；只有<strong>答應邀請</strong>的人才會進入正式陣容。</p>
+   <p>你主打 <strong>${myRole}</strong>。四名隊友都必須<strong>答應邀請</strong>後才能報名。</p>
    <div class="notice">需要：${need.join("、")}</div>
-   <div class="reply-grid">${candidates().map(c=>`<button class="reply invite-player" data-name="${c.name}" data-role="${c.role}"><strong>${c.name}</strong><div class="small">${c.role} · ${c.rank} · 關係 ${Math.round(c.relation)}${accepted[c.name]?" · ✅ 已答應":""}</div></button>`).join("")}</div>
+   <div class="reply-grid">${validCandidates().map(c=>`<button class="reply invite-player" data-name="${c.name}" data-role="${c.role}"><strong>${c.name}</strong><div class="small">${c.role} · ${c.rank} · 關係 ${Math.round(c.relation)} ${accepted[c.name]===true?"· ✅ 已答應":accepted[c.name]===false?"· ❌ 已婉拒":""}</div></button>`).join("")||"<div class='small'>目前沒有可邀請的電競好友，請使用下方方式找人。</div>"}</div>
    <div class="reply-grid"><button class="reply find-team" data-src="Rank">🎮 遊戲中找人</button><button class="reply find-team" data-src="好友介紹">🤝 請好友介紹</button><button class="reply find-team" data-src="電競社">🎓 問社團成員</button></div>
-   <div id="teamBuilderStatus" class="log">目前陣容：${state.player.name}（${state.player.role}）${Object.entries(picked).map(([r,n])=>`、${n}（${r}）`).join("")}</div>
-   <button id="confirmTeamSignup" class="primary" ${need.every(r=>picked[r]&&accepted[picked[r]])?"":"disabled"}>確認陣容並報名</button>${closeBtn()}`);
+   <div class="log"><strong>目前陣容</strong><br>${state.player.name}（${myRole}）<br>${need.map(r=>`${r}：${picked[r]?(picked[r]+(accepted[picked[r]]===true?" ✅":" ⏳")):"尚未確認"}`).join("<br>")}</div>
+   <div id="inviteFeedback" class="notice" style="display:none"></div>
+   <button id="confirmTeamSignup" class="primary" ${complete()?"":"disabled"}>${complete()?"✅ 確認陣容並報名":"尚未湊齊四名已答應隊友"}</button>${closeBtn()}`);
 
-   document.querySelectorAll(".invite-player").forEach(b=>b.onclick=()=>{
-     const role=b.dataset.role,name=b.dataset.name;
-     if(role===state.player.role){showInviteResult(name,false,`你們都是${role}，目前陣容位置衝突。`);return}
-     inviteTournamentPlayer(name,role,x,picked,accepted,draw);
+   document.querySelectorAll(".invite-player").forEach(b=>{
+     b.onclick=()=>{
+       const role=normalizeRole(b.dataset.role),name=b.dataset.name;
+       const fb=document.querySelector("#inviteFeedback");
+       if(fb){fb.style.display="block";fb.innerHTML=`正在邀請 <strong>${name}</strong>…`}
+       // Immediate synchronous resolution so Safari taps always produce visible feedback.
+       const result=resolveTournamentInvite(name,role,x,picked,accepted);
+       save();
+       if(fb){fb.innerHTML=result.message}
+       setTimeout(draw,900);
+     };
    });
    document.querySelectorAll(".find-team").forEach(b=>b.onclick=()=>{
-     const missing=need.find(r=>!picked[r]);
-     if(!missing){showInviteResult("系統",false,"目前五個位置已經有人選；若有人拒絕，再尋找替代隊友。");return}
-     if(b.dataset.src==="電競社"&&!state.school.esportsClub.joined){showInviteResult("電競社",false,"你目前還不是社員，無法透過社團人脈找人。");return}
+     const missing=need.find(r=>!picked[r]||accepted[picked[r]]!==true);
+     const fb=document.querySelector("#inviteFeedback");
+     if(!missing){if(fb){fb.style.display="block";fb.innerHTML="五個位置都已完成，可以直接確認報名。"}return}
+     if(b.dataset.src==="電競社"&&!state.school.esportsClub.joined){if(fb){fb.style.display="block";fb.innerHTML="你還不是電競社員，無法透過社團找人。"}return}
      const n=discoverTeammate(missing,b.dataset.src);
-     // 新認識的人不會自動加入，仍要正式邀請。
-     draw();
-     setTimeout(()=>{const btn=[...document.querySelectorAll(".invite-player")].find(q=>q.dataset.name===n);if(btn)btn.scrollIntoView({block:"center"})},0);
+     if(fb){fb.style.display="block";fb.innerHTML=`認識了 <strong>${n}</strong>（${missing}）。請再點他的名字正式邀請。`}
+     save();setTimeout(draw,900);
    });
    const confirm=document.querySelector("#confirmTeamSignup");
-   if(confirm)confirm.onclick=()=>confirmTeamSignup(x,picked,accepted);
+   if(confirm)confirm.onclick=()=>{
+     if(!complete()){const fb=document.querySelector("#inviteFeedback");if(fb){fb.style.display="block";fb.innerHTML="仍有位置尚未得到隊友同意。"}return}
+     confirm.disabled=true;confirm.textContent="報名處理中…";
+     confirmTeamSignup(x,picked,accepted);
+   };
  }
  draw();
 }
-function inviteTournamentPlayer(name,role,x,picked,accepted,redraw){
+function resolveTournamentInvite(name,role,x,picked,accepted){
+ role=normalizeRole(role);
  const rel=state.player.relations[name]||0;
- const friend=state.friends?.[name]||{};
- const rank=friend.rank||"未紀錄";
- // 意願受到關係、賽事規模、是否剛認識等影響；高關係不是100%保證。
  let chance=42+Math.floor(rel*.45);
  if(x.id==="school-cup"&&state.school.esportsClub?.joined)chance+=8;
  if(rel<20)chance-=12;
  chance=clamp(chance,18,92);
- const roll=rand(1,100),yes=roll<=chance;
+ const yes=rand(1,100)<=chance;
  if(yes){
-   // 同路線換人時，舊人退出陣容。
    if(picked[role]&&picked[role]!==name)delete accepted[picked[role]];
    Object.keys(picked).forEach(r=>{if(picked[r]===name&&r!==role)delete picked[r]});
    picked[role]=name;accepted[name]=true;
    state.player.relations[name]=clamp(rel+1,0,100);
    state.logs.push(`${name}答應參加${x.name}，擔任${role}。`);
-   save();
-   showInviteResult(name,true,`${name}答應了！他會擔任${role}。目前關係 ${state.player.relations[name]}。`,redraw);
- }else{
-   accepted[name]=false;
-   const reasons=["這週已經有其他安排。","最近想專心衝Rank，暫時不想打盃賽。","覺得目前隊伍磨合還不夠。","家裡臨時有事，這次沒辦法參加。"];
-   state.logs.push(`${name}婉拒${x.name}邀請。`);
-   save();
-   showInviteResult(name,false,`${name}婉拒了邀請：${reasons[rand(0,reasons.length-1)]}（邀請成功率約 ${chance}%）`,redraw);
+   return {yes:true,message:`✅ <strong>${name}</strong>答應參賽，位置：${role}。`};
  }
-}
-function showInviteResult(name,yes,text,after){
- const old=document.querySelector(".invite-result");if(old)old.remove();
- const box=document.createElement("div");box.className="notice invite-result";box.innerHTML=`<strong>${yes?"✅":"💬"} ${name}</strong><div class="small">${text}</div>`;
- const modalBox=document.querySelector(".modal");if(modalBox)modalBox.insertBefore(box,modalBox.querySelector(".close")||null);
- if(after)setTimeout(after,650);
+ accepted[name]=false;
+ if(picked[role]===name)delete picked[role];
+ const reasons=["這週已經有其他安排。","最近想專心衝Rank。","覺得目前隊伍磨合還不夠。","家裡臨時有事。"];
+ state.logs.push(`${name}婉拒${x.name}邀請。`);
+ return {yes:false,message:`❌ <strong>${name}</strong>婉拒：${reasons[rand(0,reasons.length-1)]}（本次成功率約 ${chance}%）`};
 }
 function confirmTeamSignup(x,picked,accepted){
- const need=ROLES.filter(r=>r!==state.player.role);
- const missing=need.filter(r=>!picked[r]||!accepted[picked[r]]);
- if(missing.length){
-   showInviteResult("陣容未完成",false,`還缺：${missing.join("、")}。四位隊友都必須親自答應後才能報名。`);
-   return;
- }
- if(state.player.cash<x.fee){showInviteResult("報名失敗",false,"現金不足，無法支付報名費。");return}
- const roster=[{name:state.player.name,role:state.player.role},...need.map(r=>({name:picked[r],role:r}))];
- if(new Set(roster.map(a=>a.name)).size!==5){showInviteResult("陣容錯誤",false,"同一名玩家不能佔兩個位置。");return}
+ const myRole=normalizeRole(state.player.role);
+ const need=["上路","打野","中路","ADC","輔助"].filter(r=>r!==myRole);
+ const missing=need.filter(r=>!picked[r]||accepted[picked[r]]!==true);
+ if(missing.length){alert(`陣容尚未完成：${missing.join("、")}`);return}
+ if(state.player.cash<x.fee){alert("現金不足，無法支付報名費。");return}
+ const roster=[{name:state.player.name,role:myRole},...need.map(r=>({name:picked[r],role:r}))];
+ if(new Set(roster.map(a=>a.name)).size!==5){alert("陣容資料重複，請重新選擇隊友。");return}
  state.player.cash-=x.fee;
  const t={id:x.id+"-"+Date.now(),name:x.name,roster,rounds:x.rounds,roundIndex:0,status:"進行中",nextWeek:state.date.week,nextDay:x.day,prize:x.prize,rep:x.rep,history:[]};
  state.world.tournaments.push(t);
+ state.teamDraft=null;
  scheduleTournamentRound(t);
- save();render();
+ save();
  document.querySelector(".modal-backdrop")?.remove();
+ render();
  const when=t.status==="等待下一輪"?`第 ${t.nextWeek} 週${DAYS[(t.nextDay||6)-1]}`:`本週${DAYS[(t.nextDay||6)-1]}`;
- modal(`<h2>✅ 報名完成</h2><p>${x.name}首輪 <strong>${x.rounds[0]}</strong>：<strong>${when}</strong></p><div class="log">${roster.map(a=>`${a.role}：${a.name}`).join("<br>")}</div><p>五名隊員均已確認參賽。</p>${closeBtn()}`);
+ modal(`<h2>✅ 報名完成</h2><p>${x.name}首輪 <strong>${x.rounds[0]}</strong> 已安排：<strong>${when}</strong></p><div class="log">${roster.map(a=>`${a.role}：${a.name}`).join("<br>")}</div><p>比賽日會全天鎖定，只能進行正式賽事。</p>${closeBtn()}`);
 }
 function scheduleTournamentRound(t){
  if(t.status!=="進行中")return;
