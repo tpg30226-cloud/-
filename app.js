@@ -16,7 +16,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.6.0",started:false,
+  version:"1.6.0.1",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,v138AllStatsBoosted:true,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -74,7 +74,7 @@ function normalize(s){
  if(!Array.isArray(s.news))s.news=[];
  if(!Array.isArray(s.messages))s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.6.0";return s;
+ s.version="1.6.0.1";return s;
 }
 function load(){
  try{
@@ -676,6 +676,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  syncCalendarFields();
 
  migrateProV160();
+ migrateProV1601();
 }
 function isProFriend(name){return (state.player.proFriends||[]).includes(name)}
 function ensureProCharacter(name){
@@ -739,8 +740,13 @@ function generateWeeklyNews(){
  state.news.unshift(`【第${state.date.week}週】${pool[rand(0,pool.length-1)]}`);
  if(state.news.length>20)state.news.length=20;
 }
+function migrateProV1601(){
+ const p=state.player;if(p.v1601Migrated)return;
+ if(isProfessionalStage()){ensureProRoster();(p.adultLife?.pregnancies||[]).forEach((pg,i)=>promoteImportantPregnancyNpc(pg,i));cleanupUnnamedFriends()}
+ p.v1601Migrated=true;
+}
 function relationshipCard(){
- const p=state.player,known=Object.values(state.characters||{}).filter(c=>c?.known),partners=p.romance.partners||[];
+ const p=state.player,known=Object.values(state.characters||{}).filter(c=>c?.known&&proSocialAllowed(c)),partners=p.romance.partners||[];
  return `<section class="card"><div class="row space"><h2>人際關係</h2><span class="badge">${partners.length?`交往中 ×${partners.length}`:"單身"}</span></div>
  ${known.map(c=>{let v=p.relations[c.name]||0,dating=partners.includes(c.name),traits=safeTraits(c);return `<div class="log"><div class="row space"><strong>${c.name}${dating?" 💞":""}</strong><span>${dating?"戀人":relationTier(v,c.name)} · ${Math.round(v)}</span></div><div class="small">${c.desc||""}｜性別：${c.gender||"未設定"}${traits.length?`｜個性：${traits.join("、")}`:""}${isEsportsFriend(c.name)?`｜遊戲路線：${esportsRole(c.name)}`:""}</div><button class="ghost send-gift" data-name="${c.name}">🎁 送禮物</button></div>`}).join("")}</section>`;
 }
@@ -821,7 +827,7 @@ function career(){
  return `${proCareerCard()}${contractCenter()}${pregnancyCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.6.0</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.6.0.1</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));document.querySelector("#doTryout")?.addEventListener("click",doProTryout);document.querySelector("#signProContract")?.addEventListener("click",signProContract);document.querySelector("#counterOffer")?.addEventListener("click",counterInitialOffer);document.querySelector("#declineOffer")?.addEventListener("click",declineInitialOffer);document.querySelector("#playLeagueMatch")?.addEventListener("click",playLeagueMatch);document.querySelector("#askRaise")?.addEventListener("click",()=>negotiateContract("raise"));document.querySelector("#offerCut")?.addEventListener("click",()=>negotiateContract("cut"));document.querySelector("#requestTransfer")?.addEventListener("click",()=>negotiateContract("transfer"));document.querySelectorAll(".pregnancy-talk").forEach(b=>b.onclick=()=>pregnancyDecision(+b.dataset.i));
@@ -1274,10 +1280,30 @@ function contractCenter(){
  return `<section class="card"><h2>📄 合約／轉會</h2><div class="stat-grid">${stat("月薪",`NT$${Number(c.salary||0).toLocaleString()}`)}${stat("身份",pc.stage==="starter"?"一軍":pc.stage==="sub"?"替補":"青訓")}</div><div class="reply-grid"><button id="askRaise" class="reply">💰 要求加薪</button><button id="offerCut" class="reply">🤝 降薪留隊</button><button id="requestTransfer" class="reply">🔄 要求轉會</button></div></section>`;
 }
 function negotiateContract(kind){
- const p=state.player,pc=p.proCareer,c=pc.contract||{},value=avg()+pc.coachTrust*.18+p.adultLife.careerReputation*.08+Math.min(12,(pc.careerStats?.mvp||0)*2);
- if(kind==="raise"){const want=Math.round((c.salary||50000)*1.25/1000)*1000,ok=value+rand(-12,12)>=72;if(ok){c.salary=want;state.logs.push(`💰 談判成功，${pc.team} 同意將月薪調整為 NT$${want.toLocaleString()}。`)}else state.logs.push(`💬 ${pc.team} 暫時拒絕加薪要求，希望你用後續表現證明身價。`)}
- if(kind==="cut"){const salary=Math.max(20000,Math.round((c.salary||50000)*.85/1000)*1000);c.salary=salary;pc.coachTrust=clamp(pc.coachTrust+5,0,100);state.logs.push(`🤝 你主動接受降薪至 NT$${salary.toLocaleString()}，換取更高的留隊意願。`)}
- if(kind==="transfer"){const ok=Math.random()<clamp(.35+(100-pc.coachTrust)/180,0.25,.72);pc.transferRequest={status:ok?"同意尋找買家":"暫時拒絕",week:state.date.week};state.logs.push(ok?`🔄 戰隊同意聽取其他隊伍對你的轉會報價。`:`⛔ 戰隊暫時拒絕你的轉會要求。`)}
+ const p=state.player,pc=p.proCareer,c=pc.contract||{},cs=pc.careerStats||{},now=(state.date.year||2026)*52+(state.date.week||1);
+ pc.negotiation=pc.negotiation||{};
+ if(kind==="raise"){
+  const last=pc.negotiation.raiseWeek||0;if(now-last<4){state.logs.push(`💬 距離上次加薪談判太近，管理層要求至少再等 ${4-(now-last)} 週。`);save();render();return}
+  pc.negotiation.raiseWeek=now;
+  const want=Math.round((c.salary||50000)*1.25/1000)*1000;
+  const chance=clamp(.18+(avg()-65)*.012+(pc.coachTrust-50)*.004+(p.adultLife.careerReputation-50)*.002+Math.min(.18,(cs.mvp||0)*.025),.08,.78);
+  const roll=Math.random();
+  if(roll<chance){c.salary=want;state.logs.push(`💰 加薪談判成功（成功率約 ${Math.round(chance*100)}%），${pc.team} 同意月薪調整為 NT$${want.toLocaleString()}。`)}
+  else if(roll<chance+.22){const counter=Math.round((c.salary||50000)*1.08/1000)*1000;c.salary=counter;state.logs.push(`🤝 戰隊拒絕25%加薪，但願意折衷調薪至 NT$${counter.toLocaleString()}。`)}
+  else state.logs.push(`⛔ 加薪談判失敗（成功率約 ${Math.round(chance*100)}%）。管理層認為目前表現不足以支持調薪。`);
+ }
+ if(kind==="cut"){
+  const salary=Math.max(20000,Math.round((c.salary||50000)*.85/1000)*1000),accept=Math.random()<.90;
+  if(accept){c.salary=salary;pc.coachTrust=clamp(pc.coachTrust+5,0,100);state.logs.push(`🤝 戰隊接受你降薪至 NT$${salary.toLocaleString()} 的提議，留隊意願提高。`)}
+  else state.logs.push(`💬 戰隊表示問題不在薪資，目前仍無法承諾留隊。`);
+ }
+ if(kind==="transfer"){
+  const last=pc.negotiation.transferWeek||0;if(now-last<3){state.logs.push(`💬 管理層剛處理過你的轉會要求，至少再等 ${3-(now-last)} 週才能重新提出。`);save();render();return}
+  pc.negotiation.transferWeek=now;
+  const chance=clamp(.22+(100-pc.coachTrust)*.003+(cs.matches>8?.08:0)+(p.adultLife.careerReputation<40?.06:0),.15,.62),roll=Math.random();
+  if(roll<chance){pc.transferRequest={status:"同意尋找買家",week:state.date.week};state.logs.push(`🔄 轉會申請獲准（成功率約 ${Math.round(chance*100)}%）。戰隊同意聽取其他隊伍報價，但仍不代表一定有人出價。`)}
+  else{pc.transferRequest={status:"暫時拒絕",week:state.date.week};pc.coachTrust=clamp(pc.coachTrust-rand(1,4),0,100);state.logs.push(`⛔ 轉會申請遭拒（成功率約 ${Math.round(chance*100)}%）。戰隊目前不願放人。`)}
+ }
  save();render();
 }
 function maybeTeammateConflict(){
