@@ -15,12 +15,12 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.3.6",started:false,
+  version:"1.3.8",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
    relations:{阿哲:64,林雨晴:0,Kaito:0,子辰:0},
-   stats:{操作:61,反應:65,對線:58,補刀:62,換血:57,團戰:56,遊戲理解:52,地圖意識:51,決策:48,心態:57,英雄池:45,溝通:50},
+   stats:{操作:66,反應:70,對線:63,補刀:67,換血:62,團戰:61,遊戲理解:57,地圖意識:56,決策:53,心態:62,英雄池:50,溝通:55},
    mastery:{
     liyue:{level:67,games:42,wins:24},yingren:{level:54,games:28,wins:14},xinghuo:{level:31,games:12,wins:5},
     canglan:{level:18,games:5,wins:2},lingfeng:{level:9,games:2,wins:0}
@@ -51,6 +51,12 @@ function normalize(s){
  const p=s.player,bp=base.player;
  ["name","age","role","cash","rank","lp","wins","losses","followers","proAttention","energy","stress","mood","passion","school","family"].forEach(k=>{if(p[k]==null)p[k]=bp[k]});
  p.stats={...bp.stats,...(p.stats||{})};
+ if(!p.v138AllStatsBoosted){
+   Object.keys(p.stats).forEach(k=>{if(Number.isFinite(p.stats[k]))p.stats[k]=clamp(p.stats[k]+5,0,100)});
+   p.v138AllStatsBoosted=true;
+   s.logs=Array.isArray(s.logs)?s.logs:[];
+   s.logs.push("V1.3.8 能力校正：夜鋒所有能力永久 +5。");
+ }
  p.mastery=p.mastery||{};
  Object.entries(bp.mastery).forEach(([id,m])=>{p.mastery[id]={...m,...(p.mastery[id]||{})}});
  HEROES.forEach((h,i)=>{if(!p.mastery[h.id])p.mastery[h.id]={level:Math.max(3,22-i*2),games:0,wins:0}});
@@ -67,7 +73,7 @@ function normalize(s){
  if(!Array.isArray(s.news))s.news=[];
  if(!Array.isArray(s.messages))s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.3.6";return s;
+ s.version="1.3.8";return s;
 }
 function load(){
  try{
@@ -208,6 +214,34 @@ function chooseHero(cb){
  modal(`<h2>選擇角色</h2><div class="reply-grid">${HEROES.map(h=>{let m=state.player.mastery[h.id];return `<button class="reply hero-choice" data-hero="${h.id}"><strong>${h.name}</strong><div class="small">${h.type} · 熟練度 ${m.level.toFixed(1)}</div></button>`}).join("")}</div>`);
  document.querySelectorAll(".hero-choice").forEach(b=>b.onclick=()=>{document.querySelector(".modal-backdrop")?.remove();cb(b.dataset.hero)});
 }
+function practicalScale(v){return v>=90?.42:v>=85?.55:v>=80?.68:v>=75?.82:1}
+function addAbilityGrowth(key,raw){
+ const p=state.player,old=p.stats[key]||0,g=+(raw*practicalScale(old)).toFixed(2);
+ p.stats[key]=clamp(old+g,0,100);return +(p.stats[key]-old).toFixed(2);
+}
+function rankAbilityGrowth(heroId,win,metPro){
+ const p=state.player,m=p.mastery[heroId],role=normalizeRole(p.role),rolePools={
+  上路:["對線","換血","操作","團戰"],打野:["地圖意識","決策","遊戲理解","溝通"],
+  中路:["對線","操作","決策","遊戲理解"],ADC:["操作","反應","補刀","團戰"],輔助:["溝通","地圖意識","決策","團戰"]
+ },pool=rolePools[role]||["操作","決策","團戰","遊戲理解"],out=[];
+ const count=metPro?3:2;
+ for(let i=0;i<count;i++){const k=pool[rand(0,pool.length-1)];if(out.some(x=>x[0]===k))continue;const g=addAbilityGrowth(k,(Math.random()*.055+.035)*(win?1.15:1)*(metPro?1.25:1));out.push([k,g])}
+ const usedHeroes=Object.values(p.mastery).filter(x=>x.games>0).length,qualified=Object.values(p.mastery).filter(x=>x.level>=30).length;
+ let hpRaw=.018+(usedHeroes>=5?.012:0)+(qualified>=4?.012:0)+(metPro?.012:0);
+ const hp=addAbilityGrowth("英雄池",hpRaw);out.push(["英雄池",hp]);
+ return out.filter(x=>x[1]>0);
+}
+function clubAbilityGrowth(type){
+ const map={
+  "教練觀念課":["遊戲理解","決策","地圖意識"],
+  "隊內對抗賽":["操作","對線","團戰","溝通"],
+  "比賽覆盤":["遊戲理解","地圖意識","決策"],
+  "BP與溝通訓練":["英雄池","溝通","決策","遊戲理解"],
+  "他校訓練賽":["團戰","溝通","心態","地圖意識","英雄池"]
+ },pool=map[type]||["遊戲理解","溝通"],out=[],n=type==="他校訓練賽"?3:2;
+ for(let i=0;i<n;i++){const k=pool[rand(0,pool.length-1)];if(out.some(x=>x[0]===k))continue;const raw=type==="他校訓練賽"?Math.random()*.10+.12:Math.random()*.09+.10;out.push([k,addAbilityGrowth(k,raw)])}
+ return out.filter(x=>x[1]>0);
+}
 function playRank(isDuo=false){
  if(remain()<1)return;
  chooseHero(heroId=>{
@@ -219,14 +253,17 @@ function playRank(isDuo=false){
   const conditionAdj=clamp((p.mood-60)*.10-(p.stress-25)*.08-(p.energy<45?(45-p.energy)*.12:0),-9,5);
   const poolCount=Object.values(p.mastery).filter(x=>x.level>=50).length,poolAdj=["宗師","菁英"].includes(p.rank)&&poolCount<3?-(3-poolCount)*2:0;
   let baseChance=.50+(avg()-target)*.018;
-  let winChance=clamp(baseChance+masteryAdj/100+conditionAdj/100+poolAdj/100+(isDuo?.015:0)-betrayalPenalty/100,.12,.82);
+  const mentalAdj=clamp((p.stats.心態-60)*.0015,-.045,.06);
+  let winChance=clamp(baseChance+masteryAdj/100+conditionAdj/100+poolAdj/100+mentalAdj+(isDuo?.015:0)-betrayalPenalty/100,.12,.82);
   const proChance=p.rank==="菁英"?.42:p.rank==="宗師"?.22:p.rank==="大師"?.07:0,metPro=Math.random()<proChance;
   const proNames=["Eclipse.Raven","KNG.Nox","Vortex.Luna","Astra.Zero9","Nova.Mori","Titan.Haku"],pro=metPro?proNames[rand(0,proNames.length-1)]:null;
   if(metPro){winChance=clamp(winChance-.045,.10,.78);ensureProCharacter(pro);p.proEncounters[pro]=(p.proEncounters[pro]||0)+1}
   const win=Math.random()<winChance,k=rand(win?3:0,win?10:6),d=rand(win?1:4,win?7:11),a=rand(2,13);
   const high=["宗師","菁英"].includes(p.rank);let delta=win?rand(high?15:18,high?23:27):-rand(high?17:15,high?25:23);if(m.level<25)delta-=2;
-  if(win){p.wins++;p.lp+=delta;p.mood=clamp(p.mood+2,0,100);m.wins++}else{p.losses++;p.lp+=delta;p.mood=clamp(p.mood-4,0,100);p.stress=clamp(p.stress+5,0,100)}
-  m.games++;m.level=clamp(m.level+(win?.14:.09),0,100);p.energy=clamp(p.energy-6,0,100);p.stats.對線+=.025;p.stats.決策+=.02;adjustRank();
+  if(win){p.wins++;p.lp+=delta;p.mood=clamp(p.mood+2,0,100);m.wins++;if(winChance<.46&&Math.random()<.35){const g=+(Math.random()*.10+.05).toFixed(2);p.stats.心態=clamp(p.stats.心態+g,0,100);state.logs.push(`🧠 逆風局取勝，心態 +${g.toFixed(2)}。`)}}else{p.losses++;p.lp+=delta;p.mood=clamp(p.mood-4,0,100);const resilience=clamp((p.stats.心態-55)/45,0,.65);p.stress=clamp(p.stress+5*(1-resilience*.45),0,100);if(Math.random()<.12){const g=+(Math.random()*.07+.03).toFixed(2);p.stats.心態=clamp(p.stats.心態+g,0,100);state.logs.push(`🧠 從失利中累積抗壓經驗，心態 +${g.toFixed(2)}。`)}}
+  m.games++;m.level=clamp(m.level+(win?.14:.09),0,100);p.energy=clamp(p.energy-6,0,100);
+  const rankGrowth=rankAbilityGrowth(heroId,win,metPro);adjustRank();
+  if(rankGrowth.length)state.logs.push(`📈 Rank實戰成長：${rankGrowth.map(x=>`${x[0]} +${x[1].toFixed(2)}`).join("、")}。`);
   let friendNote="";
   if(metPro&&win){p.proAttention=clamp(p.proAttention+rand(1,3),0,100);p.relations[pro]=clamp((p.relations[pro]||20)+2,0,100);state.logs.push(`高分Rank：你擊敗職業圈玩家 ${pro}。`)}
   else if(metPro){p.relations[pro]=clamp((p.relations[pro]||20)+1,0,100);state.logs.push(`高分Rank：你排到職業圈玩家 ${pro}。`)}
@@ -236,7 +273,7 @@ function playRank(isDuo=false){
   if(!win){const weak=Object.entries(factors).sort((a,b)=>a[1]-b[1])[0],reasons={對線:"對線處理不足，換血與兵線細節被壓制。",團戰:"團戰站位與進場時機不足。",溝通:"溝通不足，資源與開戰判斷不同步。",決策:"中後期決策不足，轉線與資源交換失誤。",地圖意識:"地圖意識不足，對敵方動向判斷較慢。",心態:"心態波動影響操作與判斷。","角色熟練度":`角色熟練度只有 ${m.level.toFixed(1)}，高分段細節不夠穩定。`};lossReason=masteryAdj<=-10?reasons["角色熟練度"]:reasons[weak[0]]}
   state.logs.push(`${isDuo?"雙排":"Rank"} ${win?"勝利":"敗北"}｜預估勝率${Math.round(winChance*100)}%｜${delta>0?"+":""}${delta} LP${lossReason?`｜${lossReason}`:""}`);
   save();render();
-  modal(`<h2 class="${win?"goodtext":"badtext"}">${win?"勝利":"敗北"}</h2>${metPro?`<div class="notice">🔥 本局遇到職業圈玩家 <strong>${pro}</strong>。</div>`:""}${friendNote}<div class="big-number">${k} / ${d} / ${a}</div><div class="stat-grid">${stat("使用角色",hero.name)}${stat("熟練度",m.level.toFixed(1))}${stat("實力基準",`${avg().toFixed(1)} / ${target}`)}${stat("本局預估勝率",`${Math.round(winChance*100)}%`)}</div>${!win?`<div class="notice badtext"><strong>落敗主因：</strong>${lossReason}</div>`:""}${closeBtn()}`);
+  modal(`<h2 class="${win?"goodtext":"badtext"}">${win?"勝利":"敗北"}</h2>${metPro?`<div class="notice">🔥 本局遇到職業圈玩家 <strong>${pro}</strong>。</div>`:""}${friendNote}<div class="big-number">${k} / ${d} / ${a}</div><div class="stat-grid">${stat("使用角色",hero.name)}${stat("熟練度",m.level.toFixed(1))}${stat("實力基準",`${avg().toFixed(1)} / ${target}`)}${stat("本局預估勝率",`${Math.round(winChance*100)}%`)}</div>${!win?`<div class="notice badtext"><strong>落敗主因：</strong>${lossReason}</div>`:""}<div class="notice goodtext">📈 Rank實戰成長：${rankGrowth.map(x=>`${x[0]} +${x[1].toFixed(2)}`).join("、")}</div>${closeBtn()}`);
  });
 }
 function adjustRank(){
@@ -248,12 +285,19 @@ function adjustRank(){
 }
 function training(){
  if(remain()<1)return;
- modal(`<h2>訓練方式</h2><div class="reply-grid"><button class="reply train-type" data-train="stat">基礎能力訓練</button><button class="reply train-type" data-train="hero">角色專項訓練</button><button class="reply train-type" data-train="review">復盤研究</button></div>`);
+ modal(`<h2>訓練方式</h2><div class="reply-grid"><button class="reply train-type" data-train="stat">基礎能力訓練</button><button class="reply train-type" data-train="hero">角色專項訓練</button><button class="reply train-type" data-train="review">復盤研究</button><button class="reply train-type" data-train="mental">心理訓練</button></div>`);
  document.querySelectorAll(".train-type").forEach(b=>b.onclick=()=>{document.querySelector(".modal-backdrop")?.remove();finishTraining(b.dataset.train)});
 }
 function finishTraining(type){
+ if(type==="mental"){
+  if(!consume("心理訓練",1))return;
+  const p=state.player,before=p.stats.心態,scale=before>=90?.42:before>=85?.55:before>=80?.70:1,gain=(Math.random()*.15+.20)*scale,stress0=p.stress;
+  p.stats.心態=clamp(before+gain,0,100);p.stress=clamp(p.stress-rand(4,8),0,100);p.energy=clamp(p.energy-5,0,100);
+  state.logs.push(`心理訓練：心態 ${before.toFixed(2)} → ${p.stats.心態.toFixed(2)}，壓力 -${Math.round(stress0-p.stress)}。`);save();render();
+  modal(`<h2>🧠 心理訓練完成</h2><div class="big-number">${before.toFixed(2)} → ${p.stats.心態.toFixed(2)}</div><p class="goodtext">心態 +${gain.toFixed(2)}</p><p>壓力 -${Math.round(stress0-p.stress)}</p>${closeBtn()}`);return;
+ }
  if(type==="hero"){
-  chooseHero(id=>{if(!consume("角色專項訓練",1))return;let m=state.player.mastery[id],h=HEROES.find(x=>x.id===id),before=m.level,scale=before>=90?.45:before>=80?.65:before>=70?.82:1,gain=(Math.random()*.28+.28)*scale;m.level=clamp(m.level+gain,0,100);state.player.energy=clamp(state.player.energy-8,0,100);state.player.stress=clamp(state.player.stress+2,0,100);state.logs.push(`專項訓練：${h.name} 熟練度 +${gain.toFixed(2)}`);save();render();modal(`<h2>角色專項訓練</h2><div class="big-number">${before.toFixed(2)} → ${m.level.toFixed(2)}</div><p class="goodtext">+${gain.toFixed(2)}</p>${closeBtn()}`)});
+  chooseHero(id=>{if(!consume("角色專項訓練",1))return;let m=state.player.mastery[id],h=HEROES.find(x=>x.id===id),before=m.level,scale=before>=90?.45:before>=80?.65:before>=70?.82:1,gain=(Math.random()*.28+.28)*scale;m.level=clamp(m.level+gain,0,100);const hpGain=addAbilityGrowth("英雄池",Math.random()*.06+.05);state.player.energy=clamp(state.player.energy-8,0,100);state.player.stress=clamp(state.player.stress+2,0,100);state.logs.push(`專項訓練：${h.name} 熟練度 +${gain.toFixed(2)}、英雄池 +${hpGain.toFixed(2)}`);save();render();modal(`<h2>角色專項訓練</h2><div class="big-number">${before.toFixed(2)} → ${m.level.toFixed(2)}</div><p class="goodtext">+${gain.toFixed(2)}</p>${closeBtn()}`)});
   return;
  }
  if(!consume(type==="review"?"復盤研究":"基礎訓練",1))return;
@@ -737,7 +781,7 @@ function career(){
  return `<section class="card"><h2>生涯中心</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.3.6</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.3.8</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));
@@ -965,7 +1009,9 @@ function gainTournamentExperience(t,win,strategy){
    const gain=+(base*tierMul*roundMul*resultMul*highScale).toFixed(2);
    p.stats[key]=Math.min(100,cur+gain);gains.push(`${key} +${gain.toFixed(2)}`);
  });
- // 正式賽事經驗也會帶來極少量英雄池/心態類實戰成長，但不取代訓練。
+ // 正式賽事的高壓環境也會鍛鍊心態，越後段與高層級賽事機率越高。
+ const mentalChance=clamp(.18+t.roundIndex*.08+(t.tier==="scout"?.18:t.tier==="regional"?.14:t.tier==="city"?.08:0),.18,.62);
+ if(Math.random()<mentalChance){const cur=p.stats.心態,scale=cur>=90?.4:cur>=85?.55:cur>=80?.72:1,g=+((Math.random()*.12+.08)*tierMul*roundMul*scale).toFixed(2);p.stats.心態=clamp(cur+g,0,100);gains.push(`心態 +${g.toFixed(2)}`)}
  p.passion=clamp(p.passion+(win?1:0),0,100);
  return gains;
 }
@@ -1054,10 +1100,12 @@ function playClubSession(ev){
  const c=state.school.esportsClub,types=["教練觀念課","隊內對抗賽","比賽覆盤","BP與溝通訓練","他校訓練賽"],type=types[rand(0,types.length-1)];
  c.clubRep=clamp(c.clubRep+1,0,100);c.coachRelation=clamp(c.coachRelation+(type==="他校訓練賽"?2:1),0,100);
  if(type==="他校訓練賽")c.scrims++;
+ const growth=clubAbilityGrowth(type);
  state.player.passion=clamp(state.player.passion+2,0,100);
  if(Math.random()<.25){const missing=ROLES.filter(r=>r!==state.player.role)[rand(0,3)];discoverTeammate(missing,"電競社社課")}
  state.logs.push(`電競社：${type}。社內評價 +1。`);
- save();render();modal(`<h2>🎓 ${type}</h2><p>${type==="他校訓練賽"?"教練安排與鄰校進行BO3。你開始感受到正式團隊賽與Rank完全不同。":"教練帶著社員完成今天的訓練內容。"}</p><p>教練信任：${c.coachRelation}｜社內評價：${c.clubRep}</p>${closeBtn()}`);
+ if(growth.length)state.logs.push(`📈 社團成長：${growth.map(x=>`${x[0]} +${x[1].toFixed(2)}`).join("、")}。`);
+ save();render();modal(`<h2>🎓 ${type}</h2><p>${type==="他校訓練賽"?"教練安排與鄰校進行BO3。正式團隊賽讓你得到更多實戰經驗。":"教練帶著社員完成今天的訓練內容。"}</p><div class="notice goodtext">📈 ${growth.map(x=>`${x[0]} +${x[1].toFixed(2)}`).join("<br>")}</div><p>教練信任：${c.coachRelation}｜社內評價：${c.clubRep}</p>${closeBtn()}`);
 }
 function maybeRumor(){
  const p=state.player,candidates=["林雨晴","陳語彤","沈若晴","許安然"].filter(n=>state.characters[n]?.known&&(p.relations[n]||0)>=55);
@@ -1112,7 +1160,7 @@ function relationshipTalk(name){
 }
 function sparWithPro(name){
  const p=state.player;if(!isProFriend(name)){modal(`<h2>無法切磋</h2><p>必須先和職業選手成為好友。</p>${closeBtn()}`);return}if(remain()<1)return;if(!consume(`與${name}切磋`,1))return;
- const c=state.characters[name]||{},role=normalizeRole(c.role||"中路"),roleKeys={上路:["對線","換血","操作","團戰"],打野:["地圖意識","決策","遊戲理解","溝通"],中路:["對線","操作","決策","遊戲理解"],ADC:["操作","反應","補刀","團戰"],輔助:["溝通","地圖意識","決策","團戰"]}[role]||["操作","決策","遊戲理解","團戰"],gains=[];
+ const c=state.characters[name]||{},role=normalizeRole(c.role||"中路"),roleKeys={上路:["對線","換血","操作","團戰"],打野:["地圖意識","決策","遊戲理解","心態"],中路:["對線","操作","決策","遊戲理解"],ADC:["操作","反應","補刀","團戰"],輔助:["溝通","地圖意識","決策","心態"]}[role]||["操作","決策","遊戲理解","團戰"],gains=[];
  const excellent=Math.random()<.24,insight=Math.random()<.08;
  for(let i=0;i<2;i++){const k=roleKeys.splice(rand(0,roleKeys.length-1),1)[0],cur=p.stats[k],scale=cur>=90?.42:cur>=85?.55:cur>=80?.68:cur>=75?.82:1;let g=(excellent?Math.random()*.25+.40:Math.random()*.25+.30)*scale;if(insight&&i===0)g=Math.max(g,(Math.random()*.10+.70)*scale);g=+g.toFixed(2);p.stats[k]=clamp(cur+g,0,100);gains.push(`${k} +${g.toFixed(2)}`)}
  p.energy=clamp(p.energy-12,0,100);p.stress=clamp(p.stress+3,0,100);p.relations[name]=clamp((p.relations[name]||0)+1,0,100);state.logs.push(`⚔️ 與 ${name} 切磋：${gains.join("、")}。`);save();render();modal(`<h2>⚔️ 職業選手切磋</h2><p>${name}（${role}）針對你的實戰細節給予回饋。</p>${excellent?`<div class="notice goodtext">🔥 今天切磋表現很好。</div>`:""}${insight?`<div class="notice goodtext">💡 你在切磋中有所領悟！</div>`:""}<div class="notice goodtext">${gains.join("<br>")}</div><p class="small">能力越高，切磋收益會逐步遞減。</p>${closeBtn()}`);
