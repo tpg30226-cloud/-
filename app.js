@@ -16,7 +16,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.3.9",started:false,
+  version:"1.4.0",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,v138AllStatsBoosted:true,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -74,7 +74,7 @@ function normalize(s){
  if(!Array.isArray(s.news))s.news=[];
  if(!Array.isArray(s.messages))s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.3.9";return s;
+ s.version="1.4.0";return s;
 }
 function load(){
  try{
@@ -152,7 +152,7 @@ function actionCard(){
  return `<section class="card"><h2>今天要做什麼？</h2><div class="choice-grid">
  ${actionBtn("rank","🎮 Rank","1時段")}${actionBtn("train","🏋️ 訓練","1時段")}${actionBtn("study","📚 讀書","1時段")}
  ${actionBtn("stream","📺 直播","1時段")}${actionBtn("social","👥 社交","1時段")}${actionBtn("work","💼 打工","2時段")}
- ${actionBtn("outing","🏙️ 外出/逛街","1時段")}${actionBtn("club","🎓 電競社",state.date.day===5?"週五社課":"查看社團")}${actionBtn("rest","🛏️ 休息","1時段")}
+ ${actionBtn("outing","🏙️ 外出/逛街","1時段")}${actionBtn("club","🎓 電競社",state.date.day===5?"週五社課":"查看社團")}${actionBtn("team","🛡️ 戰隊",state.player.team?.formed?"一起訓練":"成立固定戰隊")}${actionBtn("rest","🛏️ 休息","1時段")}
  </div><button id="nextDayBtn" class="btn secondary" style="width:100%;margin-top:12px">${remain()===0?"進入下一天":"提早結束今天"}</button></section>`;
 }
 function actionBtn(t,title,sub){let c=t==="work"?2:1;return `<button class="choice action-btn" data-action="${t}" ${remain()<c?"disabled":""}><strong>${title}</strong><span class="small">${sub}</span></button>`}
@@ -208,6 +208,7 @@ function act(t){
  if(t==="work")simple("打工",2,()=>{state.player.cash+=1200;state.player.energy=clamp(state.player.energy-17,0,100);state.player.stress=clamp(state.player.stress+5,0,100);return "收入 NT$1,200，體力 -17、壓力 +5。"});
  if(t==="outing")chooseOuting();
  if(t==="club")return esportsClubAction();
+ if(t==="team")return openTeamPage();
 }
 function baseSimple(name,cost,fn){if(!consume(name,cost))return;let d=fn();state.logs.push(`${name}：${d}`);save();render();modal(`<h2>${name}完成</h2><p>${d}</p>${closeBtn()}`)}
 function chooseHero(cb){
@@ -556,6 +557,7 @@ function ensureV10(){(state.player.proFriends||[]).forEach(n=>ensureProCharacter
  const previousVersion=state?.version||"";
  state=normalize(state);
  const p=state.player;
+ if(!p.team||typeof p.team!=="object")p.team={name:"",members:[],formed:false,trainingCount:0};p.team.members=Array.isArray(p.team.members)?p.team.members:[];
  if(!Array.isArray(p.inventory))p.inventory=[];
  if(p.reputation==null)p.reputation=5;
  if(p.reputation===50 && (!state.world?.amateurHistory || state.world.amateurHistory.length<3))p.reputation=5;
@@ -785,7 +787,7 @@ function career(){
  return `<section class="card"><h2>生涯中心</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.3.9</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.4.0</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));
@@ -820,8 +822,12 @@ function signupAmateur(i){
    modal(`<h2>⚠️ 無法報名｜行程衝突</h2><p><strong>${x.name}</strong></p><p>正式比賽日期：<strong>${info.label}</strong></p><div class="notice">當天已有行程：${tournamentConflictText(info)}</div><p>正式賽事會鎖定全天，因此無法與其他行程重疊。</p>${closeBtn()}`);return;
  }
  modal(`<h2>🏆 賽事資訊確認</h2><p><strong>${x.name}</strong></p><div class="log">📅 比賽日期：<strong>${info.label}</strong><br>💰 報名費：NT$${x.fee.toLocaleString()}<br>🏆 冠軍獎金：NT$${x.prize.toLocaleString()}<br>🎮 首輪：${x.rounds[0]}</div><p>比賽日為全天鎖定行程。確認日期沒有問題後，再進入組隊邀請。</p><button id="continueTournamentSignup" class="primary" style="width:100%">日期沒問題，開始組隊</button>${closeBtn()}`);
- document.querySelector("#continueTournamentSignup").onclick=()=>{document.querySelector(".modal-backdrop")?.remove();openTeamBuilder({...x,targetWeek:info.week,targetDay:info.day})};
+ document.querySelector("#continueTournamentSignup").onclick=()=>{document.querySelector(".modal-backdrop")?.remove();if(!maybeIncomingTournamentInvite(x,info))openTeamBuilder({...x,targetWeek:info.week,targetDay:info.day})};
 }
+function flexibleRole(name,targetRole){const c=state.characters?.[name],base=normalizeRole(esportsRole(name)),rel=state.player.relations?.[name]||0;if(!c||base===targetRole)return base===targetRole;const tr=safeTraits(c);return rel>=72&&(tr.includes("努力")||tr.includes("溫柔")||tr.includes("老實")||rel>=88)?targetRole:null}
+function openTeamPage(){const p=state.player,t=p.team;if(!t.formed){const cs=tournamentCandidates().filter(c=>c.relation>=45).slice(0,12);document.querySelector("#main").innerHTML=`<section class="card"><h2>🛡️ 成立固定戰隊</h2><p>選四名熟識的電競好友成立固定五人隊。團練會特別提升<strong>溝通、團戰、決策</strong>。</p><div class="notice">高好感的部分好友願意為了與你同隊更換位置。</div><div class="reply-grid">${cs.map(c=>`<button class="reply team-pick" data-name="${c.name}">${c.name}<div class="small">${c.role}｜關係 ${Math.round(c.relation)}</div></button>`).join("")||"目前熟識的電競好友還不夠。"}</div><div id="teamPickInfo" class="log">已選：無</div><button id="createFixedTeam" class="primary" disabled>成立戰隊</button></section>`;let a=[];document.querySelectorAll(".team-pick").forEach(b=>b.onclick=()=>{let n=b.dataset.name;a=a.includes(n)?a.filter(x=>x!==n):(a.length<4?[...a,n]:a);b.classList.toggle("selected",a.includes(n));document.querySelector("#teamPickInfo").textContent=`已選：${a.join("、")||"無"}`;document.querySelector("#createFixedTeam").disabled=a.length!==4});document.querySelector("#createFixedTeam").onclick=()=>{p.team={name:`${p.name}戰隊`,members:a,formed:true,trainingCount:0};a.forEach(n=>p.relations[n]=clamp((p.relations[n]||0)+2,0,100));state.logs.push(`🛡️ 固定戰隊成立：${a.join("、")}。`);save();render();modal(`<h2>🛡️ 戰隊成立</h2><p>${p.team.name}</p>${closeBtn()}`)};return}modal(`<h2>🛡️ ${t.name}</h2><p>隊員：${t.members.join("、")}</p><p>團練 ${t.trainingCount||0} 次</p><button id="fixedTeamTrain" class="primary">🎮 一起團練</button>${closeBtn()}`);document.querySelector("#fixedTeamTrain").onclick=trainFixedTeam}
+function trainFixedTeam(){const p=state.player,t=p.team;if(!t?.formed||remain()<1)return;if(!consume("固定戰隊團練",1))return;const gs=[["溝通",addAbilityGrowth("溝通",Math.random()*.13+.18)],["團戰",addAbilityGrowth("團戰",Math.random()*.09+.10)],["決策",addAbilityGrowth("決策",Math.random()*.07+.07)]];t.trainingCount=(t.trainingCount||0)+1;t.members.forEach(n=>p.relations[n]=clamp((p.relations[n]||0)+1,0,100));p.energy=clamp(p.energy-9,0,100);state.logs.push(`🛡️ 團練：${gs.map(x=>`${x[0]} +${x[1].toFixed(2)}`).join("、")}。`);save();render();modal(`<h2>🎮 團練完成</h2><div class="notice goodtext">${gs.map(x=>`${x[0]} +${x[1].toFixed(2)}`).join("<br>")}</div>${closeBtn()}`)}
+function maybeIncomingTournamentInvite(x,info){const p=state.player;if(p.team?.formed||Math.random()>=.32)return false;const cs=tournamentCandidates().filter(c=>c.relation>=35);if(!cs.length)return false;const cap=cs[rand(0,cs.length-1)];modal(`<h2>📩 收到參賽邀請</h2><p><strong>${cap.name}</strong>主動邀請你加入他們參加 <strong>${x.name}</strong>。</p><div class="notice">📅 ${info.label}</div><button id="acceptIncomingCup" class="primary">加入他們</button><button id="declineIncomingCup" class="ghost">婉拒，自己組隊</button>${closeBtn()}`);document.querySelector("#acceptIncomingCup").onclick=()=>{const need=["上路","打野","中路","ADC","輔助"].filter(r=>r!==normalizeRole(p.role)),picked={},accepted={};need.forEach((r,i)=>{let n=i===0?cap.name:discoverTeammate(r,`${cap.name}的隊伍`);picked[r]=n;accepted[n]=true});document.querySelector(".modal-backdrop")?.remove();confirmTeamSignup({...x,targetWeek:info.week,targetDay:info.day},picked,accepted)};document.querySelector("#declineIncomingCup").onclick=()=>{document.querySelector(".modal-backdrop")?.remove();openTeamBuilder({...x,targetWeek:info.week,targetDay:info.day})};return true}
 function tournamentCandidates(){
  return Object.values(state.characters).filter(c=>c.known&&c.name!==state.player.name&&isEsportsFriend(c.name))
  .map(c=>({name:c.name,role:esportsRole(c.name),relation:state.player.relations[c.name]||0,rank:(state.friends?.[c.name]?.rank||"未紀錄")+((state.friends?.[c.name]?.lp??null)!==null?` ${state.friends[c.name].lp}LP`:"")+((state.friends?.[c.name]?.form??0)>=8?" 🔥":(state.friends?.[c.name]?.form??0)<=-8?" ❄️":"")}));
@@ -848,7 +854,7 @@ function openTeamBuilder(x){
  const picked=state.teamDraft.picked,accepted=state.teamDraft.accepted;
 
  function validCandidates(){
-   return tournamentCandidates().map(c=>({...c,role:normalizeRole(c.role)})).filter(c=>need.includes(c.role));
+   return tournamentCandidates().flatMap(c=>{const base=normalizeRole(c.role),a=need.includes(base)?[{...c,role:base}]:[];need.forEach(r=>{if(r!==base&&flexibleRole(c.name,r))a.push({...c,role:r,rank:c.rank+" 🔄願意轉位"})});return a});
  }
  function complete(){return need.every(r=>picked[r]&&accepted[picked[r]]===true)}
  function draw(){
@@ -1021,7 +1027,7 @@ function gainTournamentExperience(t,win,strategy){
 }
 function finishAmateur(ev,v){
  const p=state.player,t=state.world.tournaments.find(x=>x.id===ev.tournamentId);if(!t)return;
- const heartbreak=(p.emotion?.betrayalUntil||0)>=state.date.week?5:0,bonus=v==="carry"?2:v==="stable"?1:0,teamPower=amateurTeamPower(t)-heartbreak,enemyPower=66+t.roundIndex*4+(t.tier==="scout"?10:t.tier==="regional"?8:t.tier==="city"?7:t.tier==="sponsor"?5:t.tier==="school"?3:0)+rand(-8,8),winChance=clamp(.53+(teamPower+bonus-enemyPower)/92,.22,.84),win=Math.random()<winChance;amateurRelations(t,win);
+ const heartbreak=(p.emotion?.betrayalUntil||0)>=state.date.week?5:0,cohesion=p.team?.formed?Math.min(4,(p.team.trainingCount||0)*.35):0,bonus=(v==="carry"?2:v==="stable"?1:0)+cohesion,teamPower=amateurTeamPower(t)-heartbreak,enemyPower=66+t.roundIndex*4+(t.tier==="scout"?10:t.tier==="regional"?8:t.tier==="city"?7:t.tier==="sponsor"?5:t.tier==="school"?3:0)+rand(-8,8),winChance=clamp(.53+(teamPower+bonus-enemyPower)/92,.22,.84),win=Math.random()<winChance;amateurRelations(t,win);
  ev.completed=true;p.energy=clamp(p.energy-18,0,100);p.stress=clamp(p.stress+6,0,100);
  const round=t.rounds[t.roundIndex],report=matchNarrative(win,v),expGain=gainTournamentExperience(t,win,v);t.history.push(`${round}：${win?"勝":"敗"}`);
  state.logs.push(`賽事實戰成長：${expGain.join("、")}。`);
