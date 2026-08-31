@@ -16,7 +16,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.5.0",started:false,
+  version:"1.5.0.1",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,v138AllStatsBoosted:true,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -74,7 +74,7 @@ function normalize(s){
  if(!Array.isArray(s.news))s.news=[];
  if(!Array.isArray(s.messages))s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.5.0";return s;
+ s.version="1.5.0.1";return s;
 }
 function load(){
  try{
@@ -427,10 +427,24 @@ function openMessage(id){
   ]
  };
  if(!m.resolved&&replySets[m.type]){
-  modal(`<h2>${m.from}</h2><p style="white-space:pre-line">${m.text}</p><div class="reply-grid">${replySets[m.type].map(x=>`<button class="reply msg-reply" data-r="${x[0]}">${x[1]}</button>`).join("")}</div>`);
+  modal(`<h2>${m.from}</h2><p style="white-space:pre-line">${m.text}</p><div class="reply-grid">${replySets[m.type].map(x=>`<button type="button" class="reply msg-reply" data-r="${x[0]}">${x[1]}</button>`).join("")}</div>${closeBtn()}`);
   document.querySelectorAll(".msg-reply").forEach(b=>b.onclick=()=>resolveMessage(m,b.dataset.r));
- }else modal(`<h2>${m.from}</h2><p style="white-space:pre-line">${m.text}</p>${closeBtn()}`);
+ }else if(!m.replied){
+  const generic=[["ok","收到，我知道了。"],["talk","好，晚點再聊。"],["thanks","謝謝你告訴我。"]];
+  modal(`<h2>${m.from}</h2><p style="white-space:pre-line">${m.text}</p><div class="reply-grid">${generic.map(x=>`<button type="button" class="reply msg-generic-reply" data-r="${x[0]}">${x[1]}</button>`).join("")}</div>${closeBtn()}`);
+  document.querySelectorAll(".msg-generic-reply").forEach(b=>b.onclick=()=>resolveGenericMessage(m,b.dataset.r));
+ }else modal(`<h2>${m.from}</h2><p style="white-space:pre-line">${m.text}</p><div class="small">你已回覆這則訊息。</div>${closeBtn()}`);
  render();
+}
+function resolveGenericMessage(m,r){
+ const p=state.player;
+ const text=r==="talk"?"好，晚點再聊。":r==="thanks"?"謝謝你告訴我。":"收到，我知道了。";
+ m.replied=true;m.replyText=text;m.resolved=true;
+ if(state.characters?.[m.from]||p.relations?.[m.from]!=null){
+   p.relations[m.from]=clamp((p.relations[m.from]||0)+(r==="thanks"?.5:.2),0,100);
+ }
+ state.logs.push(`📱 你回覆 ${m.from}：「${text}」`);
+ save();document.querySelector(".modal-backdrop")?.remove();render();
 }
 function resolveMessage(m,r){
  if(m.type==="duoInvite"){
@@ -786,7 +800,7 @@ function home(){
 }
 function phone(){
  ensureV10();const unread=state.messages.filter(m=>m.unread).length;
- return `<section class="card"><div class="row space"><h2>訊息</h2><span class="badge">${unread} 未讀</span></div>${state.messages.slice().reverse().map(m=>`<div class="message ${m.unread?"unread":""}"><button class="message-open" data-msg="${m.id}" style="width:100%;border:0;background:transparent;color:white;text-align:left;padding:0"><div class="meta"><strong>${m.from}</strong><span class="small">${m.resolved?"已處理":m.unread?"未讀":"待回覆"}</span></div><div style="margin-top:6px;white-space:pre-line">${m.text}</div><div class="small" style="margin-top:8px">點擊開啟對話 ›</div></button></div>`).join("")}</section>
+ return `<section class="card"><div class="row space"><h2>訊息</h2><span class="badge">${unread} 未讀</span></div>${state.messages.slice().reverse().map(m=>`<div class="message ${m.unread?"unread":""}"><button type="button" class="message-open" data-msg="${m.id}" style="width:100%;border:0;background:transparent;color:white;text-align:left;padding:0"><div class="meta"><strong>${m.from}</strong><span class="small">${m.resolved?"已處理":m.unread?"未讀":"待回覆"}</span></div><div style="margin-top:6px;white-space:pre-line">${m.text}</div><div class="small" style="margin-top:8px">點擊開啟對話 ›</div></button></div>`).join("")}</section>
  ${relationshipCard()}${rumorCard()}<section class="card"><h2>📰 電競新聞</h2>${state.news.slice(0,12).map(n=>`<div class="log">${n}</div>`).join("")}</section>`;
 }
 function career(){
@@ -794,7 +808,7 @@ function career(){
  return `${proCareerCard()}${pregnancyCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.5.0</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.5.0.1</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));document.querySelector("#doTryout")?.addEventListener("click",doProTryout);document.querySelector("#signProContract")?.addEventListener("click",signProContract);document.querySelector("#playLeagueMatch")?.addEventListener("click",playLeagueMatch);document.querySelectorAll(".pregnancy-talk").forEach(b=>b.onclick=()=>pregnancyDecision(+b.dataset.i));
