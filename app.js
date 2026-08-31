@@ -16,7 +16,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.4.1",started:false,
+  version:"1.5.0",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,v138AllStatsBoosted:true,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -74,7 +74,7 @@ function normalize(s){
  if(!Array.isArray(s.news))s.news=[];
  if(!Array.isArray(s.messages))s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.4.1";return s;
+ s.version="1.5.0";return s;
 }
 function load(){
  try{
@@ -559,7 +559,11 @@ function ensureV10(){(state.player.proFriends||[]).forEach(n=>ensureProCharacter
  state=normalize(state);
  const p=state.player;
  if(!p.adultLife||typeof p.adultLife!=="object")p.adultLife={enabled:p.age>=18,pregnancies:[],fanIncidents:0,publicRomanceKnown:false,careerReputation:50,graduationPath:null};
- p.adultLife.enabled=p.age>=18;if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].desc="成年後與夜鋒維持非戀愛、彼此同意的固定成人關係。";state.characters["許安然"].relationshipType="炮友";}
+ p.adultLife.enabled=p.age>=18;
+ if(!p.proCareer||typeof p.proCareer!=="object")p.proCareer={stage:p.adultLife.graduationPath==="職業圈"?"scouting":"amateur",team:null,contract:null,tryout:null,coachTrust:50,season:null};
+ if(!p.condition||typeof p.condition!=="object")p.condition={form:65,fatigue:0,injury:null,privateRecent:0};
+ p.condition.form=clamp(Number(p.condition.form)||65,0,100);p.condition.fatigue=clamp(Number(p.condition.fatigue)||0,0,100);p.condition.privateRecent=Number(p.condition.privateRecent)||0;
+if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].desc="成年後與夜鋒維持非戀愛、彼此同意的固定成人關係。";state.characters["許安然"].relationshipType="炮友";}
  if(!p.team||typeof p.team!=="object")p.team={name:"",members:[],formed:false,trainingCount:0};p.team.members=Array.isArray(p.team.members)?p.team.members:[];
  if(!Array.isArray(p.inventory))p.inventory=[];
  if(p.reputation==null)p.reputation=5;
@@ -775,7 +779,7 @@ function home(){
  ensureV10();const p=state.player,hard=hardEventToday();
  return `<section class="card hero"><div class="row space"><div><div class="small">${dateLabel()}</div><h2>${p.name} · ${p.age}歲 · ${p.role}</h2></div><span class="badge">綜合 ${avg().toFixed(1)}</span></div>
  <div class="stat-grid">${stat("Rank",`${p.rank} ${p.lp} LP`)}${stat("現金",`NT$${p.cash.toLocaleString()}`)}${stat("職業關注",`${p.proAttention}/100`)}${stat("聲譽",`${p.reputation}/100`)}</div></section>
- <section class="card"><h2>今日狀態</h2><div class="stat-grid">${stat("體力",`${Math.round(p.energy)}/100`)}${stat("心情",`${Math.round(p.mood)}/100`)}${stat("壓力",`${Math.round(p.stress)}/100`)}${stat("遊戲熱情",`${Math.round(p.passion)}/100`)}</div></section>
+ <section class="card"><h2>今日狀態</h2><div class="stat-grid">${stat("競技狀態",formLabel())}${stat("傷病",p.condition?.injury?`${p.condition.injury.type}・${p.condition.injury.severity}`:"健康")}${stat("體力",`${Math.round(p.energy)}/100`)}${stat("心情",`${Math.round(p.mood)}/100`)}${stat("壓力",`${Math.round(p.stress)}/100`)}${stat("遊戲熱情",`${Math.round(p.passion)}/100`)}</div></section>
  ${hard?lockedDayCard(hard):timeCard()}${schoolCard()}${appointmentCard()}
  ${hard?`<section class="card"><div class="notice">今天是正式賽事日，一般活動全部鎖定。</div></section>`:actionCard()}
  <section class="card"><h2>最近紀錄</h2>${state.logs.slice(-6).reverse().map(x=>`<div class="log">${x}</div>`).join("")}</section>`;
@@ -787,13 +791,13 @@ function phone(){
 }
 function career(){
  ensureV10();const p=state.player;
- return `<section class="card"><h2>生涯中心</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
+ return `${proCareerCard()}${pregnancyCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.4.1</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.5.0</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
- document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));
+ document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));document.querySelector("#doTryout")?.addEventListener("click",doProTryout);document.querySelector("#signProContract")?.addEventListener("click",signProContract);document.querySelector("#playLeagueMatch")?.addEventListener("click",playLeagueMatch);document.querySelectorAll(".pregnancy-talk").forEach(b=>b.onclick=()=>pregnancyDecision(+b.dataset.i));
  document.querySelector("#nextDayBtn")?.addEventListener("click",nextDay);
  document.querySelectorAll(".message-open").forEach(b=>b.onclick=e=>{e.preventDefault();openMessage(b.dataset.msg)});
  document.querySelectorAll(".event-run").forEach(b=>b.onclick=()=>runEventById(b.dataset.event));
@@ -1058,7 +1062,8 @@ function adultPrivateEvent(name,kind="lover"){
  const p=state.player,c=state.characters?.[name];if(p.age<18||!p.adultLife?.enabled){modal(`<h2>尚未開放</h2><p>此內容只在主角成年後開放。</p>${closeBtn()}`);return}
  if(remain()<1)return;if(!consume("私人約會",1))return;
  let cost=0;if(name==="許安然"){cost=3000;if(p.cash<cost){modal(`<h2>現金不足</h2><p>這次見面需要 NT$${cost.toLocaleString()}。</p>${closeBtn()}`);return}p.cash-=cost}
- p.energy=clamp(p.energy-10,0,100);p.mood=clamp(p.mood+5,0,100);p.relations[name]=clamp((p.relations[name]||40)+2,0,100);
+ p.energy=clamp(p.energy-15,0,100);p.mood=clamp(p.mood+5,0,100);p.condition.privateRecent=(p.condition.privateRecent||0)+1;p.condition.fatigue=clamp(p.condition.fatigue+8,0,100);
+ if(p.condition.privateRecent>=3){p.condition.form=clamp(p.condition.form-rand(3,7),0,100);if(Math.random()<.18&&!p.condition.injury)p.condition.injury={type:["腰背疲勞","肩頸不適","睡眠不足"][rand(0,2)],severity:"輕微",days:rand(2,5)};}p.relations[name]=clamp((p.relations[name]||40)+2,0,100);
  const pregnancyRisk=c?.gender==="女"&&Math.random()<.08;if(pregnancyRisk){p.adultLife.pregnancies.push({name,week:state.date.week,year:state.date.year,status:"可能懷孕"});state.logs.push(`私人事件：${name}之後出現懷孕可能，需要後續確認。`)}
  let caught=false;if(kind==="fan"&&(p.romance.partners||[]).length&&Math.random()<.28){caught=true;(p.romance.partners||[]).forEach(n=>p.relations[n]=clamp((p.relations[n]||0)-rand(8,16),0,100));p.adultLife.careerReputation=clamp(p.adultLife.careerReputation-3,0,100);state.logs.push("感情風波：戀人發現你與女粉絲有私下關係。")}
  save();render();modal(`<h2>🌙 私人時間</h2><p>你與 ${name} 度過了一段私人的成人時間。</p>${cost?`<div class="notice">本次花費 NT$${cost.toLocaleString()}。</div>`:""}${pregnancyRisk?`<div class="notice">之後可能出現懷孕相關事件。</div>`:""}${caught?`<div class="notice badtext">⚠️ 戀人得知此事，關係明顯下降。</div>`:""}${closeBtn()}`);
@@ -1075,9 +1080,35 @@ function maybePublicRomanceScandal(){
 function graduationChoice(){
  const p=state.player;if(p.adultLife.graduationPath)return;
  modal(`<h2>🎓 畢業道路</h2><p>高中即將結束，你必須決定下一階段。</p><button id="gradPro" class="primary">🎮 全力進入職業圈</button><button id="gradUni" class="ghost">🏫 進入大學繼續磨練</button>${closeBtn()}`);
- document.querySelector("#gradPro").onclick=()=>{p.adultLife.graduationPath="職業圈";p.proAttention=clamp(p.proAttention+5,0,100);state.logs.push("🎓 畢業選擇：全力挑戰職業圈。");save();render()};
+ document.querySelector("#gradPro").onclick=()=>{p.adultLife.graduationPath="職業圈";p.proCareer=p.proCareer||{};p.proCareer.stage="scouting";p.proAttention=clamp(p.proAttention+5,0,100);state.logs.push("🎓 畢業選擇：全力挑戰職業圈。");save();render()};
  document.querySelector("#gradUni").onclick=()=>{p.adultLife.graduationPath="大學";p.stats.遊戲理解=clamp(p.stats.遊戲理解+1,0,100);p.stats.心態=clamp(p.stats.心態+1,0,100);state.logs.push("🎓 畢業選擇：進入大學，同時繼續訓練。");save();render()};
 }
+const PRO_TEAMS=["KNG Esports","Nova Gaming","Titan Core","Astra Five","Vortex","Eclipse","Phoenix","Orion","Tempest","Mirage","Vertex","Radiant"];
+function formLabel(){const v=state.player.condition?.form||65;return v>=85?"🔥 火熱":v>=70?"良好":v>=55?"普通":v>=40?"低迷":"極差"}
+function proCareerTick(){
+ const p=state.player,pc=p.proCareer;if(p.adultLife?.graduationPath!=="職業圈"||["starter","academy","sub"].includes(pc.stage))return;
+ pc.stage=pc.stage==="amateur"?"scouting":pc.stage;
+ if(pc.stage==="scouting"&&Math.random()<.16+Math.min(.18,p.proAttention/300)){const team=PRO_TEAMS[rand(0,PRO_TEAMS.length-1)];pc.stage="contact";state.messages.push({id:"scout-"+Date.now(),from:`${team} 星探`,text:`我們觀察你一段時間了，想邀請你參加 ${team} 的試訓。`,unread:true,resolved:true,type:"normal"});state.logs.push(`🔎 ${team} 星探主動接觸你，提出試訓邀請。`);pc.tryout={team,status:"待試訓"}}
+}
+function proCareerCard(){
+ const p=state.player,pc=p.proCareer;if(p.adultLife?.graduationPath!=="職業圈")return "";
+ if(pc.stage==="contact"&&pc.tryout)return `<section class="card"><h2>🔎 職業試訓</h2><p>${pc.tryout.team} 邀請你參加試訓。</p><button id="doTryout" class="primary">參加試訓</button></section>`;
+ if(pc.stage==="offer"&&pc.contract)return `<section class="card"><h2>📄 合約報價</h2><p>${pc.contract.team}｜${pc.contract.type}｜月薪 NT$${pc.contract.salary.toLocaleString()}</p><button id="signProContract" class="primary">簽下合約</button></section>`;
+ if(["starter","sub","academy"].includes(pc.stage))return `<section class="card"><h2>🏢 ${pc.team}</h2><div class="stat-grid">${stat("身份",pc.stage==="academy"?"青訓":pc.stage==="sub"?"替補":"一軍")}${stat("競技狀態",formLabel())}${stat("教練信任",Math.round(pc.coachTrust))}${stat("職業風評",Math.round(p.adultLife.careerReputation))}</div>${pc.stage==="academy"?`<div class="notice">青訓選手目前沒有正式聯賽出賽資格，需透過訓練與教練評價爭取升上一軍。</div>`:leagueCard()}</section>`;
+ return `<section class="card"><h2>🔎 職業圈</h2><p>星探正在根據你的Rank、能力、英雄池、比賽履歷與風評進行評估。</p></section>`;
+}
+function doProTryout(){const p=state.player,pc=p.proCareer,t=pc.tryout;if(!t)return;const score=avg()*.62+p.stats.溝通*.10+p.stats.英雄池*.08+p.stats.心態*.08+p.condition.form*.07+p.adultLife.careerReputation*.05+rand(-9,9),pass=score>=64;if(pass){const r=Math.random(),type=score>=76&&r>.35?"一軍":score>=70&&r>.25?"替補":"青訓";pc.stage="offer";pc.contract={team:t.team,type,salary:type==="一軍"?rand(65000,110000):type==="替補"?rand(42000,70000):rand(28000,45000)};state.logs.push(`✅ 通過 ${t.team} 試訓，收到${type}合約。`)}else{pc.stage="scouting";pc.tryout=null;state.logs.push(`❌ ${t.team} 試訓未通過，回到自由選手狀態。`)}save();render()}
+function signProContract(){const p=state.player,pc=p.proCareer,c=pc.contract;if(!c)return;pc.team=c.team;pc.stage=c.type==="一軍"?"starter":c.type==="替補"?"sub":"academy";pc.coachTrust=50;pc.tryout=null;cleanupUnnamedFriends();if(pc.stage!=="academy")initProSeason();state.logs.push(`✍️ 正式加盟 ${c.team}，身份：${c.type}。`);save();render()}
+function cleanupUnnamedFriends(){const p=state.player,keep=new Set([...(p.romance?.partners||[]),...(p.proFriends||[]),...(p.team?.members||[]),...(p.adultLife?.pregnancies||[]).map(x=>x.name)]);Object.keys(state.characters||{}).forEach(n=>{const c=state.characters[n];const generic=/^(男|女).+玩家\d+$|^女粉絲\d+$|^新朋友$/.test(n);if(generic&&!keep.has(n)&&!c.isPro){delete state.characters[n];delete p.relations[n];if(state.friends)delete state.friends[n]}})}
+function initProSeason(){const pc=state.player.proCareer;if(pc.season)return;let teams=PRO_TEAMS.map(name=>({name,w:0,l:0,gw:0,gl:0}));pc.season={week:1,phase:"例行賽",teams,matchesPlayed:0,myMatches:0,playoffs:false,champion:null}}
+function leagueCard(){const pc=state.player.proCareer,sn=pc.season;if(!sn)return "";const sorted=[...sn.teams].sort((a,b)=>(b.w-a.w)||((b.gw-b.gl)-(a.gw-a.gl)));return `<div class="notice">🏆 ${sn.phase}｜你的隊伍 ${pc.team}</div><div class="log">${sorted.map((t,i)=>`${i+1}. ${t.name} ${t.w}-${t.l}｜小局 ${t.gw}-${t.gl}${i===7?" ← 季後賽線":""}`).join("<br>")}</div><button id="playLeagueMatch" class="primary">🏆 進行本輪職業比賽</button>`}
+function playLeagueMatch(){const p=state.player,pc=p.proCareer,sn=pc.season;if(!sn||pc.stage!=="starter")return;const me=sn.teams.find(x=>x.name===pc.team),opp=sn.teams.filter(x=>x!==me)[sn.myMatches%11],relationBonus=(p.team?.members||[]).reduce((a,n)=>a+((p.relations[n]||50)-50),0)/400,inj=p.condition.injury?-.07:0,winChance=clamp(.50+(avg()-68)*.012+(p.condition.form-60)*.003+relationBonus+inj,.24,.78),win=Math.random()<winChance,score=win?(Math.random()<.55?[2,0]:[2,1]):(Math.random()<.55?[0,2]:[1,2]);me.w+=win?1:0;me.l+=win?0:1;me.gw+=score[0];me.gl+=score[1];opp.w+=win?0:1;opp.l+=win?1:0;opp.gw+=score[1];opp.gl+=score[0];sn.myMatches++;sn.matchesPlayed++;sn.teams.filter(x=>x!==me&&x!==opp).forEach((t,i,a)=>{if(i%2)return;const o=a[i+1];if(!o)return;const homeWin=Math.random()<.5,winner=homeWin?t:o,loser=homeWin?o:t;winner.w++;loser.l++;winner.gw+=2;loser.gl+=2;const loseGame=Math.random()<.45;if(loseGame){winner.gl++;loser.gw++}});p.condition.form=clamp(p.condition.form+(win?rand(1,4):-rand(2,5)),0,100);state.news.unshift(`職業聯賽：${pc.team} ${score[0]}:${score[1]} ${opp.name}。`);state.logs.push(`🏆 職業BO3：${pc.team} ${score[0]}:${score[1]} ${opp.name}`);if(sn.myMatches>=22){sn.phase="季後賽";sn.playoffs=true}save();render()}
+function requestBreakup(name){const p=state.player,rel=p.relations[name]||0,tr=safeTraits(state.characters[name]),retaliate=Math.random()<clamp(.08+(rel>80?.08:0)+(tr.includes("心機")?.18:0)+(p.adultLife.publicRomanceKnown?.08:0),.05,.38);p.romance.partners=p.romance.partners.filter(x=>x!==name);p.romance.partner=p.romance.partners[0]||null;if(retaliate){p.adultLife.careerReputation=clamp(p.adultLife.careerReputation-rand(8,16),0,100);state.news.unshift(`場外風波：${name}在分手後公開夜鋒部分私人爭議，引發社群討論。`)}state.logs.push(`💔 你與 ${name} 分手。${retaliate?"對方隨後公開部分私事。":""}`);save();render()}
+function pregnancyTick(){const p=state.player;(p.adultLife?.pregnancies||[]).forEach(pg=>{if(pg.status==="可能懷孕"&&!pg.eventQueued){pg.eventQueued=true;const confirmed=Math.random()<.72;pg.status=confirmed?"確認懷孕":"未懷孕";state.messages.push({id:"preg-"+Date.now()+rand(1,999),from:pg.name,text:confirmed?"我確認懷孕了，我們需要談談接下來怎麼辦。":"檢查結果出來了，沒有懷孕。",unread:true,resolved:true,type:"normal"});if(confirmed)state.logs.push(`⚠️ ${pg.name}確認懷孕，等待後續討論。`)}})}
+function pregnancyCard(){const p=state.player,arr=(p.adultLife?.pregnancies||[]).filter(x=>x.status==="確認懷孕");if(!arr.length)return "";return `<section class="card"><h2>家庭／懷孕事件</h2>${arr.map((x,i)=>`<div class="schedule-item"><div><strong>${x.name}</strong><div class="small">${x.status}</div></div><button class="ghost pregnancy-talk" data-i="${i}">討論後續</button></div>`).join("")}</section>`}
+function pregnancyDecision(i){const p=state.player,x=(p.adultLife.pregnancies||[]).filter(y=>y.status==="確認懷孕")[i];if(!x)return;modal(`<h2>與 ${x.name} 討論</h2><p>這件事需要雙方共同討論。你可以表達希望繼續懷孕，或希望終止妊娠；最終仍取決於對方的意願。</p><button id="pregKeep" class="primary">希望繼續懷孕</button><button id="pregEnd" class="ghost">希望終止妊娠</button>${closeBtn()}`);document.querySelector("#pregKeep").onclick=()=>{x.status="決定繼續";state.logs.push(`${x.name}的懷孕事件：雙方決定繼續。`);save();render()};document.querySelector("#pregEnd").onclick=()=>{const agree=Math.random()<.62;x.status=agree?"雙方同意終止":"對方決定繼續";if(!agree&&Math.random()<.28){p.adultLife.careerReputation=clamp(p.adultLife.careerReputation-rand(5,12),0,100);state.news.unshift(`私人事件曝光：夜鋒與 ${x.name} 的懷孕爭議被公開。`)}save();render()}}
+function conditionTick(){const p=state.player,c=p.condition;c.fatigue=clamp(c.fatigue-4,0,100);c.privateRecent=Math.max(0,c.privateRecent-1);if(c.injury){c.injury.days--;if(c.injury.days<=0){state.logs.push(`🩹 ${c.injury.type} 已恢復。`);c.injury=null}}if(c.fatigue>65)c.form=clamp(c.form-2,0,100);else if(p.energy>70)c.form=clamp(c.form+1,0,100)}
+function frequentEsportsNews(){if(Math.random()<.42){const a=PRO_TEAMS[rand(0,PRO_TEAMS.length-1)],b=PRO_TEAMS.filter(x=>x!==a)[rand(0,PRO_TEAMS.length-2)];state.news.unshift(`電競快訊：${a} 與 ${b} 近期訓練賽與陣容動向受到討論。`);state.news=state.news.slice(0,30)}}
 function chooseSocial(){
  ensureV10();if(remain()<1){modal(`<h2>今天沒有剩餘時段</h2><p>社交需要 1 個時段。</p>${closeBtn()}`);return}
  const people=Object.values(state.characters||{}).filter(c=>c&&c.known&&c.name),main=document.querySelector("#main");
@@ -1089,9 +1120,9 @@ function openSocialPersonPage(name){
  const c=state.characters?.[name];if(!c){chooseSocial();return}
  const rel=state.player.relations?.[name]||0,female=c.gender==="女",esports=isEsportsFriend(name),dating=(state.player.romance?.partners||[]).includes(name),pro=isProFriend(name);
  let acts=female?[["chat","聊天散步"],["food","一起吃飯"],["cafe","咖啡廳"],["movie","看電影"],["date","正式約會"],["confess","💗 告白"]]:[["food","吃飯聊天"],["arcade","去電競館"],["hangout","逛街／閒晃"],["game","一起打遊戲"],["latefood","吃宵夜"]];
- if(esports)acts.splice(1,0,["duo","Rank雙排"]);if(dating)acts.push(["communicate","💬 感情溝通"]);if(state.player.age>=18&&female&&(dating||name==="許安然"))acts.push(["private",name==="許安然"?"🌙 炮友見面（NT$3,000）":"🌙 私人成人時間"]);if(pro)acts.push(["spar","⚔️ 與職業選手切磋"]);
+ if(esports)acts.splice(1,0,["duo","Rank雙排"]);if(dating)acts.push(["communicate","💬 感情溝通"]);if(state.player.age>=18&&female&&(dating||name==="許安然"))acts.push(["private",name==="許安然"?"🌙 炮友見面（NT$3,000）":"🌙 私人成人時間"]);if(dating)acts.push(["breakup","💔 提出分手"]);if(pro)acts.push(["spar","⚔️ 與職業選手切磋"]);
  document.querySelector("#main").innerHTML=`<section class="card"><div class="row space"><h2>${female?"💗":"🤝"} ${name}</h2><button id="socialBack" class="ghost">← 換人</button></div><p class="small">${dating?"戀人":relationTier(rel,name)} · 關係 ${Math.round(rel)}｜性別：${c.gender}｜個性：${safeTraits(c).join("、")||"尚未熟悉"}${pro?`｜職業選手好友｜${c.rank||"宗師"} ${c.lp||""} LP`:""}</p>${pro?`<div class="notice goodtext">⚔️ 已解鎖職業選手切磋，可直接在下方選擇。</div>`:""}<div class="social-page-grid">${acts.map(a=>`<button type="button" class="choice social-act-page" data-act="${a[0]}" ${(a[0]==="date"&&rel<75&&!dating)||(a[0]==="confess"&&(rel<75||dating))?"disabled":""}><strong>${a[1]}</strong></button>`).join("")}</div></section>`;
- document.querySelector("#socialBack")?.addEventListener("click",chooseSocial);document.querySelectorAll(".social-act-page").forEach(b=>b.addEventListener("click",()=>b.dataset.act==="confess"?resolveRomance(name,"confess"):b.dataset.act==="communicate"?relationshipTalk(name):b.dataset.act==="spar"?sparWithPro(name):b.dataset.act==="private"?adultPrivateEvent(name,name==="許安然"?"fwb":"lover"):socialActivity(name,b.dataset.act)));
+ document.querySelector("#socialBack")?.addEventListener("click",chooseSocial);document.querySelectorAll(".social-act-page").forEach(b=>b.addEventListener("click",()=>b.dataset.act==="confess"?resolveRomance(name,"confess"):b.dataset.act==="communicate"?relationshipTalk(name):b.dataset.act==="spar"?sparWithPro(name):b.dataset.act==="private"?adultPrivateEvent(name,name==="許安然"?"fwb":"lover"):b.dataset.act==="breakup"?requestBreakup(name):socialActivity(name,b.dataset.act)));
 }
 function friendFiveStack(){
  if(!consume("朋友五排",1))return;document.querySelector(".modal-backdrop")?.remove();
@@ -1273,7 +1304,7 @@ function nextDay(){
  ensureV10();let oldWeek=state.date.week,oldDay=state.date.day;baseNextDay();
  const advanced=state.date.day!==oldDay||state.date.week!==oldWeek;
  if(!advanced)return;
- simulateNpcRanks();maybeRomanceExposure();maybePartnerBetrayal();maybePartnerBreakup();maybeRomanceEvent();
+ simulateNpcRanks();conditionTick();pregnancyTick();proCareerTick();frequentEsportsNews();maybeRomanceExposure();maybePartnerBetrayal();maybePartnerBreakup();maybeRomanceEvent();
  if(state.date.week!==oldWeek){
    generateWeeklyNews();advanceTournaments();maybeRumor();
    (state.player.romance.partners||[]).forEach(n=>{
