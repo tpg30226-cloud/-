@@ -16,7 +16,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.3.8.1",started:false,
+  version:"1.3.9",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,v138AllStatsBoosted:true,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -74,7 +74,7 @@ function normalize(s){
  if(!Array.isArray(s.news))s.news=[];
  if(!Array.isArray(s.messages))s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.3.8.1";return s;
+ s.version="1.3.9";return s;
 }
 function load(){
  try{
@@ -252,12 +252,12 @@ function playRank(isDuo=false){
   const betrayalPenalty=(p.emotion?.betrayalUntil||0)>=state.date.week?5:0;
   const conditionAdj=clamp((p.mood-60)*.10-(p.stress-25)*.08-(p.energy<45?(45-p.energy)*.12:0),-9,5);
   const poolCount=Object.values(p.mastery).filter(x=>x.level>=50).length,poolAdj=["宗師","菁英"].includes(p.rank)&&poolCount<3?-(3-poolCount)*2:0;
-  let baseChance=.50+(avg()-target)*.018;
+  let baseChance=.525+(avg()-target)*.0175;
   const mentalAdj=clamp((p.stats.心態-60)*.0015,-.045,.06);
-  let winChance=clamp(baseChance+masteryAdj/100+conditionAdj/100+poolAdj/100+mentalAdj+(isDuo?.015:0)-betrayalPenalty/100,.12,.82);
+  let winChance=clamp(baseChance+masteryAdj/100+conditionAdj/100+poolAdj/100+mentalAdj+(isDuo?.015:0)-betrayalPenalty/100,.15,.84);
   const proChance=p.rank==="菁英"?.42:p.rank==="宗師"?.22:p.rank==="大師"?.07:0,metPro=Math.random()<proChance;
   const proNames=["Eclipse.Raven","KNG.Nox","Vortex.Luna","Astra.Zero9","Nova.Mori","Titan.Haku"],pro=metPro?proNames[rand(0,proNames.length-1)]:null;
-  if(metPro){winChance=clamp(winChance-.045,.10,.78);ensureProCharacter(pro);p.proEncounters[pro]=(p.proEncounters[pro]||0)+1}
+  if(metPro){winChance=clamp(winChance-.035,.12,.80);ensureProCharacter(pro);p.proEncounters[pro]=(p.proEncounters[pro]||0)+1}
   const win=Math.random()<winChance,k=rand(win?3:0,win?10:6),d=rand(win?1:4,win?7:11),a=rand(2,13);
   const high=["宗師","菁英"].includes(p.rank);let delta=win?rand(high?15:18,high?23:27):-rand(high?17:15,high?25:23);if(m.level<25)delta-=2;
   if(win){p.wins++;p.lp+=delta;p.mood=clamp(p.mood+2,0,100);m.wins++;if(winChance<.46&&Math.random()<.35){const g=+(Math.random()*.10+.05).toFixed(2);p.stats.心態=clamp(p.stats.心態+g,0,100);state.logs.push(`🧠 逆風局取勝，心態 +${g.toFixed(2)}。`)}}else{p.losses++;p.lp+=delta;p.mood=clamp(p.mood-4,0,100);const resilience=clamp((p.stats.心態-55)/45,0,.65);p.stress=clamp(p.stress+5*(1-resilience*.45),0,100);if(Math.random()<.12){const g=+(Math.random()*.07+.03).toFixed(2);p.stats.心態=clamp(p.stats.心態+g,0,100);state.logs.push(`🧠 從失利中累積抗壓經驗，心態 +${g.toFixed(2)}。`)}}
@@ -552,7 +552,7 @@ const SHOP_ITEMS=[
 ];
 const LADDER_NAMES=["Raven","Luna","Kaito","Zero9","Mori","Nox","Aster","Haku","ViperX","Nagi","Frost","Mika","Rex","Nova","Sena","Crow","Yuzu","Kairos","Melo","Tide"];
 
-function ensureV10(){
+function ensureV10(){(state.player.proFriends||[]).forEach(n=>ensureProCharacter(n));Object.keys(state.characters||{}).filter(n=>state.characters[n]?.isPro).forEach(n=>ensureProCharacter(n));
  const previousVersion=state?.version||"";
  state=normalize(state);
  const p=state.player;
@@ -644,10 +644,14 @@ function ensureV10(){
 function isProFriend(name){return (state.player.proFriends||[]).includes(name)}
 function ensureProCharacter(name){
  if(!name)return null;
- if(!state.characters[name])state.characters[name]={name,known:true,gender:"男",romanceable:false,role:"職業選手",desc:"在高分Rank認識的職業選手。",traits:["努力","好勝"]};
- state.characters[name].known=true;state.characters[name].isPro=true;
+ const profiles={"Eclipse.Raven":{role:"中路",rank:"菁英",lp:1180},"KNG.Nox":{role:"打野",rank:"菁英",lp:1040},"Vortex.Luna":{role:"ADC",rank:"菁英",lp:1120},"Astra.Zero9":{role:"上路",rank:"菁英",lp:980},"Nova.Mori":{role:"輔助",rank:"菁英",lp:930},"Titan.Haku":{role:"打野",rank:"菁英",lp:1010}},pf=profiles[name]||{role:"中路",rank:"宗師",lp:650};
+ if(!state.characters[name])state.characters[name]={name,known:true,gender:"男",romanceable:false,role:pf.role,rank:pf.rank,lp:pf.lp,desc:"在高分Rank認識的職業選手。",traits:["努力","好勝"]};
+ const c=state.characters[name];c.known=true;c.isPro=true;
+ if(!["上路","打野","中路","ADC","輔助"].includes(normalizeRole(c.role)))c.role=pf.role;
+ if(!["宗師","菁英"].includes(c.rank))c.rank=pf.rank;
+ c.lp=Math.max(Number(c.lp)||0,pf.rank==="菁英"?850:500);
  if(state.player.relations[name]==null)state.player.relations[name]=20;
- return state.characters[name];
+ return c;
 }
 function esportsRole(name){
  const roles={"阿哲":"ADC","子辰":"打野","Kaito":"輔助","俊凱":"上路","小宇":"輔助","陳語彤":"ADC"};
@@ -781,7 +785,7 @@ function career(){
  return `<section class="card"><h2>生涯中心</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.3.8.1</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.3.9</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));
@@ -1017,7 +1021,7 @@ function gainTournamentExperience(t,win,strategy){
 }
 function finishAmateur(ev,v){
  const p=state.player,t=state.world.tournaments.find(x=>x.id===ev.tournamentId);if(!t)return;
- const heartbreak=(p.emotion?.betrayalUntil||0)>=state.date.week?5:0,bonus=v==="carry"?2:v==="stable"?1:0,teamPower=amateurTeamPower(t)-heartbreak,enemyPower=66+t.roundIndex*4+(t.tier==="scout"?10:t.tier==="regional"?8:t.tier==="city"?7:t.tier==="sponsor"?5:t.tier==="school"?3:0)+rand(-8,8),winChance=clamp(.50+(teamPower+bonus-enemyPower)/90,.18,.82),win=Math.random()<winChance;amateurRelations(t,win);
+ const heartbreak=(p.emotion?.betrayalUntil||0)>=state.date.week?5:0,bonus=v==="carry"?2:v==="stable"?1:0,teamPower=amateurTeamPower(t)-heartbreak,enemyPower=66+t.roundIndex*4+(t.tier==="scout"?10:t.tier==="regional"?8:t.tier==="city"?7:t.tier==="sponsor"?5:t.tier==="school"?3:0)+rand(-8,8),winChance=clamp(.53+(teamPower+bonus-enemyPower)/92,.22,.84),win=Math.random()<winChance;amateurRelations(t,win);
  ev.completed=true;p.energy=clamp(p.energy-18,0,100);p.stress=clamp(p.stress+6,0,100);
  const round=t.rounds[t.roundIndex],report=matchNarrative(win,v),expGain=gainTournamentExperience(t,win,v);t.history.push(`${round}：${win?"勝":"敗"}`);
  state.logs.push(`賽事實戰成長：${expGain.join("、")}。`);
@@ -1053,7 +1057,7 @@ function openSocialPersonPage(name){
  const rel=state.player.relations?.[name]||0,female=c.gender==="女",esports=isEsportsFriend(name),dating=(state.player.romance?.partners||[]).includes(name),pro=isProFriend(name);
  let acts=female?[["chat","聊天散步"],["food","一起吃飯"],["cafe","咖啡廳"],["movie","看電影"],["date","正式約會"],["confess","💗 告白"]]:[["food","吃飯聊天"],["arcade","去電競館"],["hangout","逛街／閒晃"],["game","一起打遊戲"],["latefood","吃宵夜"]];
  if(esports)acts.splice(1,0,["duo","Rank雙排"]);if(dating)acts.push(["communicate","💬 感情溝通"]);if(pro)acts.push(["spar","⚔️ 與職業選手切磋"]);
- document.querySelector("#main").innerHTML=`<section class="card"><div class="row space"><h2>${female?"💗":"🤝"} ${name}</h2><button id="socialBack" class="ghost">← 換人</button></div><p class="small">${dating?"戀人":relationTier(rel,name)} · 關係 ${Math.round(rel)}｜性別：${c.gender}｜個性：${safeTraits(c).join("、")||"尚未熟悉"}${pro?"｜職業選手好友":""}</p><div class="social-page-grid">${acts.map(a=>`<button type="button" class="choice social-act-page" data-act="${a[0]}" ${(a[0]==="date"&&rel<75&&!dating)||(a[0]==="confess"&&(rel<75||dating))?"disabled":""}><strong>${a[1]}</strong></button>`).join("")}</div></section>`;
+ document.querySelector("#main").innerHTML=`<section class="card"><div class="row space"><h2>${female?"💗":"🤝"} ${name}</h2><button id="socialBack" class="ghost">← 換人</button></div><p class="small">${dating?"戀人":relationTier(rel,name)} · 關係 ${Math.round(rel)}｜性別：${c.gender}｜個性：${safeTraits(c).join("、")||"尚未熟悉"}${pro?`｜職業選手好友｜${c.rank||"宗師"} ${c.lp||""} LP`:""}</p>${pro?`<div class="notice goodtext">⚔️ 已解鎖職業選手切磋，可直接在下方選擇。</div>`:""}<div class="social-page-grid">${acts.map(a=>`<button type="button" class="choice social-act-page" data-act="${a[0]}" ${(a[0]==="date"&&rel<75&&!dating)||(a[0]==="confess"&&(rel<75||dating))?"disabled":""}><strong>${a[1]}</strong></button>`).join("")}</div></section>`;
  document.querySelector("#socialBack")?.addEventListener("click",chooseSocial);document.querySelectorAll(".social-act-page").forEach(b=>b.addEventListener("click",()=>b.dataset.act==="confess"?resolveRomance(name,"confess"):b.dataset.act==="communicate"?relationshipTalk(name):b.dataset.act==="spar"?sparWithPro(name):socialActivity(name,b.dataset.act)));
 }
 function friendFiveStack(){
