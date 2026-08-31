@@ -1,5 +1,6 @@
 
 const SAVE_KEY="yefeng_v10_save";
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const OLD_KEYS=["yefeng_v09_save","yefeng_v08_save","yefeng_v07_save","yefeng_v061_save","yefeng_v06_save"];
 const ROLES=["上路","打野","中路","下路","輔助"];
 const DAYS=["一","二","三","四","五","六","日"];
@@ -15,9 +16,9 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.3.8",started:false,
+  version:"1.3.8.1",started:false,
   player:{
-   name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,
+   name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,v138AllStatsBoosted:true,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
    relations:{阿哲:64,林雨晴:0,Kaito:0,子辰:0},
    stats:{操作:66,反應:70,對線:63,補刀:67,換血:62,團戰:61,遊戲理解:57,地圖意識:56,決策:53,心態:62,英雄池:50,溝通:55},
@@ -73,7 +74,7 @@ function normalize(s){
  if(!Array.isArray(s.news))s.news=[];
  if(!Array.isArray(s.messages))s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.3.8";return s;
+ s.version="1.3.8.1";return s;
 }
 function load(){
  try{
@@ -84,7 +85,6 @@ function load(){
 }
 let state=load(),activeTab="home";
 const save=()=>localStorage.setItem(SAVE_KEY,JSON.stringify(state));
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const rand=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
 const avg=()=>Object.values(state.player.stats).reduce((a,b)=>a+b,0)/Object.keys(state.player.stats).length;
 const slots=()=>state.date.day<=5?WEEKDAY_SLOTS:WEEKEND_SLOTS;
@@ -781,7 +781,7 @@ function career(){
  return `<section class="card"><h2>生涯中心</h2><div class="stat-grid">${stat("學業",Math.round(p.school))}${stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.3.8</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.3.8.1</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));
