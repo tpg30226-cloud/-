@@ -16,7 +16,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.8.5",started:false,
+  version:"1.8.6",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,v138AllStatsBoosted:true,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -74,7 +74,7 @@ function normalize(s){
  if(!Array.isArray(s.news))s.news=[];
  if(!Array.isArray(s.messages))s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.8.5";return s;
+ s.version="1.8.6";return s;
 }
 function load(){
  try{
@@ -744,6 +744,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  migrateProV182();
  migrateProV184();
  migrateProV185();
+ migrateProV186();
  migrateProV183();
  if(!p.v170Migrated){
    if(isProfessionalStage()){
@@ -955,7 +956,7 @@ function career(){
  return `${proCareerCard()}${annualCalendarCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${pregnancyCard()}${marriageCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.8.5</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.8.6</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));document.querySelector("#doTryout")?.addEventListener("click",doProTryout);document.querySelector("#signProContract")?.addEventListener("click",signProContract);document.querySelector("#counterOffer")?.addEventListener("click",counterInitialOffer);document.querySelector("#declineOffer")?.addEventListener("click",declineInitialOffer);document.querySelector("#playLeagueMatch")?.addEventListener("click",playLeagueMatch);document.querySelector("#askRaise")?.addEventListener("click",()=>negotiateContract("raise"));document.querySelector("#offerCut")?.addEventListener("click",()=>negotiateContract("cut"));document.querySelector("#requestTransfer")?.addEventListener("click",()=>negotiateContract("transfer"));document.querySelectorAll(".pregnancy-talk").forEach(b=>b.onclick=()=>pregnancyDecision(+b.dataset.i));document.querySelectorAll(".child-choice").forEach(b=>b.onclick=()=>childSupportDecision(+b.dataset.i,b.dataset.choice));document.querySelectorAll(".sponsor-action").forEach(b=>b.onclick=()=>sponsorAction(b.dataset.action));document.querySelector("#launchMerch")?.addEventListener("click",launchSponsorMerch);document.querySelectorAll(".donate-btn").forEach(b=>b.onclick=()=>makeDonation(+b.dataset.amt));document.querySelector("#proposeMarriage")?.addEventListener("click",proposeMarriage);document.querySelector("#marriageTalk")?.addEventListener("click",resolveMarriageCrisis);document.querySelector("#prAction")?.addEventListener("click",openPRResponse);document.querySelector("#suggestRecruit")?.addEventListener("click",openRecruitSuggestion);document.querySelector("#stiScreen")?.addEventListener("click",doStiScreen);
@@ -1518,8 +1519,48 @@ function ensureProRoster(){
  pc.coaches.length||pc.coaches.push({name:"姜泰勳",role:"主教練"},{name:"陳啟峰",role:"助理教練"});
  [...pc.roster,...pc.coaches].forEach(x=>{if(x.isPlayer)return;if(!state.characters[x.name])state.characters[x.name]={name:x.name,known:true,gender:"男",age:x.role.includes("教練")?rand(31,45):rand(18,27),role:x.role,isProStaff:x.role.includes("教練"),isPro:!x.role.includes("教練"),traits:[["冷靜","努力","直率","溫和"][rand(0,3)]]};else state.characters[x.name].known=true;p.relations[x.name]=p.relations[x.name]??x.relation??55});
 }
+function isPlaceholderPersonName(name){
+ const n=String(name||"").trim();if(!n)return true;
+ return /^(女粉絲|粉絲|神秘女子|路人|某選手|陌生人|酒吧女性|國外女性|對手)\d*$/.test(n)||/^(LCK|LPL|LEC|LCS|PCS)\s+(Spring|Summer)\s+#\d$/i.test(n)||/^(LCK|LPL|LEC|LCS|PCS)\s+#\d$/i.test(n);
+}
+const GLOBAL_PRO_TEAMS={
+ LCK:["Seoul Crown","Busan Storm","Han River Fox","Incheon Nova"],
+ LPL:["Shanghai Dragons","Beijing Pulse","Chengdu Blaze","Hangzhou Tide"],
+ LEC:["Berlin Knights","Paris Arc","Madrid Solar","London Forge"],
+ LCS:["LA Comets","New York Guard","Austin Rift","Seattle Waves"],
+ PCS:["KNG Esports","Nova Gaming","Titan Core","Astra Five"]
+};
+const REGION_PRO_NAMES={
+ LCK:["Park Min-jun","Kim Do-yun","Lee Hyun-woo","Choi Jun-seo","Jung Si-woo","Kang Tae-yang","Han Ji-ho","Yoon Seung-min","Seo Woo-jin","Lim Jae-hyun"],
+ LPL:["陳景曜","周奕衡","林澤宇","顧承安","沈曜","葉子謙","唐昊然","蘇景川","許墨","江予辰"],
+ LEC:["Luca Moretti","Noah Fischer","Elias Novak","Theo Martin","Milan Kovac","Oscar Lind","Leo Wagner","Hugo Costa","Felix Meyer","Adam Laurent"],
+ LCS:["Ethan Cole","Ryan Park","Mason Lee","Logan Reed","Caleb Stone","Dylan Chen","Owen Brooks","Aiden Kim","Lucas Grant","Nate Wilson"],
+ PCS:["沈奕辰","顧言澈","許哲宇","陸子昂","程以安","高宇謙","陳柏勳","葉知衡","吳昊恩","方子墨"]
+};
+function ensureGlobalProDatabase(){
+ const p=state.player,pc=p.proCareer;pc.proDatabase=pc.proDatabase||{};const roles=["上路","打野","中路","ADC","輔助"];
+ PRO_REGIONS.forEach(region=>{pc.proDatabase[region]=pc.proDatabase[region]||{};(GLOBAL_PRO_TEAMS[region]||[]).forEach((team,ti)=>{
+   if(pc.proDatabase[region][team])return;
+   pc.proDatabase[region][team]=roles.map((role,ri)=>{
+     const pool=REGION_PRO_NAMES[region],base=pool[(ti*5+ri)%pool.length],name=ti<2?base:`${base} ${ti+1}`;
+     const age=18+stableAgeOffset(name,10),rating=clamp(70+stableAgeOffset(name+"r",24)+(region==="LCK"?4:region==="LPL"?2:region==="PCS"?-2:0),60,97);
+     return {name,team,region,role,age,birthYear:state.date.year-age,rating,active:true,retired:false,contractYears:1,salary:50000+rating*2500};
+   });
+ })});
+ return pc.proDatabase;
+}
+function actualTeamForSlot(slot){
+ if(!/^(LCK|LPL|LEC|LCS|PCS)\s+(Spring|Summer)\s+#(\d)$/i.test(slot||""))return slot;
+ const m=slot.match(/^(LCK|LPL|LEC|LCS|PCS)\s+(Spring|Summer)\s+#(\d)$/i),region=m[1].toUpperCase(),rank=Number(m[3]),teams=GLOBAL_PRO_TEAMS[region]||[];
+ return teams[(rank-1)%teams.length]||slot;
+}
+function actualProOpponent(team,role){
+ const pc=state.player.proCareer,db=ensureGlobalProDatabase(),realTeam=actualTeamForSlot(team),r=role==="下路"?"ADC":role;
+ for(const region of PRO_REGIONS){const roster=db[region]?.[realTeam];if(roster){const x=roster.find(v=>v.role===r&&v.active&&!v.retired)||roster.find(v=>v.active&&!v.retired);if(x)return x}}
+ return null;
+}
 function addSocialAcquaintance(name,relation=20,meta={}){
- const p=state.player;if(!name)return null;
+ const p=state.player;if(!name||isPlaceholderPersonName(name))return null;
  state.characters=state.characters||{};let c=state.characters[name];
  if(!c)c=state.characters[name]={name,known:true,...meta};
  else Object.assign(c,meta,{known:true});
@@ -1610,6 +1651,19 @@ function ensureAges(forceStoryRules=false){
  });
 }
 function addAnnualHeroes(year){const p=state.player;p.heroYears=p.heroYears||[];if(p.heroYears.includes(year))return;p.heroYears.push(year);const types=["戰士","刺客","法師","射手","輔助"],names=["霧華","曜辰","緋羽","蒼牙","璃歌"];for(let i=0;i<5;i++){const id=`y${year}_${i}`,name=`${names[i]}${String(year).slice(-2)}`;if(!HEROES.some(h=>h.id===id))HEROES.push({id,name,type:types[i]});p.mastery[id]={level:3,games:0,wins:0}}state.news.unshift(`🎮 ${year}賽季新增5名英雄，聯盟需要重新適應版本。`)}
+function annualNpcCareerLifecycle(year){
+ const p=state.player,pc=p.proCareer,db=ensureGlobalProDatabase();pc.proCareerNews=pc.proCareerNews||[];
+ Object.values(db).forEach(region=>Object.values(region).forEach(roster=>roster.forEach(x=>{
+   if(!x.active||x.retired)return;
+   x.age++;x.birthYear=year-x.age;
+   if(x.age>=26)x.rating=clamp(x.rating-(.25+(x.age-25)*.28)*Math.random(),45,100);
+   const old=x.age>=29,elite=x.rating>=86,retireChance=x.age<28?0:x.age===28?.03:x.age===29?.07:x.age===30?.13:clamp(.18+(x.age-31)*.10,0,.70);
+   if(Math.random()<retireChance-(elite?.04:0)){x.retired=true;x.active=false;x.careerStatus="退役";pc.proCareerNews.unshift(`${year}｜${x.name}（${x.team}・${x.role}・${x.age}歲）宣布退役。`);return}
+   if(old&&Math.random()<.42){x.salary=Math.round(x.salary*(.72+Math.random()*.16)/1000)*1000;x.contractYears=1;x.careerStatus="降薪續戰一年";pc.proCareerNews.unshift(`${year}｜老將 ${x.name} 選擇降薪，以一年約續戰 ${x.team}。`)}
+   else if(x.age>=28&&x.rating<76&&Math.random()<.34){x.active=false;x.careerStatus="未獲續約／自由人";pc.proCareerNews.unshift(`${year}｜${x.name} 因年齡與近況未獲 ${x.team} 續約，成為自由人。`)}
+   else{x.contractYears=1;x.careerStatus=old?"一年短約續約":"續約";}
+ })));
+}
 function annualAgeAndDecline(year){
  const p=state.player;if(p.lastAgingYear===year)return;p.lastAgingYear=year;ensureAges();
  p.age++;Object.values(state.characters||{}).forEach(c=>{if(Number.isFinite(c.age))c.age++});
@@ -1621,6 +1675,7 @@ function annualAgeAndDecline(year){
  };
  decline(p,p.stats,p.age);
  Object.values(state.characters||{}).forEach(c=>{if(c.isPro&&c.age>=26){c.rating=clamp((c.rating||rand(65,90))-Math.random()*(.3+(c.age-25)*.3),40,100);if(c.age>=31&&Math.random()<.08+(c.age-31)*.04)c.retired=true}});
+ annualNpcCareerLifecycle(year);
  state.logs.push(`🎂 ${year} 年度年齡結算完成。26歲以上職業選手開始依個體狀況產生年度衰退。`);
 }
 function ensureInternationalWorld(){
@@ -1642,6 +1697,7 @@ function buildInternationalTournament(kind){
  const pc=state.player.proCareer,ev=chooseHost(kind,state.date.year),myRegion=pc.region||"PCS",team=pc.team||"KNG Esports";if(ev.groups?.length)return ev;
  if(kind==="MSI"){const e=[];PRO_REGIONS.forEach(r=>e.push(r===myRegion?team:`${r} Spring #1`,`${r} Spring #2`));const u=[...new Set(e)].slice(0,10);ev.groups=[{name:"A",teams:u.filter((_,i)=>i%2===0),standings:[]},{name:"B",teams:u.filter((_,i)=>i%2===1),standings:[]}];ev.format="雙循環；各組前二晉級四強BO5";ev.stage="分組賽";}
  else{const e=[];PRO_REGIONS.forEach(r=>e.push(r===myRegion?team:`${r} Summer #1`,`${r} Summer #2`,`${r} Summer #3`));e.push(`${myRegion} Summer #4`);const u=[...new Set(e)];while(u.length<16)u.push(`Wildcard ${u.length+1}`);ev.groups=["A","B","C","D"].map((g,i)=>({name:g,teams:u.filter((_,j)=>j%4===i).slice(0,4),standings:[]}));ev.format="四組雙循環；各組前二晉級八強BO5";ev.stage="抽籤完成";}
+ ev.groups.forEach(g=>g.teams=g.teams.map(actualTeamForSlot));
  return ev;
 }
 function internationalGroupsCard(){const ph=proAnnualPhase();if(!["MSI","世界賽"].includes(ph))return "";const ev=buildInternationalTournament(ph);return `<section class="card"><h2>🎲 ${ph}分組</h2>${ev.groups.map(g=>`<div class="notice"><strong>${g.name}組</strong><br>${g.teams.join("｜")}</div>`).join("")}<div class="small">${ev.format}</div></section>`;}
@@ -1676,7 +1732,7 @@ function maybeInternationalSocial(){
 function annualAwards(year){
  const p=state.player,pc=p.proCareer;ensureCareerHistory();if(pc.lastAwardsYear===year)return;pc.lastAwardsYear=year;
  const cs=pc.careerStats||{},rookie=(pc.proDebutYear||year)===year,score=avg()+(cs.mvp||0)*1.5+(cs.seriesW||0)*.3;
- pc.regionalAwards=pc.regionalAwards||{};PRO_REGIONS.forEach(r=>{pc.regionalAwards[`${year}-${r}`]={最佳戰隊:`${r}年度強隊`,最佳教練:`${r}年度教練`,最佳上路:`${r} Top`,最佳打野:`${r} Jungle`,最佳中路:`${r} Mid`,最佳ADC:`${r} ADC`,最佳輔助:`${r} Support`,最佳新秀:`${r} Rookie`,年度MVP:`${r} MVP`};});
+ pc.regionalAwards=pc.regionalAwards||{};PRO_REGIONS.forEach(r=>{{const db=ensureGlobalProDatabase()[r]||{},all=Object.values(db).flat().filter(x=>x.active&&!x.retired),pick=role=>all.filter(x=>x.role===role).sort((a,b)=>b.rating-a.rating)[0]?.name||"未定";pc.regionalAwards[`${year}-${r}`]={最佳戰隊:Object.keys(db)[0]||`${r}年度強隊`,最佳教練:`${r}年度教練`,最佳上路:pick("上路"),最佳打野:pick("打野"),最佳中路:pick("中路"),最佳ADC:pick("ADC"),最佳輔助:pick("輔助"),最佳新秀:all.filter(x=>x.age<=20).sort((a,b)=>b.rating-a.rating)[0]?.name||pick("中路"),年度MVP:all.sort((a,b)=>b.rating-a.rating)[0]?.name||"未定"};}});
  const awards=[];if(score>78)awards.push(`年度最佳${p.role==="下路"?"ADC":p.role}`);if(score>86)awards.push("年度MVP");if(rookie&&score>72)awards.push("年度最佳新秀");
  awards.forEach(x=>{p.awards.unshift({year,title:x,region:pc.region||"PCS",team:pc.team});addAchievement(`award-${x}`,x,"年度頒獎",year,false)});
  state.logs.push(`🏆 ${year}年度頒獎完成：五大賽區評選最佳戰隊、最佳教練、五路最佳選手、年度MVP與最佳新秀。${awards.length?`夜鋒獲得：${awards.join("、")}`:""}`);
@@ -1759,6 +1815,30 @@ function migrateProV184(){
  state.logs.push("🔧 V1.8.4社交校正：已認識的具名人物補入社交好友；海外固定NPC改為每人只會觸發一次初次認識。");
  p.v184Migrated=true;
 }function migrateProV185(){const p=state.player;if(p.v185Migrated)return;p.travelHistory=p.travelHistory||[];state.logs.push("✈️ V1.8.5新增自由出國：可選目的地、自己旅行或邀請社交人物同行。");p.v185Migrated=true;}
+function migrateProV186(){
+ const p=state.player,pc=p.proCareer;if(p.v186Migrated)return;
+ ensureGlobalProDatabase();p.proFriends=p.proFriends||[];
+ const removeNames=[];
+ Object.entries(state.characters||{}).forEach(([name,c])=>{
+   if(isPlaceholderPersonName(name)){removeNames.push(name);return}
+   const text=`${c.role||""} ${c.desc||""}`;
+   const clearlyNonPro=/粉絲|旅行認識|國際賽活動認識|酒吧|同學|一般朋友|媒體|記者|翻譯|工作人員/.test(text);
+   if(clearlyNonPro){c.isPro=false;delete c.team;delete c.region}
+   // only a named roster/database member may retain professional status
+   if(c.isPro&&!c.team){
+     let found=null,db=pc.proDatabase||{};for(const region of Object.values(db))for(const roster of Object.values(region)){const x=roster.find(v=>v.name===name);if(x)found=x}
+     const localTeam=Object.entries(PRO_ROSTER_NAMES).find(([t,names])=>names.includes(name));
+     if(found){c.team=found.team;c.region=found.region;c.role=found.role}
+     else if(localTeam)c.team=localTeam[0];
+     else c.isPro=false;
+   }
+ });
+ removeNames.forEach(name=>{delete state.characters[name];delete p.relations[name];p.proFriends=p.proFriends.filter(x=>x!==name);if(pc.rivals)delete pc.rivals[name]});
+ p.proFriends=p.proFriends.filter((n,i,a)=>n&&!isPlaceholderPersonName(n)&&state.characters?.[n]&&a.indexOf(n)===i);
+ Object.values(state.characters||{}).forEach(c=>{if(c.known&&!isPlaceholderPersonName(c.name)&&proSocialAllowed(c))c.socialContact=true});
+ state.logs.push(`🔧 V1.8.6 NPC資料校正：清除 ${removeNames.length} 個無名／席位代號社交人物；女粉絲與一般朋友恢復正確身分；國際對手改用固定具名職業選手。`);
+ p.v186Migrated=true;
+}
 function proDaySerial(){return ((state.date.year||2026)*52+(state.date.week||1))*7+(state.date.day||1)}
 function proScheduleDayLabel(x){
  if(!x)return "未排定";const days=["一","二","三","四","五","六","日"],m=careerMonthFromWeek(x.week),y=x.year;
@@ -1899,10 +1979,16 @@ function applyPreMedia(a,opp){
  document.querySelector(".modal-backdrop")?.remove();const im=currentInternationalMatch();if(im&&im.international)runInternationalMatch();else runRichLeagueMatch();
 }
 function ensureOpponentRelationship(team,heated=false){
- const p=state.player,pc=p.proCareer,names=PRO_ROSTER_NAMES[team]||[],roles=["上路","打野","中路","ADC","輔助"],pr=p.role==="下路"?"ADC":p.role,ri=Math.max(0,roles.indexOf(pr)),oppName=names[ri]||`${team} ${pr}`;
- if(!state.characters[oppName])state.characters[oppName]={name:oppName,known:true,gender:"男",role:roles[ri],isPro:true,isRival:true,traits:["競爭心"]};
- state.characters[oppName].known=true;state.characters[oppName].isRival=true;addSocialAcquaintance(oppName,heated?35:45,{isPro:true,isRival:true,role:roles[ri]});p.relations[oppName]=p.relations[oppName]??(heated?35:45);
- pc.rivals=pc.rivals||{};pc.rivals[oppName]=pc.rivals[oppName]||{team,score:heated?20:5,status:heated?"競爭對手":"對手",meetings:0};pc.rivals[oppName].meetings++;
+ const p=state.player,pc=p.proCareer,pr=p.role==="下路"?"ADC":p.role,realTeam=actualTeamForSlot(team),pro=actualProOpponent(realTeam,pr);
+ let oppName=pro?.name;
+ if(!oppName){
+   const names=PRO_ROSTER_NAMES[realTeam]||[],roles=["上路","打野","中路","ADC","輔助"],ri=Math.max(0,roles.indexOf(pr));oppName=names[ri];
+ }
+ if(!oppName||isPlaceholderPersonName(oppName))return "對方選手";
+ const role=pro?.role||pr;
+ addSocialAcquaintance(oppName,heated?35:45,{isPro:true,isRival:true,role,team:realTeam,region:pro?.region||"",age:pro?.age,rating:pro?.rating,traits:["競爭心"]});
+ const c=state.characters[oppName];c.known=true;c.isRival=true;c.isPro=true;c.team=realTeam;
+ pc.rivals=pc.rivals||{};pc.rivals[oppName]=pc.rivals[oppName]||{team:realTeam,score:heated?20:5,status:heated?"競爭對手":"對手",meetings:0};pc.rivals[oppName].meetings++;
  return oppName;
 }
 function richGameEvents(gameNo,opp,win){
