@@ -16,7 +16,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.8.3",started:false,
+  version:"1.8.5",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,v138AllStatsBoosted:true,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -74,7 +74,7 @@ function normalize(s){
  if(!Array.isArray(s.news))s.news=[];
  if(!Array.isArray(s.messages))s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.8.3";return s;
+ s.version="1.8.5";return s;
 }
 function load(){
  try{
@@ -159,13 +159,13 @@ function actionCard(){
   ${actionBtn("rank","🎮 Rank","1時段")}${actionBtn("train","🏋️ 訓練","1時段")}
   ${actionBtn("social","👥 社交","隊友／教練／重要人物")}${actionBtn("stream","📺 直播","1時段")}
   ${actionBtn("proMatch",matchLabel,pc.stage==="academy"?"青訓無正式聯賽":"查看／進行賽事")}${p.age>=18?actionBtn("fan","💌 女粉絲","成人社交"):""}
-  ${actionBtn("outing","🏙️ 外出/逛街","1時段")}${actionBtn("rest","🛏️ 休息","1時段")}
+  ${actionBtn("outing","🏙️ 外出/逛街","1時段")}${actionBtn("travel","✈️ 出國","自己去／邀人同行")}${actionBtn("rest","🛏️ 休息","1時段")}
   </div><button id="nextDayBtn" class="btn secondary" style="width:100%;margin-top:12px">${remain()<=0?"結束今天":"前往下一天"}</button></section>`;
  }
  return `<section class="card"><h2>今天要做什麼？</h2><div class="choice-grid">
  ${actionBtn("rank","🎮 Rank","1時段")}${actionBtn("train","🏋️ 訓練","1時段")}${actionBtn("study","📚 讀書","1時段")}
  ${actionBtn("stream","📺 直播","1時段")}${actionBtn("social","👥 社交","1時段")}${p.age>=18?actionBtn("fan","💌 女粉絲","成人社交"):""}${actionBtn("work","💼 打工","2時段")}
- ${actionBtn("outing","🏙️ 外出/逛街","1時段")}${actionBtn("club","🎓 電競社",state.date.day===5?"週五社課":"查看社團")}${actionBtn("team","🛡️ 戰隊",p.team?.formed?"一起訓練":"成立固定戰隊")}${actionBtn("rest","🛏️ 休息","1時段")}
+ ${actionBtn("outing","🏙️ 外出/逛街","1時段")}${actionBtn("travel","✈️ 出國","自己去／邀人同行")}${actionBtn("club","🎓 電競社",state.date.day===5?"週五社課":"查看社團")}${actionBtn("team","🛡️ 戰隊",p.team?.formed?"一起訓練":"成立固定戰隊")}${actionBtn("rest","🛏️ 休息","1時段")}
  </div><button id="nextDayBtn" class="btn secondary" style="width:100%;margin-top:12px">${remain()<=0?"結束今天":"前往下一天"}</button></section>`;
 }
 function actionBtn(t,title,sub){
@@ -227,6 +227,7 @@ function act(t){
  if(t==="work")simple("打工",2,()=>{state.player.cash+=1200;state.player.energy=clamp(state.player.energy-17,0,100);state.player.stress=clamp(state.player.stress+5,0,100);return "收入 NT$1,200，體力 -17、壓力 +5。"});
  if(t==="fan")return meetFemaleFan();
  if(t==="outing")chooseOuting();
+ if(t==="travel")chooseTravelDestination();
  if(t==="club")return esportsClubAction();
  if(t==="team")return openTeamPage();
  if(t==="proMatch")return proMatchHub();
@@ -397,6 +398,57 @@ function socialActivity(person,type){
  setTimeout(()=>maybeRomanceEvent(),0);
 }
 function isInternationalTrip(){return isProfessionalStage()&&["MSI","世界賽"].includes(proAnnualPhase())}
+
+const FREE_TRAVEL_DESTINATIONS=[
+ {id:"tokyo",country:"日本",city:"東京",cost:22000},{id:"osaka",country:"日本",city:"大阪",cost:21000},
+ {id:"seoul",country:"韓國",city:"首爾",cost:19000},{id:"busan",country:"韓國",city:"釜山",cost:20000},
+ {id:"shanghai",country:"中國",city:"上海",cost:18000},{id:"paris",country:"法國",city:"巴黎",cost:52000},
+ {id:"london",country:"英國",city:"倫敦",cost:55000},{id:"la",country:"美國",city:"洛杉磯",cost:50000}
+];
+function currentResidenceCountry(){const r=state.player.proCareer?.region||"PCS";return ({PCS:"台灣",LCK:"韓國",LPL:"中國",LEC:"歐洲",LCS:"美國"})[r]||"台灣"}
+function travelBlockedReason(){
+ if(hardEventToday())return "今天已有鎖定的重要行程。";
+ if(isInternationalTrip())return "目前正在參加MSI／世界賽，不能另外安排私人出國旅行。";
+ const m=state.player.proCareer?.stage==="starter"?currentScheduledProMatch():null;
+ if(m){const now=proDaySerial(),target=((m.year*52+m.week)*7+m.day);if(target-now<=2)return "兩天內有正式比賽，戰隊不允許安排出國旅行。"}
+ return "";
+}
+function chooseTravelDestination(){
+ if(remain()<1)return;const blocked=travelBlockedReason();if(blocked){modal(`<h2>✈️ 無法出國</h2><p>${blocked}</p>${closeBtn()}`);return}
+ modal(`<h2>✈️ 出國旅行</h2><p class="small">目前生活據點：${currentResidenceCountry()}。旅行消耗1個活動時段、旅費與少量體力。</p><div class="reply-grid">${FREE_TRAVEL_DESTINATIONS.map(d=>`<button class="reply travel-dest" data-dest="${d.id}"><strong>${d.country}・${d.city}</strong><div class="small">預估 NT$${d.cost.toLocaleString()}</div></button>`).join("")}</div>${closeBtn()}`);
+ document.querySelectorAll(".travel-dest").forEach(b=>b.onclick=()=>chooseTravelCompanion(b.dataset.dest));
+}
+function travelCompanionCandidates(){
+ const p=state.player;return Object.values(state.characters||{}).filter(c=>c?.known&&c.name!==p.name&&proSocialAllowed(c)&&Number.isFinite(p.relations?.[c.name])).sort((a,b)=>(p.relations[b.name]||0)-(p.relations[a.name]||0)).slice(0,18);
+}
+function chooseTravelCompanion(destId){
+ const d=FREE_TRAVEL_DESTINATIONS.find(x=>x.id===destId);if(!d)return;const people=travelCompanionCandidates();
+ modal(`<h2>✈️ ${d.country}・${d.city}</h2><p>要跟誰一起去？</p><div class="reply-grid"><button class="reply travel-with" data-dest="${d.id}" data-person=""><strong>🧳 自己去</strong><div class="small">海外奇遇機率較高</div></button>${people.map(c=>`<button class="reply travel-with" data-dest="${d.id}" data-person="${c.name}"><strong>${c.name}</strong><div class="small">${relationTier(state.player.relations[c.name]||0,c.name)}｜關係 ${Math.round(state.player.relations[c.name]||0)}</div></button>`).join("")}</div>${closeBtn()}`);
+ document.querySelectorAll(".travel-with").forEach(b=>b.onclick=()=>confirmFreeTravel(b.dataset.dest,b.dataset.person||""));
+}
+function confirmFreeTravel(destId,person){
+ const p=state.player,d=FREE_TRAVEL_DESTINATIONS.find(x=>x.id===destId);if(!d)return;
+ if(person){const rel=p.relations[person]||0,c=state.characters[person],dating=(p.romance?.partners||[]).includes(person)||p.romance?.spouse===person,chance=clamp(.28+rel*.006+(dating?.18:0)-(c?.isPro?.08:0),.18,.92);
+  if(Math.random()>chance){state.logs.push(`✈️ ${person}婉拒了${d.city}旅行邀請。`);modal(`<h2>旅行邀請</h2><p>${person}這次沒辦法同行。</p><button id="travelAloneAfterReject" class="reply">改成自己去</button>${closeBtn()}`);document.querySelector("#travelAloneAfterReject")?.addEventListener("click",()=>executeFreeTravel(d.id,""));return}}
+ executeFreeTravel(d.id,person||"");
+}
+function executeFreeTravel(destId,companion){
+ const p=state.player,d=FREE_TRAVEL_DESTINATIONS.find(x=>x.id===destId);if(!d||remain()<1)return;
+ if(p.cash<d.cost){modal(`<h2>✈️ 旅費不足</h2><p>${d.city}預估需要 NT$${d.cost.toLocaleString()}。</p>${closeBtn()}`);return}
+ if(!consume(`出國：${d.city}`,1))return;p.cash-=d.cost;p.energy=clamp(p.energy-rand(5,10),0,100);p.mood=clamp(p.mood+rand(6,12),0,100);p.stress=clamp(p.stress-rand(4,9),0,100);
+ p.travelHistory=p.travelHistory||[];p.travelHistory.unshift({year:state.date.year,week:state.date.week,country:d.country,city:d.city,companion:companion||"自己"});
+ if(companion){const gain=rand(4,9);p.relations[companion]=clamp((p.relations[companion]||0)+gain,0,100);state.logs.push(`✈️ 你和 ${companion} 前往${d.country}・${d.city}旅行，關係 +${gain}。`)}else state.logs.push(`✈️ 你獨自前往${d.country}・${d.city}旅行。`);
+ document.querySelector(".modal-backdrop")?.remove();save();render();freeTravelEncounter(d,companion);
+}
+function freeTravelEncounter(d,companion){
+ const p=state.player,r=Math.random(),solo=!companion;
+ if(r<(solo?.58:.34)){const pools={日本:["森川澪","橘花音","白石奈緒"],韓國:["姜敏書","徐恩彩","柳多賢"],中國:["葉清禾","宋知夏","唐若琳"],法國:["Élise Bernard","Clara Moreau","Nina Roux"],英國:["Isla Brown","Maya Evans","Freya Hall"],美國:["Chloe Adams","Avery Kim","Hailey Moore"]},pool=pools[d.country]||["Maya Lee","Nina Chen","Emma Park"],unseen=pool.filter(n=>!state.characters?.[n]?.known);
+  if(unseen.length){const n=unseen[rand(0,unseen.length-1)],age=19+stableAgeOffset(n,9);addSocialAcquaintance(n,rand(15,28),{gender:"女",age,birthYear:state.date.year-age,nationality:d.country,role:"旅行認識",desc:`在${d.city}私人旅行期間認識`,romanceable:true,traits:["好奇","獨立"]});modal(`<h2>🌏 旅行奇遇</h2><p>在${d.city}旅行時，你第一次認識了 ${n}（${age}歲），她已加入社交好友。</p>${closeBtn()}`)}
+  else{p.followers+=rand(20,80);modal(`<h2>🌏 ${d.city}</h2><p>沒有認識新的固定人物，但你被幾位當地電競粉絲認出。</p>${closeBtn()}`)}
+ }else if(companion&&r<.72){const gain=rand(3,7);p.relations[companion]=clamp((p.relations[companion]||0)+gain,0,100);modal(`<h2>🧳 同行事件</h2><p>你和 ${companion} 在${d.city}留下很好的回憶，關係再 +${gain}。</p>${closeBtn()}`)}
+ else{p.mood=clamp(p.mood+3,0,100);modal(`<h2>📸 ${d.city}旅行</h2><p>你觀光、品嘗當地料理並好好放鬆。</p>${closeBtn()}`)}
+ save();
+}
 function chooseOuting(){
  if(remain()<1)return;const abroad=isInternationalTrip(),ev=abroad?chooseHost(proAnnualPhase(),state.date.year):null;
  const places=abroad?[["landmark","當地景點"],["mall","購物中心"],["cafe","咖啡廳"],["restaurant","餐廳"],["arcade","電競館"],["bar","酒吧"],["hotel","飯店設施"],["night","夜間街區"]]:[["mall","商場"],["arcade","電競館"],["cafe","咖啡廳"],["restaurant","餐廳"],["gym","健身房"],["cinema","電影院"],["nightmarket","夜市"],["bar","酒吧"],["store","便利商店"],["book","書店"]];
@@ -690,6 +742,8 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  migrateProV180();
  migrateProV181();
  migrateProV182();
+ migrateProV184();
+ migrateProV185();
  migrateProV183();
  if(!p.v170Migrated){
    if(isProfessionalStage()){
@@ -901,7 +955,7 @@ function career(){
  return `${proCareerCard()}${annualCalendarCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${pregnancyCard()}${marriageCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.8.3</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.8.5</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));document.querySelector("#doTryout")?.addEventListener("click",doProTryout);document.querySelector("#signProContract")?.addEventListener("click",signProContract);document.querySelector("#counterOffer")?.addEventListener("click",counterInitialOffer);document.querySelector("#declineOffer")?.addEventListener("click",declineInitialOffer);document.querySelector("#playLeagueMatch")?.addEventListener("click",playLeagueMatch);document.querySelector("#askRaise")?.addEventListener("click",()=>negotiateContract("raise"));document.querySelector("#offerCut")?.addEventListener("click",()=>negotiateContract("cut"));document.querySelector("#requestTransfer")?.addEventListener("click",()=>negotiateContract("transfer"));document.querySelectorAll(".pregnancy-talk").forEach(b=>b.onclick=()=>pregnancyDecision(+b.dataset.i));document.querySelectorAll(".child-choice").forEach(b=>b.onclick=()=>childSupportDecision(+b.dataset.i,b.dataset.choice));document.querySelectorAll(".sponsor-action").forEach(b=>b.onclick=()=>sponsorAction(b.dataset.action));document.querySelector("#launchMerch")?.addEventListener("click",launchSponsorMerch);document.querySelectorAll(".donate-btn").forEach(b=>b.onclick=()=>makeDonation(+b.dataset.amt));document.querySelector("#proposeMarriage")?.addEventListener("click",proposeMarriage);document.querySelector("#marriageTalk")?.addEventListener("click",resolveMarriageCrisis);document.querySelector("#prAction")?.addEventListener("click",openPRResponse);document.querySelector("#suggestRecruit")?.addEventListener("click",openRecruitSuggestion);document.querySelector("#stiScreen")?.addEventListener("click",doStiScreen);
@@ -1464,11 +1518,22 @@ function ensureProRoster(){
  pc.coaches.length||pc.coaches.push({name:"姜泰勳",role:"主教練"},{name:"陳啟峰",role:"助理教練"});
  [...pc.roster,...pc.coaches].forEach(x=>{if(x.isPlayer)return;if(!state.characters[x.name])state.characters[x.name]={name:x.name,known:true,gender:"男",age:x.role.includes("教練")?rand(31,45):rand(18,27),role:x.role,isProStaff:x.role.includes("教練"),isPro:!x.role.includes("教練"),traits:[["冷靜","努力","直率","溫和"][rand(0,3)]]};else state.characters[x.name].known=true;p.relations[x.name]=p.relations[x.name]??x.relation??55});
 }
+function addSocialAcquaintance(name,relation=20,meta={}){
+ const p=state.player;if(!name)return null;
+ state.characters=state.characters||{};let c=state.characters[name];
+ if(!c)c=state.characters[name]={name,known:true,...meta};
+ else Object.assign(c,meta,{known:true});
+ c.socialContact=true;c.metYear=c.metYear||state.date.year;c.metWeek=c.metWeek||state.date.week;
+ p.relations[name]=p.relations[name]??relation;
+ p.proFriends=p.proFriends||[];
+ if(isProfessionalStage()&&!p.proFriends.includes(name))p.proFriends.push(name);
+ return c;
+}
 function proSocialAllowed(c){
  const p=state.player,pc=p.proCareer;if(!isProfessionalStage())return true;
  const importantPreg=new Set((p.adultLife?.pregnancies||[]).map(x=>x.name));
  const roster=new Set([...(pc.roster||[]).map(x=>x.name),...(pc.coaches||[]).map(x=>x.name)]);
- return roster.has(c.name)||importantPreg.has(c.name)||(p.romance?.partners||[]).includes(c.name)||(p.proFriends||[]).includes(c.name)||c.important||c.isRival||c.formerTeammate;
+ return roster.has(c.name)||importantPreg.has(c.name)||(p.romance?.partners||[]).includes(c.name)||(p.proFriends||[]).includes(c.name)||c.socialContact||c.important||c.isRival||c.formerTeammate;
 }
 
 const PRO_REGIONS=["PCS","LCK","LPL","LEC","LCS"];
@@ -1586,13 +1651,26 @@ function internationalCard(){
  return `<section class="card"><h2>${ph==="MSI"?"🌍 MSI":"🌎 世界賽"}｜${state.date.year}</h2><div class="notice">📍 ${ev.host.country}・${ev.host.city}<br>${ph==="MSI"?"10隊｜A/B兩組各5隊｜雙循環｜各組前2晉級BO5淘汰賽":"16隊｜A/B/C/D四組各4隊｜雙循環｜各組前2晉級BO5淘汰賽"}</div><p class="small">國際大賽期間版本適應、大賽經驗與壓力權重提高；體力與壓力恢復速度約為聯賽期的55%。海外活動也可能帶來國外粉絲、媒體與新的社交邂逅。</p></section>`;
 }
 function maybeInternationalSocial(){
- const ph=proAnnualPhase();if(!isProfessionalStage()||(ph!=="MSI"&&ph!=="世界賽")||Math.random()>.035)return;
- const p=state.player,ev=chooseHost(ph,state.date.year),foreign=Math.random()<.55;
+ const ph=proAnnualPhase();if(!isProfessionalStage()||(ph!=="MSI"&&ph!=="世界賽")||Math.random()>.075)return;
+ const p=state.player,ev=chooseHost(ph,state.date.year),foreign=Math.random()<.7;
  if(foreign){
-  const pool=ev.host.country==="韓國"?["金瑞妍","朴智恩"]:ev.host.country==="日本"?["佐藤美咲","高橋凜"]:["Emma Laurent","Sophie Miller","Lina Chen"];
-  const n=pool[rand(0,pool.length-1)];
-  if(!state.characters[n])state.characters[n]={name:n,known:true,gender:"女",age:rand(19,27),birthYear:state.date.year-rand(19,27),nationality:ev.host.country,role:"國際賽活動認識",romanceable:true,traits:["獨立","好奇"],important:true};
-  p.relations[n]=p.relations[n]??rand(15,30);state.logs.push(`✈️ ${ph}海外事件：你在${ev.host.city}認識了 ${n}，未來可能繼續保持聯絡。`);
+  const pools={
+   "韓國":["金瑞妍","朴智恩","李夏恩","崔秀雅","韓智媛","尹彩英"],
+   "日本":["佐藤美咲","高橋凜","中村葵","小林結衣","伊藤玲奈","山田七海"],
+   "中國":["林若曦","沈佳寧","蘇雨桐","顧清妍","程以晴","周芷寧"],
+   "法國":["Emma Laurent","Chloé Martin","Camille Dubois","Léa Bernard","Manon Petit","Juliette Moreau"],
+   "英國":["Sophie Miller","Olivia Clarke","Emily Turner","Amelia Scott","Grace Wilson","Lucy Taylor"],
+   "美國":["Lina Chen","Ava Johnson","Mia Carter","Ella Davis","Zoe Parker","Nora Lee"]
+  };
+  const pool=pools[ev.host.country]||["Emma Laurent","Sophie Miller","Lina Chen","Mia Carter","Nora Lee","Ava Johnson"];
+  const unseen=pool.filter(n=>!state.characters?.[n]?.known);
+  if(unseen.length){
+   const n=unseen[rand(0,unseen.length-1)],age=19+stableAgeOffset(n,9);
+   addSocialAcquaintance(n,rand(15,30),{gender:"女",age,birthYear:state.date.year-age,nationality:ev.host.country,role:"國際賽活動認識",desc:`${ph}期間於${ev.host.city}認識`,romanceable:true,traits:["獨立","好奇"],important:true});
+   state.logs.push(`✈️ ${ph}海外事件：你在${ev.host.city}第一次認識了 ${n}，她已加入社交好友。`);
+  }else{
+   p.followers+=rand(35,130);state.logs.push(`🌍 ${ev.host.city}已沒有新的固定人物可認識；這次活動改為與當地粉絲交流，海外粉絲增加。`);
+  }
  }else{p.followers+=rand(30,120);state.logs.push(`🌍 ${ev.host.city}的當地粉絲活動讓夜鋒增加了一批海外支持者。`)}
 }
 function annualAwards(year){
@@ -1670,6 +1748,17 @@ function migrateProV181(){
  }
  p.v182Migrated=true;
 }function migrateProV183(){const p=state.player;if(p.v183Migrated)return;p.proCareer.region=p.proCareer.region||"PCS";addAnnualHeroes(state.date.year);ensureAges(true);p.v183Migrated=true;state.logs.push("🔧 V1.8.3：五大賽區強度、國際賽難度與疲勞、海外生活、自由市場、直播收益、位置與年度新英雄已啟用。") }
+function migrateProV184(){
+ const p=state.player;if(p.v184Migrated)return;
+ p.proFriends=p.proFriends||[];
+ Object.values(state.characters||{}).forEach(c=>{
+   if(!c?.known||!c.name)return;
+   const meaningful=c.important||c.isRival||c.formerTeammate||c.isPro||c.romanceable||/認識|朋友|同學|粉絲|隊友|教練/.test(`${c.role||""} ${c.desc||""}`);
+   if(meaningful){c.socialContact=true;if(isProfessionalStage()&&!p.proFriends.includes(c.name))p.proFriends.push(c.name)}
+ });
+ state.logs.push("🔧 V1.8.4社交校正：已認識的具名人物補入社交好友；海外固定NPC改為每人只會觸發一次初次認識。");
+ p.v184Migrated=true;
+}function migrateProV185(){const p=state.player;if(p.v185Migrated)return;p.travelHistory=p.travelHistory||[];state.logs.push("✈️ V1.8.5新增自由出國：可選目的地、自己旅行或邀請社交人物同行。");p.v185Migrated=true;}
 function proDaySerial(){return ((state.date.year||2026)*52+(state.date.week||1))*7+(state.date.day||1)}
 function proScheduleDayLabel(x){
  if(!x)return "未排定";const days=["一","二","三","四","五","六","日"],m=careerMonthFromWeek(x.week),y=x.year;
@@ -1812,7 +1901,7 @@ function applyPreMedia(a,opp){
 function ensureOpponentRelationship(team,heated=false){
  const p=state.player,pc=p.proCareer,names=PRO_ROSTER_NAMES[team]||[],roles=["上路","打野","中路","ADC","輔助"],pr=p.role==="下路"?"ADC":p.role,ri=Math.max(0,roles.indexOf(pr)),oppName=names[ri]||`${team} ${pr}`;
  if(!state.characters[oppName])state.characters[oppName]={name:oppName,known:true,gender:"男",role:roles[ri],isPro:true,isRival:true,traits:["競爭心"]};
- state.characters[oppName].known=true;state.characters[oppName].isRival=true;p.relations[oppName]=p.relations[oppName]??(heated?35:45);
+ state.characters[oppName].known=true;state.characters[oppName].isRival=true;addSocialAcquaintance(oppName,heated?35:45,{isPro:true,isRival:true,role:roles[ri]});p.relations[oppName]=p.relations[oppName]??(heated?35:45);
  pc.rivals=pc.rivals||{};pc.rivals[oppName]=pc.rivals[oppName]||{team,score:heated?20:5,status:heated?"競爭對手":"對手",meetings:0};pc.rivals[oppName].meetings++;
  return oppName;
 }
