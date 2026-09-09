@@ -1,5 +1,5 @@
-const CACHE="yefeng-v173-cache";
-const ASSETS=["./","./index.html","./styles.css?v=173","./app.js?v=173","./manifest.webmanifest","./icon.svg"];
+const CACHE="yefeng-v180-cache";
+const ASSETS=["./","./index.html","./styles.css?v=180","./app.js?v=180","./manifest.webmanifest","./icon.svg"];
 self.addEventListener("install",e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)))});
 self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 self.addEventListener("fetch",e=>{
