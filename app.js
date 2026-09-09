@@ -16,7 +16,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.8.0",started:false,
+  version:"1.8.1",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,v138AllStatsBoosted:true,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -74,7 +74,7 @@ function normalize(s){
  if(!Array.isArray(s.news))s.news=[];
  if(!Array.isArray(s.messages))s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.8.0";return s;
+ s.version="1.8.1";return s;
 }
 function load(){
  try{
@@ -97,13 +97,15 @@ const monthFromWeek=w=>{
 };
 const calendarYearForWeek=(schoolYear,w)=>monthFromWeek(w)>=9?schoolYear:schoolYear+1;
 const dateLabel=()=>{
- const m=monthFromWeek(state.date.week),y=calendarYearForWeek(state.date.year,state.date.week);
+ const pro=typeof isProfessionalStage==="function"&&isProfessionalStage();
+ const m=pro?careerMonthFromWeek(state.date.week):monthFromWeek(state.date.week);
+ const y=pro?state.date.year:calendarYearForWeek(state.date.year,state.date.week);
  return `${y}年${m}月・第${state.date.week}週・週${DAYS[state.date.day-1]}`;
 };
 function syncCalendarFields(){
  if(!state.date||typeof state.date!=="object")return;
  state.date.week=Math.max(1,Math.min(52,Math.floor(state.date.week||1)));
- state.date.month=monthFromWeek(state.date.week);
+ state.date.month=(typeof isProfessionalStage==="function"&&isProfessionalStage())?careerMonthFromWeek(state.date.week):monthFromWeek(state.date.week);
  if(!Number.isFinite(state.date.year))state.date.year=2026;
  if(!Number.isFinite(state.player.birthdaysPassed))state.player.birthdaysPassed=0;
  // Start age 16 in Sep 2026; birthday is in May. May begins around week 35.
@@ -544,9 +546,9 @@ function baseNextDay(){
      const oldYear=state.date.year;
      state.date.week=1;
      state.date.year++;
-     state.logs.push(`🎆 ${oldYear}學年度結束，時間進入 ${state.date.year} 學年度。`);
+     state.logs.push(isProfessionalStage()?`🎆 ${oldYear}賽季年度結束，時間進入 ${state.date.year} 年。`:`🎆 ${oldYear}學年度結束，時間進入 ${state.date.year} 學年度。`);
    }
-   state.date.month=monthFromWeek(state.date.week);
+   state.date.month=isProfessionalStage()?careerMonthFromWeek(state.date.week):monthFromWeek(state.date.week);
    state.weeklyPlan={};if(!isProfessionalStage()){state.player.cash+=750;state.logs.push(`第${finishedWeek}週結束：上週行程已歸檔，零用錢入帳 NT$750。`)}else{state.logs.push(`第${finishedWeek}週結束：職業週行程已歸檔。`);professionalWeeklyTick()}
    syncCalendarFields();
  }
@@ -696,6 +698,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  migrateProV1603();
  migrateProV171();
  migrateProV180();
+ migrateProV181();
  if(!p.v170Migrated){
    if(isProfessionalStage()){
     p.proCareer.lockerRoom=p.proCareer.lockerRoom||65;ensureProEconomy();ensureMeta();ensurePublicImage();cleanupUnnamedFriends();
@@ -874,9 +877,31 @@ function home(){
  ${hard?`<section class="card"><div class="notice">今天是正式賽事日，一般活動全部鎖定。</div></section>`:actionCard()}
  <section class="card"><h2>最近紀錄</h2>${state.logs.slice(-6).reverse().map(x=>`<div class="log">${x}</div>`).join("")}</section>`;
 }
+function isImportantMessage(m){
+ if(!m)return false;
+ if(m.unread||m.resolved===false)return true;
+ const importantTypes=new Set(["duoInvite","romance","pregnancy","contract","scout","transfer","poach","marriage","birth"]);
+ if(importantTypes.has(m.type))return true;
+ return /懷孕|孩子|結婚|離婚|合約|轉會|星探|試訓|禁賽|公關危機|世界賽|MSI/.test(`${m.from||""} ${m.text||""}`);
+}
+function cleanupOldMessages(manual=false){
+ state.messages=Array.isArray(state.messages)?state.messages:[];
+ const keepRecent=manual?20:35,important=[],normal=[];
+ state.messages.forEach((m,i)=>(isImportantMessage(m)?important:normal).push({m,i}));
+ const keepNormal=new Set(normal.slice(-keepRecent).map(x=>x.i));
+ const before=state.messages.length;
+ state.messages=state.messages.filter((m,i)=>isImportantMessage(m)||keepNormal.has(i));
+ const removed=before-state.messages.length;
+ state.messageArchiveCount=(state.messageArchiveCount||0)+removed;
+ if(manual)state.logs.push(`📱 訊息整理完成：清除 ${removed} 則已結束的一般舊訊息；未讀、待處理與重要劇情訊息保留。`);
+ return removed;
+}
 function phone(){
- ensureV10();const unread=state.messages.filter(m=>m.unread).length;
- return `<section class="card"><div class="row space"><h2>訊息</h2><span class="badge">${unread} 未讀</span></div>${state.messages.slice().reverse().map(m=>`<div class="message ${m.unread?"unread":""}"><button type="button" class="message-open" data-msg="${m.id}" style="width:100%;border:0;background:transparent;color:white;text-align:left;padding:0"><div class="meta"><strong>${m.from}</strong><span class="small">${m.resolved?"已處理":m.unread?"未讀":"待回覆"}</span></div><div style="margin-top:6px;white-space:pre-line">${m.text}</div><div class="small" style="margin-top:8px">點擊開啟對話 ›</div></button></div>`).join("")}</section>
+ ensureV10();cleanupOldMessages(false);const unread=state.messages.filter(m=>m.unread).length,msgs=state.messages.slice(-40).reverse();
+ return `<section class="card"><div class="row space"><h2>訊息</h2><span class="badge">${unread} 未讀</span></div>
+ <div class="small">顯示最近訊息；未讀、待處理及重要劇情訊息不會被自動清除。已整理 ${state.messageArchiveCount||0} 則舊訊息。</div>
+ ${msgs.map(m=>`<div class="message ${m.unread?"unread":""}"><button type="button" class="message-open" data-msg="${m.id}" style="width:100%;border:0;background:transparent;color:white;text-align:left;padding:0"><div class="meta"><strong>${m.from}</strong><span class="small">${m.resolved?"已處理":m.unread?"未讀":"待回覆"}</span></div><div style="margin-top:6px;white-space:pre-line">${m.text}</div><div class="small" style="margin-top:8px">點擊開啟對話 ›</div></button></div>`).join("")}
+ <button id="cleanupMessages" class="reply" style="width:100%;margin-top:12px">🧹 整理一般舊訊息</button></section>
  ${relationshipCard()}${rumorCard()}<section class="card"><h2>📰 電競新聞</h2>${state.news.slice(0,12).map(n=>`<div class="log">${n}</div>`).join("")}</section>`;
 }
 function career(){
@@ -884,12 +909,13 @@ function career(){
  return `${proCareerCard()}${annualCalendarCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${pregnancyCard()}${marriageCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.8.0</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.8.1</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));document.querySelector("#doTryout")?.addEventListener("click",doProTryout);document.querySelector("#signProContract")?.addEventListener("click",signProContract);document.querySelector("#counterOffer")?.addEventListener("click",counterInitialOffer);document.querySelector("#declineOffer")?.addEventListener("click",declineInitialOffer);document.querySelector("#playLeagueMatch")?.addEventListener("click",playLeagueMatch);document.querySelector("#askRaise")?.addEventListener("click",()=>negotiateContract("raise"));document.querySelector("#offerCut")?.addEventListener("click",()=>negotiateContract("cut"));document.querySelector("#requestTransfer")?.addEventListener("click",()=>negotiateContract("transfer"));document.querySelectorAll(".pregnancy-talk").forEach(b=>b.onclick=()=>pregnancyDecision(+b.dataset.i));document.querySelectorAll(".child-choice").forEach(b=>b.onclick=()=>childSupportDecision(+b.dataset.i,b.dataset.choice));document.querySelectorAll(".sponsor-action").forEach(b=>b.onclick=()=>sponsorAction(b.dataset.action));document.querySelector("#launchMerch")?.addEventListener("click",launchSponsorMerch);document.querySelectorAll(".donate-btn").forEach(b=>b.onclick=()=>makeDonation(+b.dataset.amt));document.querySelector("#proposeMarriage")?.addEventListener("click",proposeMarriage);document.querySelector("#marriageTalk")?.addEventListener("click",resolveMarriageCrisis);document.querySelector("#prAction")?.addEventListener("click",openPRResponse);document.querySelector("#suggestRecruit")?.addEventListener("click",openRecruitSuggestion);document.querySelector("#stiScreen")?.addEventListener("click",doStiScreen);
  document.querySelector("#nextDayBtn")?.addEventListener("click",nextDay);
  document.querySelectorAll(".message-open").forEach(b=>b.onclick=e=>{e.preventDefault();openMessage(b.dataset.msg)});
+ document.querySelector("#cleanupMessages")?.addEventListener("click",()=>{cleanupOldMessages(true);save();render()});
  document.querySelectorAll(".event-run").forEach(b=>b.onclick=()=>runEventById(b.dataset.event));
  document.querySelectorAll(".buy-item").forEach(b=>b.onclick=()=>buyItem(b.dataset.item));
  document.querySelectorAll(".send-gift").forEach(b=>b.onclick=()=>openGift(b.dataset.name));
@@ -1481,22 +1507,41 @@ function backfillAchievements(){
  const p=state.player;ensureCareerHistory();const pc=p.proCareer,cs=pc.careerStats||{};
  if(cs.matches>0)addAchievement("first-pro","職業生涯首次出賽","由舊存檔比賽紀錄回溯",state.date.year,true);
  if((cs.mvp||0)>0)addAchievement("first-mvp","首次職業MVP","由舊存檔MVP紀錄回溯",state.date.year,true);
- if(pc.season?.champion===pc.team||pc.season?.phase==="世界賽資格"){
-   addAchievement("domestic-champion","國內聯賽冠軍","由既有冠軍／世界賽資格紀錄回溯",state.date.year,true);
-   addAchievement("worlds-qualified","世界賽資格","由既有職業賽事紀錄回溯",state.date.year,true);
+ if(pc.season?.champion===pc.team){
+   addAchievement("domestic-champion","國內聯賽冠軍","由既有冠軍紀錄回溯",state.date.year,true);
  }
  if((p.rank?.tier||"")==="菁英")addAchievement("elite","首次登上菁英","由現有Rank紀錄回溯",state.date.year,true);
 }
-function ensureAges(){
+function inferCharacterAge(c){
+ const p=state.player,desc=String(c?.desc||""),role=String(c?.role||"");
+ // Explicit story relationships always take priority over generic ranges.
+ if(c?.name==="林雨晴"||c?.name==="許安然"||/同班同學|國中同學|同屆同學/.test(desc))return p.age;
+ if(/高一學妹|學妹/.test(desc))return Math.max(16,p.age-1);
+ if(/高三學姊|學姊/.test(desc))return p.age+1;
+ if(/高中好友|同班好友|高中生/.test(desc))return p.age;
+ if(c?.isProStaff||role.includes("教練"))return c.age&&c.age>=28?c.age:36;
+ if(c?.isPro){
+   // Existing named pros keep a plausible deterministic age based on career seniority when available.
+   if(Number.isFinite(c.proSinceYear))return Math.max(18,Math.min(34,18+(state.date.year-c.proSinceYear)));
+   return 22;
+ }
+ if(c?.nationality||role.includes("國際賽"))return Number.isFinite(c.age)?c.age:22;
+ if(role==="粉絲")return Number.isFinite(c.age)?c.age:21;
+ return Number.isFinite(c.age)?c.age:p.age;
+}
+function ensureAges(forceStoryRules=false){
  const p=state.player;if(!Number.isFinite(p.age))p.age=18;
  Object.values(state.characters||{}).forEach(c=>{
-   if(!c||!c.name)return;if(!Number.isFinite(c.age)){
-     if(c.isProStaff||String(c.role||"").includes("教練"))c.age=rand(30,46);
-     else if(c.isPro)c.age=rand(18,27);
-     else c.age=rand(18,28);
-   }
-   c.birthYear=c.birthYear||state.date.year-c.age;
-   if(c.isPro)c.proSinceYear=c.proSinceYear||Math.min(state.date.year,state.date.year-rand(0,Math.max(0,c.age-18)));
+   if(!c||!c.name)return;
+   const inferred=inferCharacterAge(c);
+   const storyFixed=c.name==="林雨晴"||c.name==="許安然"||/同班同學|國中同學|同屆同學/.test(String(c.desc||""));
+   if(!Number.isFinite(c.age)||forceStoryRules&&storyFixed)c.age=inferred;
+   // Repair obviously impossible student ages left by V1.8.0 random migration.
+   if(/同班同學|國中同學|高中好友|同班好友/.test(String(c.desc||""))&&Math.abs(c.age-p.age)>1)c.age=inferred;
+   if(/學妹/.test(String(c.desc||""))&&c.age>=p.age)c.age=Math.max(16,p.age-1);
+   if(/學姊/.test(String(c.desc||""))&&c.age<=p.age)c.age=p.age+1;
+   c.birthYear=state.date.year-c.age;
+   if(c.isPro&&!Number.isFinite(c.proSinceYear))c.proSinceYear=Math.max(state.date.year-(Math.max(18,c.age)-18),state.date.year-10);
  });
 }
 function annualAgeAndDecline(year){
@@ -1590,12 +1635,30 @@ function migrateProV180(){
    const pc=p.proCareer;pc.proDebutYear=pc.proDebutYear||state.date.year;pc.region=pc.region||"PCS";
    if(pc.season){pc.season.phase="世界賽資格";pc.season.schedule=[];pc.season.playoffSchedule=null;}
    const it=ensureInternationalWorld(),w=chooseHost("世界賽",state.date.year);w.qualified=true;w.stage="抽籤前";
-   addAchievement("worlds-qualified","世界賽資格","時間線校正後保留既有聯賽冠軍資格",state.date.year,true);
    state.logs.push("🕰️ V1.8.0時間線校正：回到前一年12月世界賽開賽前；人物養成、關係、合約、財務與可確認成就均保留。");
  }
  p.v180Migrated=true;
 }
-function proDaySerial(){return ((state.date.year||2026)*52+(state.date.week||1))*7+(state.date.day||1)}
+function migrateProV181(){
+ const p=state.player;if(p.v181Migrated)return;
+ // V1.8.0 stored week 49 using the old Sep-Aug school calendar. Convert the visible intended year to natural pro calendar.
+ if(isProfessionalStage()&&p.v180Migrated){
+   const oldDisplayedYear=calendarYearForWeek(state.date.year,state.date.week);
+   state.date.year=oldDisplayedYear;
+   state.date.month=careerMonthFromWeek(state.date.week);
+ }
+ ensureCareerHistory();
+ p.achievements=(p.achievements||[]).filter(a=>a.id!=="worlds-qualified"&&!/世界賽資格/.test(a.title||""));
+ // First pro year cannot precede the actual professional timeline after correction.
+ if(isProfessionalStage()){
+   p.proCareer.proDebutYear=Math.max(p.proCareer.proDebutYear||state.date.year,state.date.year);
+   (p.achievements||[]).forEach(a=>{if(a.retro&&a.year< p.proCareer.proDebutYear)a.year=p.proCareer.proDebutYear});
+ }
+ ensureAges(true);
+ cleanupOldMessages(false);
+ state.logs.push("🔧 V1.8.1校正：職業日期改為自然年度；刪除『世界賽資格』成就；修正同學年齡與舊訊息累積。");
+ p.v181Migrated=true;
+}function proDaySerial(){return ((state.date.year||2026)*52+(state.date.week||1))*7+(state.date.day||1)}
 function proScheduleDayLabel(x){
  if(!x)return "未排定";const days=["一","二","三","四","五","六","日"],m=careerMonthFromWeek(x.week),y=x.year;
  return `${y}年${m}月・第${x.week}週・週${days[x.day-1]}`;
