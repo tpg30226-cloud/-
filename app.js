@@ -16,7 +16,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.8.9.3",started:false,
+  version:"1.8.9.4",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,v138AllStatsBoosted:true,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -74,7 +74,7 @@ function normalize(s){
  if(!Array.isArray(s.news))s.news=[];
  if(!Array.isArray(s.messages))s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.8.9.3";return s;
+ s.version="1.8.9.4";return s;
 }
 function load(){
  try{
@@ -866,6 +866,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  migrateProV1891();
  migrateProV1892();
  migrateProV1893();
+ migrateProV1894();
  migrateProV183();
  if(!p.v170Migrated){
    if(isProfessionalStage()){
@@ -1163,7 +1164,7 @@ function career(){
  return `${proCareerCard()}${annualCalendarCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${pregnancyCard()}${marriageCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.8.9.3</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.8.9.4</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));document.querySelector("#doTryout")?.addEventListener("click",doProTryout);document.querySelector("#signProContract")?.addEventListener("click",signProContract);document.querySelector("#counterOffer")?.addEventListener("click",counterInitialOffer);document.querySelector("#declineOffer")?.addEventListener("click",declineInitialOffer);document.querySelector("#playLeagueMatch")?.addEventListener("click",playLeagueMatch);document.querySelector("#askRaise")?.addEventListener("click",()=>negotiateContract("raise"));document.querySelector("#offerCut")?.addEventListener("click",()=>negotiateContract("cut"));document.querySelector("#requestTransfer")?.addEventListener("click",()=>negotiateContract("transfer"));document.querySelector("#earlyRenewal")?.addEventListener("click",earlyRenewalTalk);document.querySelectorAll(".pregnancy-talk").forEach(b=>b.onclick=()=>pregnancyDecision(+b.dataset.i));document.querySelectorAll(".child-choice").forEach(b=>b.onclick=()=>childSupportDecision(+b.dataset.i,b.dataset.choice));document.querySelectorAll(".sponsor-action").forEach(b=>b.onclick=()=>sponsorAction(b.dataset.action));document.querySelector("#launchMerch")?.addEventListener("click",launchSponsorMerch);document.querySelectorAll(".donate-btn").forEach(b=>b.onclick=()=>makeDonation(+b.dataset.amt));document.querySelector("#proposeMarriage")?.addEventListener("click",proposeMarriage);document.querySelector("#marriageTalk")?.addEventListener("click",resolveMarriageCrisis);document.querySelector("#prAction")?.addEventListener("click",openPRResponse);document.querySelector("#suggestRecruit")?.addEventListener("click",openRecruitSuggestion);document.querySelector("#stiScreen")?.addEventListener("click",doStiScreen);
@@ -2185,6 +2186,13 @@ function migrateProV1893(){
  state.logs.push("🆕 V1.8.9.3：旅行所在地／剩餘天數顯示、國籍姓名池與NPC多位置分布完成；新增英雄持久化檢查再次強化。");
  p.v1893Migrated=true;
 }
+function migrateProV1894(){
+ const p=state.player;if(p.v1894Migrated)return;
+ ensureFixedMidExpansionHeroes();ensureSavedAnnualHeroes();
+ const m=p.proCareer?.stage==="starter"?currentScheduledProMatch():null;
+ if(m){const now=((state.date.year||2026)*52+(state.date.week||1))*7+(state.date.day||1),target=((m.year*52+m.week)*7+m.day);if(now>target&&!m.played)state.logs.push(`🔧 V1.8.9.4：偵測到逾期未完成賽程 ${m.opp}，現在可直接進入補賽，不再卡住換日。`)}
+ p.v1894Migrated=true;
+}
 function proDaySerial(){return ((state.date.year||2026)*52+(state.date.week||1))*7+(state.date.day||1)}
 function proScheduleDayLabel(x){
  if(!x)return "未排定";const days=["一","二","三","四","五","六","日"],m=careerMonthFromWeek(x.week),y=x.year;
@@ -2270,9 +2278,9 @@ function schedulePlayoffMatch(){
 }
 function proMatchDueGuard(){
  const m=currentScheduledProMatch();if(!m)return {ok:false,msg:"目前沒有排定的正式比賽。"};
- if(isProMatchToday(m))return {ok:true,match:m};
  const now=proDaySerial(),target=((m.year*52+m.week)*7+m.day);
- return {ok:false,match:m,msg:now<target?`下一場正式比賽是 ${proScheduleDayLabel(m)} 對 ${m.opp}，今天尚未到比賽日。`:`你已經錯過 ${proScheduleDayLabel(m)} 對 ${m.opp} 的比賽。系統將要求先完成這場比賽，不能直接跳過。`};
+ if(now>=target&&!m.played)return {ok:true,match:m,overdue:now>target};
+ return {ok:false,match:m,msg:`下一場正式比賽是 ${proScheduleDayLabel(m)} 對 ${m.opp}，今天尚未到比賽日。`};
 }
 function ensureMandatoryProMatchToday(){
  const pc=state.player.proCareer;if(pc?.stage!=="starter")return null;const m=currentScheduledProMatch();if(!m)return null;
@@ -2290,6 +2298,7 @@ function proMatchHub(){
  const p=state.player,pc=p.proCareer;if(pc.stage==="academy"){modal(`<h2>🆚 青訓訓練賽</h2><p>你目前是青訓選手，沒有正式聯賽出賽資格。團隊訓練賽會影響教練信任與升上一軍的機會。</p><button id="academyScrim" class="primary">進行訓練賽</button>${closeBtn()}`);document.querySelector("#academyScrim").onclick=()=>{if(!consume("青訓訓練賽",1))return;pc.coachTrust=clamp(pc.coachTrust+rand(1,4),0,100);p.condition.fatigue=clamp(p.condition.fatigue+8,0,100);state.logs.push("🆚 完成青訓訓練賽，教練持續評估你的表現。");save();render()};return}
  if(pc.stage==="sub"){modal(`<h2>🏆 職業比賽</h2><p>你目前是替補。是否上場由教練與先發狀態決定；平時仍需準備比賽。</p>${closeBtn()}`);return}
  const guard=proMatchDueGuard();if(!guard.ok){modal(`<h2>📅 職業賽程</h2><p>${guard.msg}</p>${closeBtn()}`);return}
+ if(guard.overdue)state.logs.push(`🛠️ 賽程補賽：允許立即補打原定 ${proScheduleDayLabel(guard.match)} 對 ${guard.match.opp} 的比賽，解除換日卡死。`);
  startPreMatchMedia();
 }
 function preparePlayoffs(){
