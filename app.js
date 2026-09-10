@@ -16,7 +16,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.8.9.4",started:false,
+  version:"1.8.9.5",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,v138AllStatsBoosted:true,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -74,7 +74,7 @@ function normalize(s){
  if(!Array.isArray(s.news))s.news=[];
  if(!Array.isArray(s.messages))s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.8.9.4";return s;
+ s.version="1.8.9.5";return s;
 }
 function load(){
  try{
@@ -867,6 +867,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  migrateProV1892();
  migrateProV1893();
  migrateProV1894();
+ migrateProV1895();
  migrateProV183();
  if(!p.v170Migrated){
    if(isProfessionalStage()){
@@ -1161,13 +1162,13 @@ function phone(){
 }
 function career(){
  ensureV10();const p=state.player;
- return `${proCareerCard()}${annualCalendarCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${pregnancyCard()}${marriageCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
+ return `${proCareerCard()}${recentProMatchCard()}${annualCalendarCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${pregnancyCard()}${marriageCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.8.9.4</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.8.9.5</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
- document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));document.querySelector("#doTryout")?.addEventListener("click",doProTryout);document.querySelector("#signProContract")?.addEventListener("click",signProContract);document.querySelector("#counterOffer")?.addEventListener("click",counterInitialOffer);document.querySelector("#declineOffer")?.addEventListener("click",declineInitialOffer);document.querySelector("#playLeagueMatch")?.addEventListener("click",playLeagueMatch);document.querySelector("#askRaise")?.addEventListener("click",()=>negotiateContract("raise"));document.querySelector("#offerCut")?.addEventListener("click",()=>negotiateContract("cut"));document.querySelector("#requestTransfer")?.addEventListener("click",()=>negotiateContract("transfer"));document.querySelector("#earlyRenewal")?.addEventListener("click",earlyRenewalTalk);document.querySelectorAll(".pregnancy-talk").forEach(b=>b.onclick=()=>pregnancyDecision(+b.dataset.i));document.querySelectorAll(".child-choice").forEach(b=>b.onclick=()=>childSupportDecision(+b.dataset.i,b.dataset.choice));document.querySelectorAll(".sponsor-action").forEach(b=>b.onclick=()=>sponsorAction(b.dataset.action));document.querySelector("#launchMerch")?.addEventListener("click",launchSponsorMerch);document.querySelectorAll(".donate-btn").forEach(b=>b.onclick=()=>makeDonation(+b.dataset.amt));document.querySelector("#proposeMarriage")?.addEventListener("click",proposeMarriage);document.querySelector("#marriageTalk")?.addEventListener("click",resolveMarriageCrisis);document.querySelector("#prAction")?.addEventListener("click",openPRResponse);document.querySelector("#suggestRecruit")?.addEventListener("click",openRecruitSuggestion);document.querySelector("#stiScreen")?.addEventListener("click",doStiScreen);
+ document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));document.querySelector("#doTryout")?.addEventListener("click",doProTryout);document.querySelector("#signProContract")?.addEventListener("click",signProContract);document.querySelector("#counterOffer")?.addEventListener("click",counterInitialOffer);document.querySelector("#declineOffer")?.addEventListener("click",declineInitialOffer);document.querySelector("#playLeagueMatch")?.addEventListener("click",playLeagueMatch);document.querySelector("#askRaise")?.addEventListener("click",()=>negotiateContract("raise"));document.querySelector("#offerCut")?.addEventListener("click",()=>negotiateContract("cut"));document.querySelector("#requestTransfer")?.addEventListener("click",()=>negotiateContract("transfer"));document.querySelector("#earlyRenewal")?.addEventListener("click",earlyRenewalTalk);document.querySelectorAll(".pregnancy-talk").forEach(b=>b.onclick=()=>pregnancyDecision(+b.dataset.i));document.querySelectorAll(".child-choice").forEach(b=>b.onclick=()=>childSupportDecision(+b.dataset.i,b.dataset.choice));document.querySelectorAll(".sponsor-action").forEach(b=>b.onclick=()=>sponsorAction(b.dataset.action));document.querySelector("#launchMerch")?.addEventListener("click",launchSponsorMerch);document.querySelectorAll(".donate-btn").forEach(b=>b.onclick=()=>makeDonation(+b.dataset.amt));document.querySelector("#proposeMarriage")?.addEventListener("click",proposeMarriage);document.querySelector("#marriageTalk")?.addEventListener("click",resolveMarriageCrisis);document.querySelector("#prAction")?.addEventListener("click",openPRResponse);document.querySelector("#suggestRecruit")?.addEventListener("click",openRecruitSuggestion);document.querySelector("#stiScreen")?.addEventListener("click",doStiScreen);document.querySelector("#injuryTreat")?.addEventListener("click",treatInjury);document.querySelector("#injuryRehab")?.addEventListener("click",rehabInjury);document.querySelector("#healthCheck")?.addEventListener("click",generalHealthCheck);document.querySelector("#stiTreat")?.addEventListener("click",treatSti);document.querySelector("#viewLastMatchReport")?.addEventListener("click",showMatchReport);document.querySelector("#resumePostInterview")?.addEventListener("click",showPostMatchMedia);
  document.querySelector("#nextDayBtn")?.addEventListener("click",nextDay);
  document.querySelectorAll(".message-open").forEach(b=>b.onclick=e=>{e.preventDefault();openMessage(b.dataset.msg)});
  document.querySelector("#cleanupMessages")?.addEventListener("click",()=>{cleanupOldMessages(true);save();render()});document.querySelectorAll(".fa-offer").forEach(b=>b.addEventListener("click",()=>acceptFreeAgentOffer(+b.dataset.i)));
@@ -1601,11 +1602,47 @@ function stiRiskEvent(name,context="私人關係"){
  const risk=context==="一次性關係"?.035:.018;
  if(Math.random()<risk){p.health.sti={type:["可治療性感染","需要追蹤的感染"][rand(0,1)],detected:false,source:name||"未知",week:state.date.week};state.logs.push("⚕️ 私人健康：近期出現需要檢查的症狀。建議進行健康檢查。")}
 }
-function healthCard(){
- if(!isProfessionalStage())return "";const p=state.player;ensureEthics(),h=p.health.sti;
- return `<section class="card"><h2>⚕️ 健康管理</h2><div class="small">${h?(h.detected?`目前狀況：${h.type}，需完成治療／追蹤。`:"近期有異常症狀，建議接受檢查。"):"目前沒有已知的感染問題。"}</div>${h&&!h.detected?`<button id="stiScreen" class="reply">接受健康檢查</button>`:""}</section>`;
+function ensureHealthManagement(){
+ const p=state.player;ensureEthics();p.health=p.health||{};p.health.history=Array.isArray(p.health.history)?p.health.history:[];
+ p.health.lastGeneralCheck=p.health.lastGeneralCheck||null;return p.health;
 }
-function doStiScreen(){const p=state.player;ensureEthics();if(!p.health.sti)return;p.health.sti.detected=true;p.health.lastScreenWeek=state.date.week;p.cash=Math.max(0,p.cash-1500);state.logs.push(`⚕️ 完成健康檢查：${p.health.sti.type}。已安排治療與追蹤。`);save();render()}
+function healthCard(){
+ if(!isProfessionalStage())return "";const p=state.player,hp=ensureHealthManagement(),sti=hp.sti,inj=p.condition?.injury,fat=Math.round(p.condition?.fatigue||0);
+ const injText=inj?`${inj.type}｜${inj.severity||"一般"}｜預估剩餘 ${Math.max(0,inj.days||0)}天`:"目前無傷病";
+ const stiText=sti?(sti.detected?`${sti.type}｜${sti.treated?"治療後追蹤中":"等待治療"}`:"有異常症狀，尚未檢查"):"目前沒有已知感染問題";
+ return `<section class="card"><h2>⚕️ 健康管理</h2>
+ <div class="stat-grid">${stat("傷病",injText)}${stat("疲勞",`${fat}/100`)}${stat("體力",`${Math.round(p.energy)}/100`)}${stat("健康追蹤",stiText)}</div>
+ <div class="reply-grid">
+ ${inj?`<button id="injuryTreat" class="reply">🏥 接受傷病治療</button><button id="injuryRehab" class="reply">🩹 復健／物理治療</button>`:""}
+ ${sti&&!sti.detected?`<button id="stiScreen" class="reply">🧪 接受健康檢查</button>`:""}
+ ${sti?.detected&&!sti.treated?`<button id="stiTreat" class="reply">💊 接受治療</button>`:""}
+ <button id="healthCheck" class="reply">🩺 一般健康檢查</button>
+ </div>
+ ${hp.history.length?`<div class="log"><strong>最近健康紀錄</strong><br>${hp.history.slice(0,6).map(x=>x.text).join("<br>")}</div>`:""}
+ </section>`;
+}
+function pushHealthHistory(text){
+ const h=ensureHealthManagement();h.history.unshift({year:state.date.year,week:state.date.week,day:state.date.day,text});h.history=h.history.slice(0,20);
+}
+function doStiScreen(){
+ const p=state.player,h=ensureHealthManagement();if(!h.sti)return;h.sti.detected=true;h.lastScreenWeek=state.date.week;p.cash=Math.max(0,p.cash-1500);pushHealthHistory(`第${state.date.week}週｜健康檢查：${h.sti.type}，等待治療。`);state.logs.push(`⚕️ 完成健康檢查：${h.sti.type}。可在健康管理進行治療。`);save();render();
+}
+function treatSti(){
+ const p=state.player,h=ensureHealthManagement(),x=h.sti;if(!x||!x.detected||x.treated)return;const cost=2800;if(p.cash<cost){modal(`<h2>💊 治療</h2><p>治療費需要 NT$${cost.toLocaleString()}。</p>${closeBtn()}`);return}
+ p.cash-=cost;x.treated=true;x.followupDays=7;pushHealthHistory(`第${state.date.week}週｜完成感染治療，7天後追蹤。`);state.logs.push("💊 已接受治療，進入7天追蹤期。");save();render();
+}
+function treatInjury(){
+ const p=state.player,inj=p.condition?.injury;if(!inj)return;const cost=3500;if(p.cash<cost){modal(`<h2>🏥 傷病治療</h2><p>治療費需要 NT$${cost.toLocaleString()}。</p>${closeBtn()}`);return}
+ p.cash-=cost;const cut=Math.max(1,Math.ceil((inj.days||3)*.35));inj.days=Math.max(1,(inj.days||3)-cut);p.condition.form=clamp(p.condition.form+2,0,100);pushHealthHistory(`第${state.date.week}週｜${inj.type}接受治療，恢復期縮短 ${cut} 天。`);state.logs.push(`🏥 ${inj.type}完成治療，預估恢復期縮短 ${cut} 天。`);save();render();
+}
+function rehabInjury(){
+ const p=state.player,inj=p.condition?.injury;if(!inj||remain()<1)return;if(!consume("傷病復健",1))return;inj.days=Math.max(0,(inj.days||1)-1);p.condition.fatigue=clamp(p.condition.fatigue-8,0,100);p.energy=clamp(p.energy+6,0,100);p.condition.form=clamp(p.condition.form+1,0,100);pushHealthHistory(`第${state.date.week}週｜完成${inj.type}復健，疲勞下降。`);if(inj.days<=0){state.logs.push(`🩹 ${inj.type} 經復健後恢復。`);p.condition.injury=null}else state.logs.push(`🩹 完成${inj.type}復健，剩餘約 ${inj.days} 天。`);save();render();
+}
+function generalHealthCheck(){
+ const p=state.player,h=ensureHealthManagement(),cost=1200;if(p.cash<cost){modal(`<h2>🩺 健康檢查</h2><p>檢查費需要 NT$${cost.toLocaleString()}。</p>${closeBtn()}`);return}
+ p.cash-=cost;h.lastGeneralCheck={year:state.date.year,week:state.date.week,day:state.date.day};p.stress=clamp(p.stress-2,0,100);pushHealthHistory(`第${state.date.week}週｜完成一般健康檢查。${p.condition?.injury?"持續追蹤傷病。":"目前無重大傷病。"} `);state.logs.push("🩺 完成一般健康檢查，健康狀態已更新。");save();render();
+}
+
 function terminatePregnancyChoice(x){
  const p=state.player;if(!x)return;const agree=Math.random()<.62;
  if(agree){x.status="雙方同意終止";x.ended=true;state.logs.push(`${x.name}的懷孕事件：雙方討論後同意終止妊娠。`);changeEthics(0,"私人醫療決定")}
@@ -2193,6 +2230,13 @@ function migrateProV1894(){
  if(m){const now=((state.date.year||2026)*52+(state.date.week||1))*7+(state.date.day||1),target=((m.year*52+m.week)*7+m.day);if(now>target&&!m.played)state.logs.push(`🔧 V1.8.9.4：偵測到逾期未完成賽程 ${m.opp}，現在可直接進入補賽，不再卡住換日。`)}
  p.v1894Migrated=true;
 }
+function migrateProV1895(){
+ const p=state.player,pc=p.proCareer;if(p.v1895Migrated)return;
+ ensureFixedMidExpansionHeroes();ensureSavedAnnualHeroes();ensureHealthManagement();
+ pc.careerStats=pc.careerStats||{matches:0,seriesW:0,seriesL:0,gameW:0,gameL:0,kills:0,deaths:0,assists:0,mvp:0};
+ ["matches","seriesW","seriesL","gameW","gameL","kills","deaths","assists","mvp"].forEach(k=>{if(!Number.isFinite(pc.careerStats[k]))pc.careerStats[k]=0});
+ state.logs.push("🔧 V1.8.9.5：正式賽勝負／戰報／賽後採訪流程加固，並新增完整健康治療與追蹤中心。");p.v1895Migrated=true;
+}
 function proDaySerial(){return ((state.date.year||2026)*52+(state.date.week||1))*7+(state.date.day||1)}
 function proScheduleDayLabel(x){
  if(!x)return "未排定";const days=["一","二","三","四","五","六","日"],m=careerMonthFromWeek(x.week),y=x.year;
@@ -2256,10 +2300,11 @@ function runInternationalMatch(){
  const k=rand(win?4:1,win?11:7),d=rand(1,7),as=rand(4,15),cs=rand(235,365),mvp=win&&Math.random()<.3;
  pc.careerStats.matches++;pc.careerStats.seriesW+=win?1:0;pc.careerStats.seriesL+=win?0:1;pc.careerStats.gameW+=my;pc.careerStats.gameL+=his;pc.careerStats.kills+=k;pc.careerStats.deaths+=d;pc.careerStats.assists+=as;pc.careerStats.mvp+=mvp?1:0;
  pc.matchHistory.unshift({opp:m.opp,score:`${my}:${his}`,win,k,d,a:as,cs,mvp,week:state.date.week,event:m.event,phase:m.phase});
- pc.lastMatch={opp:m.opp,win,score:`${my}:${his}`,logs,k,d,a:as,cs,mvp,event:m.event,phase:m.phase};
+ pc.lastMatch={opp:m.opp,win,score:`${my}:${his}`,logs:[...logs],k,d,a:as,cs,mvp,event:m.event,phase:m.phase,year:state.date.year,week:state.date.week,day:state.date.day,postInterviewDone:false};
+ pc.pendingPostInterview=true;
  const stageLoad=m.knockout?(/決賽/.test(m.phase)?12:8):4,gameLoad=(my+his)*3;p.energy=clamp(p.energy-(10+gameLoad+stageLoad),0,100);p.condition.fatigue=clamp(p.condition.fatigue+14+gameLoad+stageLoad,0,100);p.stress=clamp(p.stress+(win?4:9)+stageLoad,0,100);updateTeamRelationsAfterMatch(win);updateProfessionalReputation(win,mvp);
  state.news.unshift(`${m.phase}：${pc.team} ${my}:${his} ${m.opp}。`);
- advanceInternationalTournament(ev);save();showMatchReport();
+ advanceInternationalTournament(ev);state.logs.push(`🌍 ${m.phase}：${pc.team} ${my}:${his} ${m.opp}｜系列賽${win?"勝":"負"}。`);save();render();showMatchReport();
 }function currentScheduledProMatch(){
  const pc=state.player.proCareer,im=currentInternationalMatch();if(im)return im;
  const sn=pc.season;if(!sn)return null;
@@ -2360,7 +2405,15 @@ function richGameEvents(gameNo,opp,win){
 function teamChemistry(){const p=state.player,pc=p.proCareer,arr=(pc.roster||[]).filter(x=>!x.isPlayer);return arr.length?arr.reduce((a,x)=>a+(p.relations[x.name]||50),0)/arr.length:50}
 function runRichLeagueMatch(){
  const p=state.player,pc=p.proCareer,sn=pc.season;if(!sn||pc.stage!=="starter")return;
- preparePlayoffs();const me=sn.teams.find(x=>x.name===pc.team),opp=currentProOpponent(),chem=teamChemistry(),inj=p.condition.injury?-.07:0;if(!opp)return;const lifeAdj=clamp((p.energy-60)*.0015+(p.mood-60)*.0012-(p.stress-35)*.0015,-.16,.12),metaAdj=playerMetaFit()*.004;
+ preparePlayoffs();
+ sn.teams=Array.isArray(sn.teams)?sn.teams:[];
+ let me=sn.teams.find(x=>x.name===pc.team);
+ if(!me){me={name:pc.team,w:0,l:0,gw:0,gl:0};sn.teams.push(me)}
+ let opp=currentProOpponent();
+ const scheduled=currentScheduledProMatch();
+ if(!opp&&scheduled?.opp){opp=sn.teams.find(x=>x.name===scheduled.opp)||{name:scheduled.opp,w:0,l:0,gw:0,gl:0};if(!sn.teams.includes(opp))sn.teams.push(opp)}
+ if(!opp){modal(`<h2>⚠️ 賽程修復</h2><p>找不到本場對手資料，已保留賽程，請重新進入比賽。</p>${closeBtn()}`);save();return}
+ const chem=teamChemistry(),inj=p.condition.injury?-.07:0;const lifeAdj=clamp((p.energy-60)*.0015+(p.mood-60)*.0012-(p.stress-35)*.0015,-.16,.12),metaAdj=playerMetaFit()*.004;
  const major=["MSI","世界賽"].includes(proAnnualPhase()),majorAdj=major?majorEventExperienceFactor()+playerMetaFit()*.018-(p.stress-50)*.002:0;
  const need=sn.phase==="季後賽"?3:2;let my=0,his=0,logs=[],games=0;
  while(my<need&&his<need){games++;const wc=clamp(.50+(avg()-68)*.012+(p.condition.form-60)*.003+(chem-50)*.002+inj+lifeAdj+metaAdj+majorAdj,.18,.84),win=Math.random()<wc;if(win)my++;else his++;logs.push(...richGameEvents(games,opp,win))}
@@ -2371,14 +2424,25 @@ function runRichLeagueMatch(){
  pc.matchHistory.unshift({opp:opp.name,score:`${my}:${his}`,win:my>his,k,d,a,cs,mvp,week:state.date.week});
  p.condition.form=clamp(p.condition.form+(my>his?rand(1,4):-rand(2,5)),0,100);p.condition.fatigue=clamp(p.condition.fatigue+12,0,100);
  state.news.unshift(`職業聯賽：${pc.team} ${my}:${his} ${opp.name}；${p.name} ${k}/${d}/${a}${mvp?"，獲選MVP":""}。`);
- pc.lastMatch={opp:opp.name,win:my>his,score:`${my}:${his}`,logs,k,d,a,cs,mvp};updateTeamRelationsAfterMatch(my>his);updateProfessionalReputation(my>his,mvp);
- save();showMatchReport();
+ pc.lastMatch={opp:opp.name,win:my>his,score:`${my}:${his}`,logs:[...logs],k,d,a,cs,mvp,year:state.date.year,week:state.date.week,day:state.date.day,phase:sn.phase||"正式比賽",postInterviewDone:false};
+ pc.pendingPostInterview=true;
+ updateTeamRelationsAfterMatch(my>his);updateProfessionalReputation(my>his,mvp);
+ state.logs.push(`🏆 正式賽事：${pc.team} ${my}:${his} ${opp.name}｜系列賽${my>his?"勝":"負"}｜累計 ${me.w}勝${me.l}敗。`);
+ save();render();showMatchReport();
 }
 function simulateOtherLeagueRound(me,opp){const sn=state.player.proCareer.season;sn.teams.filter(x=>x!==me&&x!==opp).forEach((t,i,a)=>{if(i%2)return;const o=a[i+1];if(!o)return;const home=Math.random()<.5,w=home?t:o,l=home?o:t,lg=Math.random()<.45?1:0;w.w++;l.l++;w.gw+=2;w.gl+=lg;l.gw+=lg;l.gl+=2})}
 function showMatchReport(){
  const m=state.player.proCareer.lastMatch;if(!m)return;
  modal(`<h2>🏆 ${state.player.proCareer.team} ${m.score} ${m.opp}</h2><div class="log">${m.logs.join("<br>")}</div><div class="notice">${state.player.name}｜KDA ${m.k}/${m.d}/${m.a}｜CS ${m.cs}${m.mvp?"｜⭐ MVP":""}</div><button id="postMedia" class="primary">🎙️ 接受賽後採訪</button>${closeBtn()}`);
  document.querySelector("#postMedia").onclick=showPostMatchMedia;
+}
+function recentProMatchCard(){
+ if(!isProfessionalStage())return "";const pc=state.player.proCareer,m=pc.lastMatch,cs=pc.careerStats||{};
+ if(!m)return `<section class="card"><h2>📋 比賽紀錄</h2><div class="small">目前尚無正式比賽紀錄。</div></section>`;
+ return `<section class="card"><div class="row space"><h2>📋 最近一場正式比賽</h2><span class="badge">${m.win?"勝利":"敗北"}</span></div>
+ <div class="notice"><strong>${pc.team} ${m.score} ${m.opp}</strong><br>${m.phase||"正式比賽"}｜KDA ${m.k}/${m.d}/${m.a}｜CS ${m.cs}${m.mvp?"｜⭐ MVP":""}</div>
+ <div class="stat-grid">${stat("生涯系列賽",`${cs.seriesW||0}勝${cs.seriesL||0}敗`)}${stat("生涯小局",`${cs.gameW||0}勝${cs.gameL||0}敗`)}${stat("正式場次",cs.matches||0)}${stat("MVP",cs.mvp||0)}</div>
+ <div class="reply-grid"><button id="viewLastMatchReport" class="reply">查看完整戰報</button>${pc.pendingPostInterview&&!m.postInterviewDone?`<button id="resumePostInterview" class="reply">🎙️ 完成賽後採訪</button>`:""}</div></section>`;
 }
 function showPostMatchMedia(){
  const m=state.player.proCareer.lastMatch;
@@ -2391,7 +2455,7 @@ function applyPostMedia(a){
  if(a==="self"){p.stats.心態=clamp(p.stats.心態+.15,0,100);p.followers+=rand(10,35)}
  if(a==="blame"){mediaTrait("甩鍋",3);(pc.roster||[]).filter(x=>!x.isPlayer).forEach(x=>p.relations[x.name]=clamp((p.relations[x.name]||50)-rand(2,5),0,100));p.followers+=rand(20,60);p.adultLife.careerReputation=clamp(p.adultLife.careerReputation-3,0,100);state.news.unshift(`賽後話題：夜鋒在採訪中直指隊友決策問題，更衣室氣氛受到關注。`)}
  const rival=ensureOpponentRelationship(m.opp,false),rv=pc.rivals[rival];if(m.win&&Math.random()<.35){p.relations[rival]=clamp((p.relations[rival]||45)+(a==="team"?4:-1),0,100);rv.status=p.relations[rival]>=60?"友好對手":rv.status}else if(!m.win&&pc.pendingMedia==="trash"){rv.score+=15;rv.status=rv.score>=35?"宿敵":"競爭對手";p.relations[rival]=clamp((p.relations[rival]||40)-5,0,100)}
- pc.pendingMedia=null;save();document.querySelector(".modal-backdrop")?.remove();render();
+ pc.pendingMedia=null;pc.pendingPostInterview=false;if(m)m.postInterviewDone=true;save();document.querySelector(".modal-backdrop")?.remove();render();
 }
 function ensureContractMarket(){
  const p=state.player,pc=p.proCareer,c=pc.contract;if(!isProfessionalStage()||!c)return;
@@ -2529,7 +2593,7 @@ function pregnancyDecision(i){
  document.querySelector("#pregKeep").onclick=()=>{x.status="決定繼續";state.logs.push(`${x.name}的懷孕事件：雙方決定繼續。`);save();document.querySelector(".modal-backdrop")?.remove();render()};
  document.querySelector("#pregEnd").onclick=()=>terminatePregnancyChoice(x);
 }
-function conditionTick(){const p=state.player,c=p.condition,major=["MSI","世界賽"].includes(proAnnualPhase()),rec=internationalRecoveryMultiplier();c.fatigue=clamp(c.fatigue-4*rec+(major?1.5:0),0,100);if(major){p.energy=clamp(p.energy-1.5,0,100);p.stress=clamp(p.stress+1.2,0,100)}c.privateRecent=Math.max(0,c.privateRecent-1);if(c.injury){c.injury.days--;if(c.injury.days<=0){state.logs.push(`🩹 ${c.injury.type} 已恢復。`);c.injury=null}}if(c.fatigue>65)c.form=clamp(c.form-2,0,100);else if(p.energy>70)c.form=clamp(c.form+1,0,100)}
+function conditionTick(){const p=state.player,c=p.condition,major=["MSI","世界賽"].includes(proAnnualPhase()),rec=internationalRecoveryMultiplier();c.fatigue=clamp(c.fatigue-4*rec+(major?1.5:0),0,100);if(major){p.energy=clamp(p.energy-1.5,0,100);p.stress=clamp(p.stress+1.2,0,100)}c.privateRecent=Math.max(0,c.privateRecent-1);if(c.injury){c.injury.days--;if(c.injury.days<=0){state.logs.push(`🩹 ${c.injury.type} 已恢復。`);pushHealthHistory(`第${state.date.week}週｜${c.injury.type}恢復完成。`);c.injury=null}}const h=p.health;if(h?.sti?.treated&&h.sti.followupDays!=null){h.sti.followupDays--;if(h.sti.followupDays<=0){pushHealthHistory(`第${state.date.week}週｜感染治療追蹤完成。`);state.logs.push("✅ 健康追蹤完成，感染已治療。");h.sti=null}}if(c.fatigue>65)c.form=clamp(c.form-2,0,100);else if(p.energy>70)c.form=clamp(c.form+1,0,100)}
 function frequentEsportsNews(){if(Math.random()<.42){const a=PRO_TEAMS[rand(0,PRO_TEAMS.length-1)],b=PRO_TEAMS.filter(x=>x!==a)[rand(0,PRO_TEAMS.length-2)];state.news.unshift(`電競快訊：${a} 與 ${b} 近期訓練賽與陣容動向受到討論。`);state.news=state.news.slice(0,30)}}
 function chooseSocial(){
  ensureV10();if(remain()<1){modal(`<h2>今天沒有剩餘時段</h2><p>社交需要 1 個時段。</p>${closeBtn()}`);return}
