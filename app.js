@@ -16,7 +16,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.9.0.0",started:false,
+  version:"1.9.0.1",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,v138AllStatsBoosted:true,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -74,7 +74,7 @@ function normalize(s){
  if(!Array.isArray(s.news))s.news=[];
  if(!Array.isArray(s.messages))s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.9.0.0";return s;
+ s.version="1.9.0.1";return s;
 }
 function load(){
  try{
@@ -783,7 +783,7 @@ function ensureV10(){(state.player.proFriends||[]).forEach(n=>ensureProCharacter
  ensureFixedMidExpansionHeroes();
  ensureSavedAnnualHeroes();
  repairFlexibleAcquaintanceRoles();
- ensureLegacyChildSystem();ensurePregnancyEventIds();(state.player.adultLife?.pregnancies||[]).forEach(pg=>{if(!pg.born&&(pg.progressWeeks||0)>=40){pg.birthPending=true;pg.status="即將生產"}});
+ ensureLegacyChildSystem();ensurePregnancyEventIds();repairDuePregnancyProgress();(state.player.adultLife?.pregnancies||[]).forEach(pg=>{if(!pg.born&&(pg.progressWeeks||0)>=40){pg.birthPending=true;pg.status="即將生產"}});
  if(!p.adultLife||typeof p.adultLife!=="object")p.adultLife={enabled:p.age>=18,pregnancies:[],fanIncidents:0,publicRomanceKnown:false,careerReputation:50,graduationPath:null};
  p.adultLife.enabled=p.age>=18;
  if(!p.proCareer||typeof p.proCareer!=="object")p.proCareer={stage:p.adultLife.graduationPath==="職業圈"?"scouting":"amateur",team:null,contract:null,tryout:null,coachTrust:50,season:null};
@@ -901,6 +901,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  migrateProV1898();
  migrateProV1899();
  migrateProV1900();
+ migrateProV1901();
  migrateProV183();
  if(!p.v170Migrated){
    if(isProfessionalStage()){
@@ -1218,6 +1219,16 @@ function infantCare(name){
 function ensurePregnancyEventIds(){(state.player.adultLife?.pregnancies||[]).forEach((pg,i)=>{if(!pg.eventId)pg.eventId=`preg_${state.date.year}_${i}_${Math.abs(socialStableHash(pg.name||String(i),"preg"))}`})}
 function pregnancyByEventId(id){ensurePregnancyEventIds();return (state.player.adultLife?.pregnancies||[]).find(x=>x.eventId===id)}
 function resolveBirthEventById(id){const pg=pregnancyByEventId(id);if(!pg)return;resolveBirthEvent(pg.name)}
+function repairDuePregnancyProgress(){
+ (state.player.adultLife?.pregnancies||[]).forEach(pg=>{
+  if(pg.born)return;
+  if(pg.birthPending||pg.status==="即將生產"){
+   pg.progressWeeks=Math.max(40,Number(pg.progressWeeks)||0);
+   pg.birthPending=true;
+   pg.status="即將生產";
+  }
+ });
+}
 function pregnancyByName(name){return (state.player.adultLife?.pregnancies||[]).find(x=>x.name===name)}
 function resolveBirthEvent(name){
  const pg=pregnancyByName(name);if(!pg||pg.born)return;
@@ -1291,7 +1302,7 @@ function career(){
  return `${proCareerCard()}${recentProMatchCard()}${annualCalendarCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${fanMeetingCard()}${assetCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.0.0</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.0.1</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));document.querySelector("#doTryout")?.addEventListener("click",doProTryout);document.querySelector("#signProContract")?.addEventListener("click",signProContract);document.querySelector("#counterOffer")?.addEventListener("click",counterInitialOffer);document.querySelector("#declineOffer")?.addEventListener("click",declineInitialOffer);document.querySelector("#playLeagueMatch")?.addEventListener("click",playLeagueMatch);document.querySelector("#askRaise")?.addEventListener("click",()=>negotiateContract("raise"));document.querySelector("#offerCut")?.addEventListener("click",()=>negotiateContract("cut"));document.querySelector("#requestTransfer")?.addEventListener("click",()=>negotiateContract("transfer"));document.querySelector("#earlyRenewal")?.addEventListener("click",earlyRenewalTalk);document.querySelectorAll(".pregnancy-talk").forEach(b=>b.onclick=()=>pregnancyDecisionByName(b.dataset.name));document.querySelectorAll(".child-choice").forEach(b=>b.onclick=()=>childSupportDecision(b.dataset.name,b.dataset.choice));document.querySelectorAll(".sponsor-action").forEach(b=>b.onclick=()=>sponsorAction(b.dataset.action));document.querySelector("#launchMerch")?.addEventListener("click",launchSponsorMerch);document.querySelectorAll(".donate-btn").forEach(b=>b.onclick=()=>makeDonation(+b.dataset.amt));document.querySelector("#proposeMarriage")?.addEventListener("click",proposeMarriage);document.querySelector("#marriageTalk")?.addEventListener("click",resolveMarriageCrisis);document.querySelector("#prAction")?.addEventListener("click",openPRResponse);document.querySelector("#suggestRecruit")?.addEventListener("click",openRecruitSuggestion);document.querySelector("#stiScreen")?.addEventListener("click",doStiScreen);document.querySelectorAll(".asset-buy").forEach(b=>b.onclick=()=>buyAsset(b.dataset.id));document.querySelectorAll(".alumni-donate").forEach(b=>b.onclick=()=>alumniDonate(+b.dataset.amt));document.querySelector("#fanMeeting")?.addEventListener("click",runFanMeeting);document.querySelectorAll(".leave-request").forEach(b=>b.onclick=()=>requestCoachLeave(b.dataset.reason));document.querySelector("#main")?.addEventListener("click",e=>{const b=e.target.closest?.(".birth-event");if(b){e.preventDefault();e.stopPropagation();b.dataset.pregId?resolveBirthEventById(b.dataset.pregId):resolveBirthEvent(b.dataset.name)}});document.querySelectorAll(".child-care-action").forEach(b=>b.onclick=()=>spendTimeWithChild(b.dataset.name));document.querySelectorAll(".infant-care-action").forEach(b=>b.onclick=()=>infantCare(b.dataset.name));document.querySelectorAll(".legacy-birth-choice").forEach(b=>b.onclick=()=>recordLegacyBirthChoice(b.dataset.name,b.dataset.choice));document.querySelectorAll(".legacy-child-choice").forEach(b=>b.onclick=()=>childSupportDecision(b.dataset.name,b.dataset.choice));document.querySelector("#injuryTreat")?.addEventListener("click",treatInjury);document.querySelector("#injuryRehab")?.addEventListener("click",rehabInjury);document.querySelector("#healthCheck")?.addEventListener("click",generalHealthCheck);document.querySelector("#stiTreat")?.addEventListener("click",treatSti);document.querySelector("#viewLastMatchReport")?.addEventListener("click",showMatchReport);document.querySelector("#resumePostInterview")?.addEventListener("click",showPostMatchMedia);
@@ -2437,7 +2448,18 @@ function migrateProV1898(){
  p.v1898Migrated=true;
 }
 function migrateProV1899(){const p=state.player;if(p.v1899Migrated)return;(p.adultLife?.pregnancies||[]).forEach(pg=>{if(!pg.born&&(pg.progressWeeks||0)>=40){pg.birthPending=true;pg.status="即將生產"}});state.logs.push("🔧 V1.8.9.9：修正生產按鈕、移除行程分頁、海外婚外事件降低曝光率，並提高職業比賽難度。");p.v1899Migrated=true;}
-function migrateProV1900(){const p=state.player;if(p.v1900Migrated)return;ensurePregnancyEventIds();(p.adultLife?.pregnancies||[]).forEach(pg=>{if(!pg.born&&((pg.progressWeeks||0)>=40||pg.status==="即將生產")){pg.birthPending=true;pg.status="即將生產"}});state.logs.push("🔧 V1.9.0.0：生產事件按鈕改為獨立事件ID＋直接觸發，不再依賴生涯頁 bind() 是否完整執行。");p.v1900Migrated=true;}
+function migrateProV1900(){const p=state.player;if(p.v1900Migrated)return;ensurePregnancyEventIds();(p.adultLife?.pregnancies||[]).forEach(pg=>{if(!pg.born&&((pg.progressWeeks||0)>=40||pg.status==="即將生產"||pg.birthPending)){pg.progressWeeks=Math.max(40,Number(pg.progressWeeks)||0);pg.birthPending=true;pg.status="即將生產"}});state.logs.push("🔧 V1.9.0.0：生產事件按鈕改為獨立事件ID＋直接觸發，不再依賴生涯頁 bind() 是否完整執行。");p.v1900Migrated=true;}
+function migrateProV1901(){
+ const p=state.player;if(p.v1901Migrated)return;
+ (p.adultLife?.pregnancies||[]).forEach(pg=>{
+  if(!pg.born&&(pg.birthPending||pg.status==="即將生產")){
+   pg.progressWeeks=Math.max(40,Number(pg.progressWeeks)||0);
+   pg.birthPending=true;pg.status="即將生產";
+  }
+ });
+ state.logs.push("🔧 V1.9.0.1：修正已進入生產階段的舊孕期被顯示成 0/40；即將生產者會恢復為至少 40/40。");
+ p.v1901Migrated=true;
+}
 function proDaySerial(){return ((state.date.year||2026)*52+(state.date.week||1))*7+(state.date.day||1)}
 function proScheduleDayLabel(x){
  if(!x)return "未排定";const days=["一","二","三","四","五","六","日"],m=careerMonthFromWeek(x.week),y=x.year;
@@ -2783,7 +2805,8 @@ function requestBreakup(name){
 function pregnancyTick(){
  const p=state.player;(p.adultLife?.pregnancies||[]).forEach((pg,i)=>{
   if(pg.status==="可能懷孕"&&!pg.eventQueued){pg.eventQueued=true;const confirmed=Math.random()<.72;pg.status=confirmed?"確認懷孕":"未懷孕";pg.progressWeeks=0;state.messages.push({id:"preg-"+Date.now()+rand(1,999),from:pg.name,text:confirmed?"我確認懷孕了，我們需要談談接下來怎麼辦。":"檢查結果出來了，沒有懷孕。",unread:true,resolved:true,type:"normal"});if(confirmed)state.logs.push(`⚠️ ${pg.name}確認懷孕，等待後續討論。`)}
-  if(["確認懷孕","決定繼續","對方決定繼續"].includes(pg.status)){pg.progressWeeks=(pg.progressWeeks||0)+1/7;if(pg.progressWeeks>=40&&!pg.born&&!pg.birthPending){pg.birthPending=true;pg.status="即將生產";state.messages.push({id:"labor-"+Date.now()+i,from:pg.name,text:"醫院說差不多要生了。你會過來陪我嗎？",unread:true,resolved:true,type:"birth"});state.logs.push(`🏥 ${pg.name}進入生產階段，等待你決定是否陪產。`)}}
+  if(["確認懷孕","決定繼續","對方決定繼續"].includes(pg.status)){pg.progressWeeks=(pg.progressWeeks||0)+1/7;if((pg.status==="即將生產"||pg.birthPending)&&!pg.born)pg.progressWeeks=Math.max(40,Number(pg.progressWeeks)||0);
+if(pg.progressWeeks>=40&&!pg.born&&!pg.birthPending){pg.progressWeeks=40;pg.birthPending=true;pg.status="即將生產";state.messages.push({id:"labor-"+Date.now()+i,from:pg.name,text:"醫院說差不多要生了。你會過來陪我嗎？",unread:true,resolved:true,type:"birth"});state.logs.push(`🏥 ${pg.name}進入生產階段，等待你決定是否陪產。`)}}
   if(pg.born&&!(p.romance?.partners||[]).includes(pg.name)){pg.singleMother=true;if((p.followers||0)>50000&&!pg.exposureChecked&&Math.random()<.015){pg.exposureChecked=true;const responsible=(pg.supportScore||0)>=3;if(!responsible){p.adultLife.careerReputation=clamp(p.adultLife.careerReputation-rand(8,15),0,100);state.news.unshift(`場外爭議：${pg.name}公開批評成名後的夜鋒未妥善面對過去的親子責任。`)}else state.news.unshift(`私人生活曝光：夜鋒已有孩子的消息受到關注，但長期扶養紀錄讓輿論相對平和。`)}}
  });
 }
