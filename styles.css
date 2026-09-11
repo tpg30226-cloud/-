@@ -60,7 +60,7 @@ linear-gradient(180deg,var(--panel2),var(--panel))}
 .activity button{padding:7px 9px;border-radius:9px;border:1px solid var(--line);background:#17213a;color:var(--text)}
 .log{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06)}
 .log:last-child{border-bottom:0}
-.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(680px,100%);display:grid;grid-template-columns:repeat(5,1fr);background:rgba(8,16,29,.96);backdrop-filter:blur(14px);border-top:1px solid var(--line);padding:8px 8px calc(8px + env(safe-area-inset-bottom));z-index:30}
+.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(680px,100%);display:grid;grid-template-columns:repeat(6,1fr);background:rgba(8,16,29,.96);backdrop-filter:blur(14px);border-top:1px solid var(--line);padding:8px 8px calc(8px + env(safe-area-inset-bottom));z-index:30}
 .nav-btn{border:0;background:transparent;color:var(--muted);font-size:12px;padding:10px 4px;border-radius:12px}
 .nav-btn.active{color:white;background:#18233c}
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:flex-end;justify-content:center;z-index:100}
