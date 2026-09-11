@@ -557,3 +557,10 @@ V1.0 將高中生活與業餘電競世界正式接入既有 V0.9 架構。
 - 移除 V1.9.0.6 的第二次「繼續私人約會」確認。
 - 修正女粉絲按鈕無法點選，改為穩定的直接事件入口。
 - 保留隊友女友拒絕、被發現與隊內決裂系統。
+
+## V1.9.0.8
+- 再次重做私人約會：不再呼叫會自行 render/modal 的 adultPrivateEvent，避免結果視窗被覆蓋。
+- 點「詢問私人約會」後一定直接得到可見結果：拒絕、度過私人時光、或出現懷孕可能。
+- 結果流程最後才 render，再開 modal；開完結果後不再 render，因此 iPhone Safari 不會瞬間跳掉。
+- 社交按鈕加入 preventDefault/stopPropagation，避免點擊事件被其他導覽行為吃掉。
+- 修正女粉絲入口：先前 helper 誤呼叫不存在的 femaleFanEncounter，現在改回實際存在的 meetFemaleFan。
