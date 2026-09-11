@@ -16,7 +16,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.9.0.5",started:false,
+  version:"1.9.0.6",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,v138AllStatsBoosted:true,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -74,7 +74,7 @@ function normalize(s){
  if(!Array.isArray(s.news))s.news=[];
  if(!Array.isArray(s.messages))s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.9.0.5";return s;
+ s.version="1.9.0.6";return s;
 }
 function load(){
  try{
@@ -605,8 +605,24 @@ function adultEstablishedPartnerEvent(name){
  const p=state.player,c=state.characters?.[name],spouse=p.romance?.spouse===name,partner=(p.romance?.partners||[]).includes(name);
  if(p.age<18||!c||Number(c.age||0)<18||(!spouse&&!partner))return;adultPrivateEvent(name,spouse?"spouse":"partner");
 }
-function attemptConsensualPrivateEvent(name,kind="social"){if(state.characters?.[name]?.teammatePartnerOf){const ok=teammatePartnerRisk(name);if(ok===false)return}const target=state.characters?.[name];if(!target){modal(`<h2>私人約會</h2><p>人物資料異常，請返回社交頁重新選擇。</p>${closeBtn()}`);return}
- const p=state.player,c=state.characters[name];if(p.age<18||!c||c.gender!=="女"||c.age<18)return;const consent=Math.random()<clamp(.48+(p.relations[name]||20)*.004+(p.mood-50)*.002,.35,.82);if(!consent){state.logs.push(`${name}婉拒了更進一步的邀請。`);modal(`<h2>私人邀約</h2><p>${name}婉拒了邀請，你尊重她的決定。</p>${closeBtn()}`);return}adultPrivateEvent(name,kind==="bar"?"bar":"lover");if(Math.random()<.12){p.prCrisis={type:"私人關係曝光",severity:rand(1,3),source:name};state.logs.push("⚠️ 私人關係被外界注意，可能形成公關危機。")}
+function attemptConsensualPrivateEvent(name,kind="social"){
+ const p=state.player,c=state.characters?.[name];
+ if(!c){modal(`<h2>私人約會</h2><p>人物資料異常，請返回社交頁重新選擇。</p>${closeBtn()}`);return}
+ if(p.age<18||Number(c.age||18)<18||c.gender!=="女"){modal(`<h2>私人約會</h2><p>目前無法進行這項互動。</p>${closeBtn()}`);return}
+ if(remain()<1){modal(`<h2>私人約會</h2><p>今天已經沒有剩餘時段。</p>${closeBtn()}`);return}
+ let specialAccepted=true;
+ if(c.teammatePartnerOf){specialAccepted=teammatePartnerRisk(name);if(specialAccepted===false)return}
+ const consent=Math.random()<clamp(.48+(p.relations[name]||20)*.004+(p.mood-50)*.002,.35,.82);
+ if(!consent){state.logs.push(`${name}婉拒了更進一步的邀請。`);modal(`<h2>🌙 私人約會邀請</h2><p>${name} 婉拒了這次邀請，你尊重她的決定。</p>${closeBtn()}`);return}
+ const safeName=encodeURIComponent(name),safeKind=encodeURIComponent(kind);
+ modal(`<h2>🌙 私人約會邀請</h2><p>${name} 接受了你的邀請。</p><div class="notice">要繼續前往私人約會嗎？這會使用 1 個時段。</div><button type="button" class="btn private-date-continue" data-name="${safeName}" data-kind="${safeKind}" style="width:100%;margin-top:12px">繼續私人約會</button><button type="button" class="ghost close-modal" style="width:100%;margin-top:8px">先取消</button>`);
+ document.querySelector(".private-date-continue")?.addEventListener("click",e=>continuePrivateDate(decodeURIComponent(e.currentTarget.dataset.name),decodeURIComponent(e.currentTarget.dataset.kind)));
+}
+function continuePrivateDate(name,kind="social"){
+ document.querySelector(".modal-backdrop")?.remove();
+ const c=state.characters?.[name];if(!c){modal(`<h2>私人約會</h2><p>人物資料異常，無法繼續。</p>${closeBtn()}`);return}
+ adultPrivateEvent(name,kind==="bar"?"bar":"lover");
+ if(Math.random()<.12){state.player.prCrisis={type:"私人關係曝光",severity:rand(1,3),source:name};state.logs.push("⚠️ 私人關係被外界注意，可能形成公關危機。");save()}
 }
 function resolveArcade(e){
  document.querySelector(".modal-backdrop")?.remove();
@@ -906,6 +922,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  migrateProV1903();
  migrateProV1904();
  migrateProV1905();
+ migrateProV1906();
  migrateProV183();
  if(!p.v170Migrated){
    if(isProfessionalStage()){
@@ -1376,7 +1393,7 @@ function career(){
  return `${proCareerCard()}${recentProMatchCard()}${annualCalendarCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${fanMeetingCard()}${assetCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.0.5</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.0.6</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));document.querySelector("#doTryout")?.addEventListener("click",doProTryout);document.querySelector("#signProContract")?.addEventListener("click",signProContract);document.querySelector("#counterOffer")?.addEventListener("click",counterInitialOffer);document.querySelector("#declineOffer")?.addEventListener("click",declineInitialOffer);document.querySelector("#playLeagueMatch")?.addEventListener("click",playLeagueMatch);document.querySelector("#askRaise")?.addEventListener("click",()=>negotiateContract("raise"));document.querySelector("#offerCut")?.addEventListener("click",()=>negotiateContract("cut"));document.querySelector("#requestTransfer")?.addEventListener("click",()=>negotiateContract("transfer"));document.querySelector("#earlyRenewal")?.addEventListener("click",earlyRenewalTalk);document.querySelectorAll(".pregnancy-talk").forEach(b=>b.onclick=()=>pregnancyDecisionByName(b.dataset.name));document.querySelectorAll(".child-choice").forEach(b=>b.onclick=()=>childSupportDecision(b.dataset.name,b.dataset.choice));document.querySelectorAll(".sponsor-action").forEach(b=>b.onclick=()=>sponsorAction(b.dataset.action));document.querySelector("#launchMerch")?.addEventListener("click",launchSponsorMerch);document.querySelectorAll(".donate-btn").forEach(b=>b.onclick=()=>makeDonation(+b.dataset.amt));document.querySelector("#proposeMarriage")?.addEventListener("click",proposeMarriage);document.querySelector("#marriageTalk")?.addEventListener("click",resolveMarriageCrisis);document.querySelector("#prAction")?.addEventListener("click",openPRResponse);document.querySelector("#suggestRecruit")?.addEventListener("click",openRecruitSuggestion);document.querySelector("#stiScreen")?.addEventListener("click",doStiScreen);document.querySelectorAll(".rupture-talk").forEach(b=>b.onclick=()=>{resolveTeamRupture(b.dataset.mate);save();render()});document.querySelectorAll(".asset-buy").forEach(b=>b.onclick=()=>buyAsset(b.dataset.id));document.querySelectorAll(".alumni-donate").forEach(b=>b.onclick=()=>alumniDonate(+b.dataset.amt));document.querySelector("#fanMeeting")?.addEventListener("click",runFanMeeting);document.querySelectorAll(".leave-request").forEach(b=>b.onclick=()=>requestCoachLeave(b.dataset.reason));document.querySelector("#main")?.addEventListener("click",e=>{const b=e.target.closest?.(".birth-event");if(b){e.preventDefault();e.stopPropagation();b.dataset.pregId?resolveBirthEventById(b.dataset.pregId):resolveBirthEvent(b.dataset.name)}});document.querySelectorAll(".child-care-action").forEach(b=>b.onclick=()=>spendTimeWithChild(b.dataset.name));document.querySelectorAll(".infant-care-action").forEach(b=>b.onclick=()=>infantCare(b.dataset.name));document.querySelectorAll(".legacy-birth-choice").forEach(b=>b.onclick=()=>recordLegacyBirthChoice(b.dataset.name,b.dataset.choice));document.querySelectorAll(".legacy-child-choice").forEach(b=>b.onclick=()=>childSupportDecision(b.dataset.name,b.dataset.choice));document.querySelector("#injuryTreat")?.addEventListener("click",treatInjury);document.querySelector("#injuryRehab")?.addEventListener("click",rehabInjury);document.querySelector("#healthCheck")?.addEventListener("click",generalHealthCheck);document.querySelector("#stiTreat")?.addEventListener("click",treatSti);document.querySelector("#viewLastMatchReport")?.addEventListener("click",showMatchReport);document.querySelector("#resumePostInterview")?.addEventListener("click",showPostMatchMedia);
@@ -1649,7 +1666,7 @@ function advanceTournaments(){
 }
 function adultPrivateEvent(name,kind="lover"){
  const p=state.player,c=state.characters?.[name];if(p.age<18||!p.adultLife?.enabled){modal(`<h2>尚未開放</h2><p>此內容只在主角成年後開放。</p>${closeBtn()}`);return}
- if(remain()<1)return;const established=kind==="spouse"||kind==="partner";if(!consume(established?(kind==="spouse"?"夫妻親密時光":"親密相處"):"私人約會",1))return;
+ if(remain()<1){modal(`<h2>私人約會</h2><p>今天已經沒有剩餘時段。</p>${closeBtn()}`);return}const established=kind==="spouse"||kind==="partner";if(!consume(established?(kind==="spouse"?"夫妻親密時光":"親密相處"):"私人約會",1)){modal(`<h2>私人約會</h2><p>目前無法安排這次約會。</p>${closeBtn()}`);return}
  stiRiskEvent(name,kind==="fan"?"一次性關係":kind==="spouse"?"夫妻關係":kind==="partner"?"伴侶關係":"私人關係");
  let cost=0;if(name==="許安然"){cost=3000;if(p.cash<cost){modal(`<h2>現金不足</h2><p>這次見面需要 NT$${cost.toLocaleString()}。</p>${closeBtn()}`);return}p.cash-=cost}
  p.energy=clamp(p.energy-15,0,100);p.mood=clamp(p.mood+5,0,100);p.condition.privateRecent=(p.condition.privateRecent||0)+1;p.condition.fatigue=clamp(p.condition.fatigue+8,0,100);
@@ -2566,6 +2583,7 @@ function migrateProV1902(){
 function migrateProV1903(){const p=state.player;if(p.v1903Migrated)return;state.logs.push("🔧 V1.9.0.3：修正詢問私人約會點擊無後續，社交動作改為統一派送。");p.v1903Migrated=true;}
 function migrateProV1904(){const p=state.player;if(p.v1904Migrated)return;ensureFixedMidExpansionHeroes();ensureSavedAnnualHeroes();ensureMeta();ensureTeammatePartners();state.logs.push("🆕 V1.9.0.4：版本Meta強制納入新英雄、正式賽難度再次提高，並新增認識隊友女友與隊友衝突事件。");p.v1904Migrated=true;}
 function migrateProV1905(){const p=state.player;if(p.v1905Migrated)return;ensureTeamRuptures();if(p.proCareer?.teammateConflict?.mate){const x=p.proCareer.teammateConflict;if((x.severity||0)>=3)createTeamRupture(x.mate,x.source||"既有衝突","既有隊內衝突")}state.logs.push("🆕 V1.9.0.5：新增隊內決裂、有他沒我、管理層選邊、轉隊／解約、冷戰與消極比賽事件。");p.v1905Migrated=true;}
+function migrateProV1906(){const p=state.player;if(p.v1906Migrated)return;state.logs.push("🔧 V1.9.0.6：重做私人約會流程。邀請成功後一定先顯示接受結果，再由玩家點擊「繼續私人約會」進入下一步，不再直接跳過。");p.v1906Migrated=true;}
 function proDaySerial(){return ((state.date.year||2026)*52+(state.date.week||1))*7+(state.date.day||1)}
 function proScheduleDayLabel(x){
  if(!x)return "未排定";const days=["一","二","三","四","五","六","日"],m=careerMonthFromWeek(x.week),y=x.year;
