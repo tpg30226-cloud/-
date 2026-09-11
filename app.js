@@ -16,7 +16,7 @@ const HEROES=[
 
 function newGame(){
  return {
-  version:"1.9.0.8",started:false,
+  version:"1.9.1.0",started:false,
   player:{
    name:"夜鋒",age:16,role:"中路",cash:8000,rank:"鑽石 IV",lp:23,wins:0,losses:0,v138AllStatsBoosted:true,
    followers:0,proAttention:0,energy:82,stress:22,mood:72,passion:91,school:62,family:28,
@@ -74,7 +74,7 @@ function normalize(s){
  if(!Array.isArray(s.news))s.news=[];
  if(!Array.isArray(s.messages))s.messages=[];
  if(!("tournament" in s))s.tournament=null;
- s.version="1.9.0.8";return s;
+ s.version="1.9.1.0";return s;
 }
 function load(){
  try{
@@ -225,7 +225,7 @@ function act(t){
  if(t==="stream")chooseStream();
  if(t==="social")chooseSocial();
  if(t==="work")simple("打工",2,()=>{state.player.cash+=1200;state.player.energy=clamp(state.player.energy-17,0,100);state.player.stress=clamp(state.player.stress+5,0,100);return "收入 NT$1,200，體力 -17、壓力 +5。"});
- if(t==="fan")return meetFemaleFan();
+ if(t==="fan")return openFemaleFanEvent();
  if(t==="outing")chooseOuting();
  if(t==="travel")chooseTravelDestination();
  if(t==="club")return esportsClubAction();
@@ -1003,6 +1003,8 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  migrateProV1906();
  migrateProV1907();
  migrateProV1908();
+ migrateProV1909();
+ migrateProV1910();
  migrateProV183();
  if(!p.v170Migrated){
    if(isProfessionalStage()){
@@ -1305,9 +1307,10 @@ function teammatePartnerRisk(name){
 }
 function openFemaleFanEvent(){
  const p=state.player;
- if(!isProfessionalStage()){modal(`<h2>💌 女粉絲</h2><p>目前還沒有職業階段的粉絲事件。</p>${closeBtn()}`);return}
- if(p.age<18){modal(`<h2>💌 女粉絲</h2><p>成年後才會開放成人粉絲事件。</p>${closeBtn()}`);return}
- if(p.followers<300){modal(`<h2>💌 女粉絲</h2><p>目前粉絲人氣還不足以觸發這類事件。</p>${closeBtn()}`);return}
+ if(!isProfessionalStage()){
+   modal(`<h2>💌 女粉絲</h2><p>目前還沒有職業階段的粉絲事件。</p>${closeBtn()}`);
+   return;
+ }
  return meetFemaleFan();
 }
 function fanMeetingCard(){if(!isProfessionalStage()||state.player.followers<5000)return "";return `<section class="card"><h2>🤝 粉絲見面會</h2><div class="small">安排簽名、合照與粉絲交流。需要1個活動時段。</div><button id="fanMeeting" class="reply">舉辦粉絲見面會</button></section>`}
@@ -1480,9 +1483,9 @@ function career(){
  return `${proCareerCard()}${recentProMatchCard()}${annualCalendarCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${fanMeetingCard()}${assetCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.0.8</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.1.0</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
 }
-function bind(){document.querySelector("#femaleFan")?.addEventListener("click",e=>{e.preventDefault();openFemaleFanEvent()});
+function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));document.querySelector("#doTryout")?.addEventListener("click",doProTryout);document.querySelector("#signProContract")?.addEventListener("click",signProContract);document.querySelector("#counterOffer")?.addEventListener("click",counterInitialOffer);document.querySelector("#declineOffer")?.addEventListener("click",declineInitialOffer);document.querySelector("#playLeagueMatch")?.addEventListener("click",playLeagueMatch);document.querySelector("#askRaise")?.addEventListener("click",()=>negotiateContract("raise"));document.querySelector("#offerCut")?.addEventListener("click",()=>negotiateContract("cut"));document.querySelector("#requestTransfer")?.addEventListener("click",()=>negotiateContract("transfer"));document.querySelector("#earlyRenewal")?.addEventListener("click",earlyRenewalTalk);document.querySelectorAll(".pregnancy-talk").forEach(b=>b.onclick=()=>pregnancyDecisionByName(b.dataset.name));document.querySelectorAll(".child-choice").forEach(b=>b.onclick=()=>childSupportDecision(b.dataset.name,b.dataset.choice));document.querySelectorAll(".sponsor-action").forEach(b=>b.onclick=()=>sponsorAction(b.dataset.action));document.querySelector("#launchMerch")?.addEventListener("click",launchSponsorMerch);document.querySelectorAll(".donate-btn").forEach(b=>b.onclick=()=>makeDonation(+b.dataset.amt));document.querySelector("#proposeMarriage")?.addEventListener("click",proposeMarriage);document.querySelector("#marriageTalk")?.addEventListener("click",resolveMarriageCrisis);document.querySelector("#prAction")?.addEventListener("click",openPRResponse);document.querySelector("#suggestRecruit")?.addEventListener("click",openRecruitSuggestion);document.querySelector("#stiScreen")?.addEventListener("click",doStiScreen);document.querySelectorAll(".rupture-talk").forEach(b=>b.onclick=()=>{resolveTeamRupture(b.dataset.mate);save();render()});document.querySelectorAll(".asset-buy").forEach(b=>b.onclick=()=>buyAsset(b.dataset.id));document.querySelectorAll(".alumni-donate").forEach(b=>b.onclick=()=>alumniDonate(+b.dataset.amt));document.querySelector("#fanMeeting")?.addEventListener("click",runFanMeeting);document.querySelectorAll(".leave-request").forEach(b=>b.onclick=()=>requestCoachLeave(b.dataset.reason));document.querySelector("#main")?.addEventListener("click",e=>{const b=e.target.closest?.(".birth-event");if(b){e.preventDefault();e.stopPropagation();b.dataset.pregId?resolveBirthEventById(b.dataset.pregId):resolveBirthEvent(b.dataset.name)}});document.querySelectorAll(".child-care-action").forEach(b=>b.onclick=()=>spendTimeWithChild(b.dataset.name));document.querySelectorAll(".infant-care-action").forEach(b=>b.onclick=()=>infantCare(b.dataset.name));document.querySelectorAll(".legacy-birth-choice").forEach(b=>b.onclick=()=>recordLegacyBirthChoice(b.dataset.name,b.dataset.choice));document.querySelectorAll(".legacy-child-choice").forEach(b=>b.onclick=()=>childSupportDecision(b.dataset.name,b.dataset.choice));document.querySelector("#injuryTreat")?.addEventListener("click",treatInjury);document.querySelector("#injuryRehab")?.addEventListener("click",rehabInjury);document.querySelector("#healthCheck")?.addEventListener("click",generalHealthCheck);document.querySelector("#stiTreat")?.addEventListener("click",treatSti);document.querySelector("#viewLastMatchReport")?.addEventListener("click",showMatchReport);document.querySelector("#resumePostInterview")?.addEventListener("click",showPostMatchMedia);
  document.querySelector("#nextDayBtn")?.addEventListener("click",nextDay);
  document.querySelectorAll(".message-open").forEach(b=>b.onclick=e=>{e.preventDefault();openMessage(b.dataset.msg)});
@@ -1764,8 +1767,104 @@ function adultPrivateEvent(name,kind="lover"){
  save();render();modal(`<h2>${kind==="spouse"?"❤️ 夫妻親密時光":kind==="partner"?"❤️ 親密相處":"🌙 私人時間"}</h2><p>你與 ${name} ${kind==="spouse"?"度過了夫妻間的親密時光":kind==="partner"?"以伴侶身分親密相處":"度過了一段私人的成人時間"}。</p>${cost?`<div class="notice">本次花費 NT$${cost.toLocaleString()}。</div>`:""}${pregnancyRisk?`<div class="notice">之後可能出現懷孕相關事件。</div>`:""}${caught?`<div class="notice badtext">⚠️ 戀人得知此事，關係明顯下降。</div>`:""}${closeBtn()}`);
 }
 function meetFemaleFan(){
- const p=state.player;if(p.age<18||p.followers<300){modal(`<h2>女粉絲事件</h2><p>成年且累積一定直播人氣後才可能認識粉絲。</p>${closeBtn()}`);return}
- let name=`女粉絲${rand(100,999)}`,named=Math.random()<.22;if(named)name=["夏語晴","林沐妍","許若曦","陳心妤"][rand(0,3)];const intent=named?(Math.random()<.45?"想發展關係":Math.random()<.65?"願意維持固定關係":"保持聯絡"):"一次性互動";state.characters[name]={name,known:named,gender:"女",romanceable:named&&intent!=="保持聯絡",role:"粉絲",relationshipType:intent==="願意維持固定關係"?"炮友":null,desc:`透過直播與社群認識的成年女性粉絲。${named?"目前傾向："+intent:""}`,traits:["熱情","粉絲"],temporaryFan:!named};p.relations[name]=rand(35,55);p.adultLife.fanIncidents++;save();adultPrivateEvent(name,"fan");if(!named){setTimeout(()=>{const pg=(p.adultLife.pregnancies||[]).some(x=>x.name===name);if(!pg){delete state.characters[name];delete p.relations[name];save()}},0)}
+ const p=state.player;
+ if(p.age<18){
+   modal(`<h2>💌 女粉絲</h2><p>成年後才會開放成人粉絲事件。</p>${closeBtn()}`);
+   return;
+ }
+ if(p.followers<300){
+   modal(`<h2>💌 女粉絲</h2><p>目前粉絲人氣還不足，累積至少 300 名粉絲後才可能觸發。</p>${closeBtn()}`);
+   return;
+ }
+ if(remain()<1){
+   modal(`<h2>💌 女粉絲</h2><p>今天已經沒有剩餘時段。</p>${closeBtn()}`);
+   return;
+ }
+
+ const named=Math.random()<.22;
+ let name=named?["夏語晴","林沐妍","許若曦","陳心妤"][rand(0,3)]:`女粉絲${rand(100,999)}`;
+ while(state.characters?.[name]&&!named)name=`女粉絲${rand(100,999)}`;
+
+ const intent=named
+   ?(Math.random()<.45?"想發展關係":Math.random()<.65?"願意維持固定關係":"保持聯絡")
+   :"一次性互動";
+
+ state.characters[name]={
+   ...(state.characters[name]||{}),
+   name,known:named,gender:"女",age:Math.max(18,p.age+rand(-3,3)),
+   romanceable:named&&intent!=="保持聯絡",
+   role:"粉絲",identityType:"女粉絲",acquaintanceSource:"直播／社群",
+   relationshipType:intent==="願意維持固定關係"?"炮友":null,
+   desc:`透過直播與社群認識的成年女性粉絲。${named?"目前傾向："+intent:""}`,
+   traits:["熱情","粉絲"],temporaryFan:!named
+ };
+ p.relations[name]=p.relations[name]??rand(35,55);
+ p.adultLife=p.adultLife||{};
+ p.adultLife.fanIncidents=(p.adultLife.fanIncidents||0)+1;
+
+ // 觸發女粉絲事件即代表雙方自願進入私人關係事件。
+
+ // 使用 1 個時段，結果完全在此函式結算，
+ // 避免 adultPrivateEvent 的 render/modal 把視窗蓋掉。
+ if(!consume("女粉絲私人互動",1)){
+   if(!named){delete state.characters[name];delete p.relations[name]}
+   modal(`<h2>💌 女粉絲</h2><p>目前無法安排這次互動。</p>${closeBtn()}`);
+   return;
+ }
+
+ try{stiRiskEvent(name,"女粉絲私人關係")}catch(e){console.warn("stiRiskEvent",e)}
+ p.energy=clamp(p.energy-15,0,100);
+ p.mood=clamp(p.mood+5,0,100);
+ p.condition=p.condition||{};
+ p.condition.privateRecent=(p.condition.privateRecent||0)+1;
+ p.condition.fatigue=clamp((p.condition.fatigue||0)+8,0,100);
+ p.relations[name]=clamp((p.relations[name]||40)+2,0,100);
+
+ if(p.romance?.spouse){
+   try{registerAffair(name)}catch(e){console.warn("registerAffair",e)}
+ }
+
+ let pregnancyRisk=false;
+ p.adultLife.pregnancies=p.adultLife.pregnancies||[];
+ if(Math.random()<.08){
+   const already=p.adultLife.pregnancies.some(pg=>pg.name===name&&!pg.born&&pg.status!=="已結束");
+   if(!already){
+     pregnancyRisk=true;
+     p.adultLife.pregnancies.push({
+       name,week:state.date.week,year:state.date.year,progressWeeks:0,
+       status:"可能懷孕",birthPending:false,source:"女粉絲事件"
+     });
+     state.characters[name].known=true;
+     state.characters[name].important=true;
+     state.characters[name].temporaryFan=false;
+     state.logs.push(`🤰 女粉絲事件後，${name} 出現懷孕可能，需要後續確認。`);
+   }
+ }
+
+ let caught=false;
+ if((p.romance?.partners||[]).length&&Math.random()<.28){
+   caught=true;
+   (p.romance.partners||[]).forEach(n=>p.relations[n]=clamp((p.relations[n]||0)-rand(8,16),0,100));
+   changeEthics(-4,"對伴侶不忠被發現");
+   state.logs.push("感情風波：戀人發現你與女粉絲有私下關係。未公開前不影響職業風評。");
+ }
+
+ state.logs.push(`💌 女粉絲事件：你與 ${name} 發生了關係${pregnancyRisk?"，之後出現懷孕可能":""}。`);
+
+ const resultText=pregnancyRisk
+   ?`你與 <strong>${name}</strong> 發生了關係。之後她告訴你，<strong>可能懷孕了</strong>。`
+   :`你與 <strong>${name}</strong> 發生了關係。`;
+
+ // 匿名粉絲若沒有重要後續不留社交；具名粉絲永久保留。
+ if(!named&&!pregnancyRisk){
+   delete state.characters[name];delete p.relations[name];
+ }else if(named){
+   state.characters[name].known=true;state.characters[name].socialContact=true;state.characters[name].temporaryFan=false;
+ }
+
+ save();
+ render();
+ modal(`<h2>💌 女粉絲事件結果</h2><p>${resultText}</p>${named?`<div class="notice">${name} 已加入社交好友。</div>`:""}${caught?`<div class="notice badtext">⚠️ 戀人得知此事，關係下降。</div>`:""}${closeBtn()}`);
 }
 function maybePublicRomanceScandal(){
  const p=state.player,partners=p.romance?.partners||[];if(partners.length<2&&!p.adultLife?.fanIncidents)return;
@@ -2673,6 +2772,8 @@ function migrateProV1905(){const p=state.player;if(p.v1905Migrated)return;ensure
 function migrateProV1906(){const p=state.player;if(p.v1906Migrated)return;state.logs.push("🔧 V1.9.0.6：重做私人約會流程。邀請成功後一定先顯示接受結果，再由玩家點擊「繼續私人約會」進入下一步，不再直接跳過。");p.v1906Migrated=true;}
 function migrateProV1907(){const p=state.player;if(p.v1907Migrated)return;state.logs.push("🔧 V1.9.0.7：私人約會恢復成單次點擊直接顯示結果；修正女粉絲按鈕無法點選。");p.v1907Migrated=true;}
 function migrateProV1908(){const p=state.player;if(p.v1908Migrated)return;state.logs.push("🔧 V1.9.0.8：私人約會改為完全獨立的一鍵結果流程，最後一步才顯示結果視窗，避免被 render 覆蓋；女粉絲入口改回正確的 meetFemaleFan。");p.v1908Migrated=true;}
+function migrateProV1909(){const p=state.player;if(p.v1909Migrated)return;state.logs.push("🔧 V1.9.0.9：修正女粉絲首頁按鈕實際走錯入口；女粉絲事件改成與私人約會相同的穩定小視窗結果流程。");p.v1909Migrated=true;}
+function migrateProV1910(){const p=state.player;if(p.v1910Migrated)return;state.logs.push("🆕 V1.9.1.0：女粉絲事件取消拒絕結果；具名女粉絲加入社交、匿名女粉絲不保留；社交好友新增分類。");p.v1910Migrated=true;}
 function proDaySerial(){return ((state.date.year||2026)*52+(state.date.week||1))*7+(state.date.day||1)}
 function proScheduleDayLabel(x){
  if(!x)return "未排定";const days=["一","二","三","四","五","六","日"],m=careerMonthFromWeek(x.week),y=x.year;
@@ -3048,11 +3149,25 @@ function runSocialActionByName(name,act){
  if(act==="breakup")return requestBreakup(name);
  return socialActivity(name,act);
 }
+function socialCategoryFor(name){
+ const p=state.player,c=state.characters?.[name];
+ if(p.romance?.spouse===name)return "老婆";
+ if(confirmedProfessionalRecord(name))return "職業選手";
+ if((p.proCareer?.coaches||[]).some(x=>x.name===name)||c?.isProStaff)return "教練／工作人員";
+ if(c?.gender==="女")return "女生朋友";
+ if(c?.gender==="男")return "男生朋友";
+ return "其他";
+}
 function chooseSocial(){
  ensureV10();if(isProfessionalStage())ensureProRoster();if(remain()<1){modal(`<h2>今天沒有剩餘時段</h2><p>社交需要 1 個時段。</p>${closeBtn()}`);return}
- const people=Object.values(state.characters||{}).filter(c=>c&&c.known&&c.name&&c.name!==state.player.name&&!isPlaceholderPersonName(c.name)&&proSocialAllowed(c)).sort((a,b)=>Number(!!b.isProStaff)-Number(!!a.isProStaff)),main=document.querySelector("#main");
- main.innerHTML=`<section class="card"><div class="row space"><h2>👥 社交／閒聊</h2><button id="socialReturn" class="ghost">← 返回</button></div><p class="small">選擇要互動的角色。</p><div class="social-page-grid">${people.map(c=>`<button type="button" class="choice social-person-page" data-person="${c.name}"><strong>找 ${c.name}</strong><span class="small">${relationTier(state.player.relations?.[c.name]||0,c.name)} · ${Math.round(state.player.relations?.[c.name]||0)} · ${Number.isFinite(c.age)?c.age+"歲 · ":""}${safeTraits(c).join("、")||"個性尚未熟悉"} · ${socialProfileMeta(c.name).identity} · ${socialProfileMeta(c.name).relationship}</span></button>`).join("")}</div><button id="socialFive" class="btn secondary" style="width:100%;margin-top:12px">揪朋友五排開黑</button></section>`;
+ const all=Object.values(state.characters||{}).filter(c=>c&&c.known&&c.name&&c.name!==state.player.name&&!isPlaceholderPersonName(c.name)&&proSocialAllowed(c));
+ const order=["老婆","職業選手","教練／工作人員","女生朋友","男生朋友","其他"],groups={};all.forEach(c=>(groups[socialCategoryFor(c.name)]??=[]).push(c));
+ state.ui=state.ui||{};let active=state.ui.socialCategory;if(!active||!groups[active])active=order.find(x=>groups[x]?.length)||"其他";state.ui.socialCategory=active;
+ const people=(groups[active]||[]).sort((a,b)=>(state.player.relations?.[b.name]||0)-(state.player.relations?.[a.name]||0)),main=document.querySelector("#main");
+ const tabs=order.filter(x=>groups[x]?.length).map(x=>`<button type="button" class="${x===active?"primary":"ghost"} social-cat" data-cat="${x}">${x} (${groups[x].length})</button>`).join("");
+ main.innerHTML=`<section class="card"><div class="row space"><h2>👥 社交／閒聊</h2><button id="socialReturn" class="ghost">← 返回</button></div><div class="reply-grid">${tabs}</div></section><section class="card"><h2>${active}</h2><div class="social-page-grid">${people.map(c=>`<button type="button" class="choice social-person-page" data-person="${c.name}"><strong>找 ${c.name}</strong><span class="small">${relationTier(state.player.relations?.[c.name]||0,c.name)} · ${Math.round(state.player.relations?.[c.name]||0)} · ${Number.isFinite(c.age)?c.age+"歲 · ":""}${safeTraits(c).join("、")||"個性尚未熟悉"} · ${socialProfileMeta(c.name).identity} · ${socialProfileMeta(c.name).relationship}</span></button>`).join("")||`<div class="small">此分類目前沒有人。</div>`}</div><button id="socialFive" class="btn secondary" style="width:100%;margin-top:12px">揪朋友五排開黑</button></section>`;
  document.querySelector("#socialReturn")?.addEventListener("click",render);document.querySelector("#socialFive")?.addEventListener("click",friendFiveStack);
+ document.querySelectorAll(".social-cat").forEach(b=>b.onclick=()=>{state.ui.socialCategory=b.dataset.cat;chooseSocial()});
  document.querySelectorAll(".social-person-page").forEach(b=>b.addEventListener("click",()=>openSocialPersonPage(b.dataset.person)));
 }
 function openSocialPersonPage(name){
