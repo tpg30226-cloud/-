@@ -548,27 +548,44 @@ function shouldLocalAcquaintanceBeGamer(name,context){
  return socialStableHash(name,`gamer:${context}`)%100<44;
 }
 function makeLocalAcquaintanceMeta(name,country,city,context,gender="女"){
- const gamer=shouldLocalAcquaintanceBeGamer(name,context)&&socialStableHash(name,"civilian")%100<36,gameRole=gamer?diversifiedGameRole(name):null,career=gamer?"業餘玩家":civilianCareerFor(name,context,gender);
- return {gender,age:18+stableAgeOffset(name,13),nationality:country,homeCountry:country,homeCity:city,currentCountry:country,currentCity:city,career,role:gamer?gameRole:career,playsGame:gamer,identityType:gamer?"業餘玩家":career,publicFigure:isPublicFigureCareer(career),acquaintanceSource:`${country}・${city}${placeName(context)}`,romanceable:gender==="女",traits:["外向","好奇"],desc:`在${city}${placeName(context)}認識的${career}。`};
+ const gamer=shouldLocalAcquaintanceBeGamer(name,context)&&socialStableHash(name,"civilian")%100<36,gameRole=gamer?diversifiedGameRole(name):null;
+ const career=civilianCareerFor(name,context,gender);
+ return {gender,age:18+stableAgeOffset(name,13),nationality:country,homeCountry:country,homeCity:city,currentCountry:country,currentCity:city,career,occupation:career,gameRole,role:gamer?gameRole:career,playsGame:gamer,identityType:career,publicFigure:isPublicFigureCareer(career),acquaintanceSource:`${country}・${city}${placeName(context)}`,romanceable:gender==="女",traits:["外向","好奇"],desc:`在${city}${placeName(context)}認識的${career}${gamer?`，平時也會玩${gameRole}`:""}。`};
 }
 function repairFlexibleAcquaintanceRoles(){
  const protectedNames=new Set(Object.keys(STORY_SOCIAL_IDENTITIES||{}));
  Object.values(state.characters||{}).forEach(c=>{
   if(!c?.name||protectedNames.has(c.name)||c.isPro||c.isProStaff)return;
   const src=`${c.acquaintanceSource||""} ${c.desc||""} ${c.role||""}`;
-  const flexible=/旅行|當地|生活期間|國際賽期間|酒吧認識|海外|城市|電競館|PC Bang/.test(src);
+  const flexible=/旅行|當地|生活期間|國際賽期間|酒吧|海外|城市|電競館|PC Bang|夜間街區/.test(src);
   if(!flexible)return;
-  const context=/電競館|PC Bang/.test(src)?"arcade":/酒吧/.test(src)?"bar":"local";
-  const gamer=shouldLocalAcquaintanceBeGamer(c.name,context);
-  if(gamer){
-   c.playsGame=true;c.identityType="業餘玩家";c.role=diversifiedGameRole(c.name);
-   c.desc=(c.desc||"").replace(/中路玩家/g,`${c.role}玩家`);
-  }else{
-   c.playsGame=false;c.identityType="一般人";
-   if(["上路","打野","中路","ADC","輔助","下路","射手"].includes(c.role))c.role="一般人";
-  }
+  const context=/電競館|PC Bang/.test(src)?"arcade":/酒吧/.test(src)?"bar":/夜間街區/.test(src)?"night":/景點/.test(src)?"landmark":"local";
+  const gender=c.gender||"女";
+  const career=c.career||c.occupation||civilianCareerFor(c.name,context,gender);
+  c.career=career;c.occupation=career;c.identityType=career;c.publicFigure=isPublicFigureCareer(career);
+  const gamer=c.playsGame===true||shouldLocalAcquaintanceBeGamer(c.name,context)&&socialStableHash(c.name,"civilian")%100<36;
+  c.playsGame=!!gamer;
+  if(gamer){c.gameRole=c.gameRole||(["上路","打野","中路","ADC","輔助"].includes(normalizeRole(c.role))?normalizeRole(c.role):diversifiedGameRole(c.name));c.role=c.gameRole}
+  else if(["上路","打野","中路","ADC","輔助","下路","射手","業餘玩家","一般人"].includes(c.role))c.role=career;
  });
 }
+function repairPermanentCivilianProfessions(){
+ const p=state.player;
+ Object.values(state.characters||{}).forEach(c=>{
+  if(!c?.name||STORY_SOCIAL_IDENTITIES[c.name]||c.isPro||c.isProStaff||confirmedProfessionalRecord(c.name)||c.formerSpouse)return;
+  const src=`${c.acquaintanceSource||""} ${c.desc||""}`;
+  if(!/台灣|日本|韓國|中國|美國|德國|法國|英國|西班牙|酒吧|夜間街區|當地|旅行|國際賽/.test(src))return;
+  let context=/酒吧/.test(src)?"bar":/夜間街區/.test(src)?"night":/電競館|PC Bang/.test(src)?"arcade":/景點/.test(src)?"landmark":"local";
+  let career=c.career||c.occupation;
+  if(!career||["業餘玩家","一般人"].includes(career))career=civilianCareerFor(c.name,context,c.gender||"女");
+  c.career=career;c.occupation=career;c.identityType=career;c.publicFigure=isPublicFigureCareer(career);
+  if(c.playsGame){c.gameRole=c.gameRole||(["上路","打野","中路","ADC","輔助"].includes(normalizeRole(c.role))?normalizeRole(c.role):diversifiedGameRole(c.name));c.role=c.gameRole}
+  else if(["上路","打野","中路","ADC","輔助","下路","射手","業餘玩家","一般人"].includes(c.role))c.role=career;
+ });
+ // 已知 V1.9.1.8 截圖中的舊存檔人物：依當時生成規則還原永久職業。
+ [["許家豪","藝人","男"],["許雅涵","模特兒","女"]].forEach(([name,career,gender])=>{const c=state.characters?.[name];if(!c)return;c.gender=c.gender||gender;c.career=career;c.occupation=career;c.identityType=career;c.publicFigure=isPublicFigureCareer(career);if(c.playsGame){c.gameRole=c.gameRole||diversifiedGameRole(name);c.role=c.gameRole}else c.role=career});
+}
+
 function createResidenceEncounter(context){
  const p=state.player,{country,city}=currentLocationProfile();
  if(Math.random()<.78){
@@ -706,6 +723,8 @@ function openMessage(id){
   duoInvite:[["yes","接受邀約"],["no","婉拒邀約"]],
   socialInvite:[["yes","接受邀約"],["no","婉拒邀約"]],
   private:[["yes","接受私人邀約"],["no","婉拒私人邀約"]],
+  poach:[["interest","有興趣，進入正式轉會程序"],["decline","婉拒挖角"]],
+  poachContract:[["accept","接受合約並完成轉會"],["demands","先談附加條件"],["decline","拒絕這份合約"]],
   teamInvite:[
    ["join","好，我們組隊報名。"],["ask","先問比賽時間跟隊友。"],["decline","最近沒辦法參加。"]
   ]
@@ -738,6 +757,12 @@ function resolveMessage(m,r){
  }
  if(m.type==="socialInvite"||m.type==="private"){
   const person=m.from;if(r==="yes"){if(remain()<1){modal(`<h2>行程已滿</h2><p>接受邀約需要1格生活時段。</p>${closeBtn()}`);return}if(!socialLocationAvailable(person)){modal(`<h2>📍 目前無法赴約</h2><p>${person} 與你不在同一地區。</p>${closeBtn()}`);return}if(!consume(`接受${person}邀約`,1))return;state.player.relations[person]=clamp((state.player.relations[person]||0)+(m.type==="private"?4:2),0,100);state.logs.push(`📱 接受 ${person} 的${m.inviteLabel||"邀約"}，已占用1格生活時段並完成赴約。`);if(m.type==="private")state.logs.push(`🌙 與 ${person} 度過私人約會時光。`)}else{state.player.relations[person]=clamp((state.player.relations[person]||0)-rand(1,3),0,100);state.logs.push(`📱 婉拒 ${person} 的${m.inviteLabel||"邀約"}，關係小幅下降。`)}m.resolved=true;m.replied=true;save();document.querySelector('.modal-backdrop')?.remove();render();return;
+ }
+ if(m.type==="poach"){
+  resolvePoachMessage(m,r);return;
+ }
+ if(m.type==="poachContract"){
+  resolvePoachContractMessage(m,r);return;
  }
  if(m.type==="teamInvite"){
   if(r==="join"){registerTournament();state.player.relations.阿哲=clamp((state.player.relations.阿哲||0)+3,0,100);state.messages.push({id:"team-ok-"+Date.now(),from:"阿哲",text:"太好了！我去拉人。賽程確定後我傳給你。",unread:true,resolved:true,type:"normal"})}
@@ -1006,6 +1031,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  migrateProV1916();
  migrateProV1917();
  migrateProV1918();
+ migrateProV1919();
  migrateProV183();
  if(!p.v170Migrated){
    if(isProfessionalStage()){
@@ -1087,6 +1113,7 @@ function identityTypeFor(name){
  if(/粉絲|直播/.test(t))return "女粉絲";
  if(/媒體|記者/.test(t))return "媒體";
  if(/翻譯|工作人員/.test(t))return "工作人員";
+ if(c?.career||c?.occupation)return c.career||c.occupation;
  if(c?.playsGame||["上路","打野","中路","ADC","輔助"].includes(normalizeRole(c?.role)))return "業餘玩家";
  return "一般人";
 }
@@ -1533,7 +1560,7 @@ function career(){
  return `${proCareerCard()}${recentProMatchCard()}${annualCalendarCard()}${transferMarketCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${commercialCard()}${fanMeetingCard()}${teamBuildingCard()}${legalMediaCard()}${assetCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${isProfessionalStage()?stat("大眾評價",Math.round(ensureAudienceRating().rating)):""}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.1.8</strong>｜動態新聞、全服菁英榜、好感階段、校園朋友圈、花錢系統、段考週、業餘賽事與緋聞架構。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.1.9</strong>｜主動邀約可接受／婉拒、挖角轉會完整後續、NPC永久真實職業顯示。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));document.querySelector("#doTryout")?.addEventListener("click",doProTryout);document.querySelector("#signProContract")?.addEventListener("click",signProContract);document.querySelector("#counterOffer")?.addEventListener("click",counterInitialOffer);document.querySelector("#declineOffer")?.addEventListener("click",declineInitialOffer);document.querySelector("#playLeagueMatch")?.addEventListener("click",playLeagueMatch);document.querySelector("#askRaise")?.addEventListener("click",()=>negotiateContract("raise"));document.querySelector("#offerCut")?.addEventListener("click",()=>negotiateContract("cut"));document.querySelector("#requestTransfer")?.addEventListener("click",()=>negotiateContract("transfer"));document.querySelector("#earlyRenewal")?.addEventListener("click",earlyRenewalTalk);document.querySelectorAll(".pregnancy-talk").forEach(b=>b.onclick=()=>pregnancyDecisionByName(b.dataset.name));document.querySelectorAll(".child-choice").forEach(b=>b.onclick=()=>childSupportDecision(b.dataset.name,b.dataset.choice));document.querySelectorAll(".sponsor-action").forEach(b=>b.onclick=()=>sponsorAction(b.dataset.action));document.querySelector("#launchMerch")?.addEventListener("click",launchSponsorMerch);document.querySelectorAll(".donate-btn").forEach(b=>b.onclick=()=>makeDonation(+b.dataset.amt));document.querySelector("#proposeMarriage")?.addEventListener("click",proposeMarriage);document.querySelector("#marriageTalk")?.addEventListener("click",resolveMarriageCrisis);document.querySelector("#prAction")?.addEventListener("click",openPRResponse);document.querySelector("#suggestRecruit")?.addEventListener("click",openRecruitSuggestionV1918);document.querySelector("#contractDemands")?.addEventListener("click",contractDemandTalk);document.querySelector("#stiScreen")?.addEventListener("click",doStiScreen);document.querySelectorAll(".rupture-talk").forEach(b=>b.onclick=()=>{resolveTeamRupture(b.dataset.mate);save();render()});document.querySelectorAll(".asset-buy").forEach(b=>b.onclick=()=>buyAsset(b.dataset.id));document.querySelectorAll(".alumni-donate").forEach(b=>b.onclick=()=>alumniDonate(+b.dataset.amt));document.querySelector("#fanMeeting")?.addEventListener("click",runFanMeeting);document.querySelector("#teamBuilding")?.addEventListener("click",runTeamBuilding);document.querySelector("#seekCommercial")?.addEventListener("click",seekCommercial);document.querySelectorAll(".legal-action").forEach(b=>b.onclick=()=>handleLegalAction(b.dataset.a));document.querySelector("#leakSomeone")?.addEventListener("click",leakSomeone);document.querySelectorAll(".leave-request").forEach(b=>b.onclick=()=>requestCoachLeave(b.dataset.reason));document.querySelector("#main")?.addEventListener("click",e=>{const b=e.target.closest?.(".birth-event");if(b){e.preventDefault();e.stopPropagation();b.dataset.pregId?resolveBirthEventById(b.dataset.pregId):resolveBirthEvent(b.dataset.name)}});document.querySelectorAll(".child-care-action").forEach(b=>b.onclick=()=>spendTimeWithChild(b.dataset.name));document.querySelectorAll(".infant-care-action").forEach(b=>b.onclick=()=>infantCare(b.dataset.name));document.querySelectorAll(".legacy-birth-choice").forEach(b=>b.onclick=()=>recordLegacyBirthChoice(b.dataset.name,b.dataset.choice));document.querySelectorAll(".legacy-child-choice").forEach(b=>b.onclick=()=>childSupportDecision(b.dataset.name,b.dataset.choice));document.querySelector("#injuryTreat")?.addEventListener("click",treatInjury);document.querySelector("#injuryRehab")?.addEventListener("click",rehabInjury);document.querySelector("#healthCheck")?.addEventListener("click",generalHealthCheck);document.querySelector("#stiTreat")?.addEventListener("click",treatSti);document.querySelector("#viewLastMatchReport")?.addEventListener("click",showMatchReport);document.querySelector("#resumePostInterview")?.addEventListener("click",showPostMatchMedia);
@@ -2063,8 +2090,8 @@ function maybeNpcInvitation(){
  const c=cands[rand(0,cands.length-1)],rel=p.relations[c.name]||50,pro=!!proIdentity(c.name),dating=(p.romance.partners||[]).includes(c.name);
  const opts=dating?["吃晚餐","約會","一起休息"]:pro?["吃飯聊比賽","Rank雙排","一起覆盤"]:["吃飯","逛街","聊天"];
  const activity=opts[rand(0,opts.length-1)];
- state.messages.push({id:"invite-"+Date.now()+rand(1,999),from:c.name,text:`${dating?"最近都沒什麼時間見面。":""}要不要找時間${activity}？`,unread:true,resolved:true,type:"normal"});
- state.logs.push(`📱 ${c.name} 主動邀約你${activity}。`);
+ state.messages.push({id:"invite-"+Date.now()+rand(1,999),from:c.name,text:`${dating?"最近都沒什麼時間見面。":""}要不要找時間${activity}？`,unread:true,resolved:false,type:"socialInvite",inviteLabel:activity});
+ state.logs.push(`📱 ${c.name} 主動邀約你${activity}，等待你接受或婉拒。`);
 }
 function esportsCircleEvent(){
  if(!isProfessionalStage()||Math.random()>.07)return;const p=state.player,pc=p.proCareer,events=[
@@ -2256,7 +2283,50 @@ function openPRResponse(){
  });
 }
 function contractDetails(c){completeContract(c);return `出賽率≥${c.requirements.appearance}%｜賽季${c.requirements.season}｜風評≥${c.requirements.reputation}｜Rank ${c.requirements.rank}｜違約金 NT$${c.buyout.toLocaleString()}`}
-function poachingTick(){const p=state.player,pc=p.proCareer;if(!isProfessionalStage()||Math.random()>.035)return;const team=PRO_TEAMS.filter(x=>x!==pc.team)[rand(0,10)];pc.poachOffer={team,salary:Math.round((pc.contract.salary*rand(105,145)/100)/1000)*1000};state.messages.push({id:"poach-"+Date.now(),from:`${team} 經紀窗口`,text:`我們對你有興趣，初步薪資可到 NT$${pc.poachOffer.salary.toLocaleString()}。若仍有合約，必須走正式轉會程序。`,unread:true,resolved:true,type:"normal"});state.logs.push(`👀 ${team} 對夜鋒展開挖角。`)}
+function poachTransferApproved(){return /^同意/.test(state.player.proCareer?.transferRequest?.status||"")}
+function pushPoachContractMessage(offer){
+ const pc=state.player.proCareer;if(!offer||offer.contractMessageSent)return;offer.contractMessageSent=true;offer.status="談判中";
+ pc.pendingExternalOffer={team:offer.team,salary:offer.salary,years:offer.years||rand(1,3),transferFee:offer.transferFee||0,type:"一軍",demands:offer.demands||[]};
+ state.messages.push({id:"poach-contract-"+Date.now(),from:`${offer.team} 經紀窗口`,text:`現任俱樂部已同意進入轉會談判。${offer.transferFee?`我們願意處理約 NT$${offer.transferFee.toLocaleString()} 的轉會費。\n`:""}正式個人合約：${pc.pendingExternalOffer.years} 年，一軍，月薪 NT$${offer.salary.toLocaleString()}。`,unread:true,resolved:false,type:"poachContract",team:offer.team});
+ state.logs.push(`📄 ${offer.team} 正式提出個人合約，轉會進入最後談判。`);
+}
+function advancePoachTransfer(){
+ const p=state.player,pc=p.proCareer,o=pc.poachOffer;if(!o||o.status==="拒絕"||o.status==="失敗"||o.contractMessageSent)return;
+ if(!poachTransferApproved()){o.status="等待現隊放行";return}
+ const fee=Math.round(((pc.contract?.buyout||pc.contract?.salary*12||600000)*rand(65,105)/100)/1000)*1000;o.transferFee=fee;
+ const buyerChance=clamp(.72+(avg()-75)*.006+(p.followers||0)/2500000-(fee>5000000?.10:0),.38,.94);
+ if(Math.random()>buyerChance){o.status="失敗";state.messages.push({id:"poach-fee-fail-"+Date.now(),from:`${o.team} 經紀窗口`,text:`我們和 ${pc.team} 談過轉會費，但目前差距太大，這次交易暫時無法繼續。`,unread:true,resolved:true,type:"normal"});state.logs.push(`⛔ ${o.team} 與 ${pc.team} 未能談妥轉會費，挖角暫時中止。`);return}
+ o.years=o.years||rand(1,3);pushPoachContractMessage(o);
+}
+function resolvePoachMessage(m,r){
+ const pc=state.player.proCareer,o=pc.poachOffer;if(!o||o.team!==(m.team||String(m.from).replace(/ 經紀窗口$/, ""))){m.resolved=true;m.replied=true;save();document.querySelector('.modal-backdrop')?.remove();render();return}
+ if(r==="decline"){o.status="拒絕";m.resolved=true;m.replied=true;state.logs.push(`❌ 你婉拒 ${o.team} 的挖角。`);save();document.querySelector('.modal-backdrop')?.remove();render();return}
+ o.status="有興趣";m.resolved=true;m.replied=true;state.logs.push(`👀 你回覆 ${o.team}：願意進入正式轉會程序。`);
+ if(poachTransferApproved())advancePoachTransfer();else{state.messages.push({id:"poach-wait-"+Date.now(),from:`${o.team} 經紀窗口`,text:`了解。我們會保留興趣；你目前仍有合約，請先取得 ${pc.team} 的轉會放行。放行後我們會直接與俱樂部談轉會費。`,unread:true,resolved:true,type:"normal"});o.status="等待現隊放行"}
+ save();document.querySelector('.modal-backdrop')?.remove();render();
+}
+function poachDemandOptions(){return ["保證先發","補強指定位置","不過度干涉合法私生活","允許個人直播","允許個人商業代言","重大轉會先溝通"]}
+function openPoachDemandTalk(m){
+ const pc=state.player.proCareer,o=pc.pendingExternalOffer;if(!o)return;modal(`<h2>📝 與 ${o.team} 談附加條件</h2><p class="small">條件越多，談判破裂機率越高。</p><div class="reply-grid">${poachDemandOptions().map(x=>`<button class="reply poach-demand" data-v="${x}">${x}</button>`).join("")}</div>${closeBtn()}`);
+ document.querySelectorAll('.poach-demand').forEach(b=>b.onclick=()=>{o.demands=o.demands||[];const d=b.dataset.v;if(o.demands.includes(d))return;const chance=clamp(.78+(avg()-80)*.008+(state.player.followers||0)/3000000-o.demands.length*.12,.30,.93);if(Math.random()<chance){o.demands.push(d);state.logs.push(`📝 ${o.team} 接受轉會附加條件：「${d}」。`);state.messages.push({id:"poach-demand-ok-"+Date.now(),from:`${o.team} 經紀窗口`,text:`我們接受「${d}」。目前附加條件：${o.demands.join("、")}。你仍可回到合約訊息決定是否簽約。`,unread:true,resolved:true,type:"normal"})}else{state.logs.push(`⛔ ${o.team} 拒絕附加條件：「${d}」，但目前合約報價仍有效。`)}save();document.querySelector('.modal-backdrop')?.remove();render()});
+}
+function finalizeExternalPoachTransfer(){
+ const p=state.player,pc=p.proCareer,o=pc.pendingExternalOffer;if(!o)return;const old=pc.team;archiveCurrentCoaches(old);pc.team=o.team;pc.stage="starter";pc.contract={team:o.team,type:"一軍",salary:o.salary,years:o.years,start:{year:state.date.year,week:state.date.week},lengthWeeks:o.years*52,demands:[...(o.demands||[])]};completeContract(pc.contract);pc.roster=[];pc.coaches=[];pc.season=null;pc.transferRequest=null;pc.forcedTransferPending=null;pc.releaseRisk=Math.max(0,(pc.releaseRisk||0)-20);pc.poachOffer=null;pc.pendingExternalOffer=null;pc.subRosterInitialized=false;pc.coachTrust=50;pc.joinedAt={year:state.date.year,week:state.date.week};ensureProRoster();ensureRosterSubstitutes();initProSeason();pc.residence=currentResidenceProfile();state.logs.push(`✍️ 正式轉會：${old} → ${pc.team}，${o.years}年一軍合約，月薪 NT$${o.salary.toLocaleString()}。`);state.news.unshift(`🔄 轉會完成：夜鋒由 ${old} 加盟 ${pc.team}。`);state.messages.push({id:"transfer-done-"+Date.now(),from:`${pc.team} 管理層`,text:`轉會手續完成，歡迎加入 ${pc.team}。接下來會安排報到、隊內訓練與新賽季規劃。`,unread:true,resolved:true,type:"normal"});
+}
+function resolvePoachContractMessage(m,r){
+ const pc=state.player.proCareer,o=pc.pendingExternalOffer;if(!o){m.resolved=true;m.replied=true;save();document.querySelector('.modal-backdrop')?.remove();render();return}
+ if(r==="demands"){document.querySelector('.modal-backdrop')?.remove();openPoachDemandTalk(m);return}
+ if(r==="decline"){state.logs.push(`❌ 你拒絕 ${o.team} 的正式轉會合約。`);if(pc.poachOffer)pc.poachOffer.status="拒絕";pc.pendingExternalOffer=null;m.resolved=true;m.replied=true;save();document.querySelector('.modal-backdrop')?.remove();render();return}
+ m.resolved=true;m.replied=true;finalizeExternalPoachTransfer();save();document.querySelector('.modal-backdrop')?.remove();render();
+}
+function recoverPoachFlow(){
+ const pc=state.player.proCareer,o=pc?.poachOffer;if(!isProfessionalStage()||!o?.team)return;
+ const team=o.team,hasAction=(state.messages||[]).some(m=>!m.resolved&&(m.type==="poach"||m.type==="poachContract")&&(m.team===team||String(m.from||"").startsWith(team)));
+ if(pc.pendingExternalOffer&&!hasAction){pushPoachContractMessage({...o,contractMessageSent:false});return}
+ if((o.status==="有興趣"||o.status==="等待現隊放行"||poachTransferApproved())&&poachTransferApproved()){advancePoachTransfer();return}
+ if(!hasAction&&!["拒絕","失敗"].includes(o.status)){state.messages.push({id:"poach-recover-"+Date.now(),from:`${team} 經紀窗口`,text:`先前我們向你提出過挖角，初步薪資 NT$${Number(o.salary||0).toLocaleString()}。你是否願意正式進入轉會程序？`,unread:true,resolved:false,type:"poach",team});o.status=o.status||"等待回覆"}
+}
+function poachingTick(){const p=state.player,pc=p.proCareer;if(!isProfessionalStage()||!pc.contract||pc.poachOffer?.status==="談判中"||Math.random()>.035)return;const teams=PRO_TEAMS.filter(x=>x!==pc.team),team=teams[rand(0,teams.length-1)];pc.poachOffer={team,salary:Math.round((pc.contract.salary*rand(105,145)/100)/1000)*1000,status:"等待回覆",createdYear:state.date.year,createdWeek:state.date.week};state.messages.push({id:"poach-"+Date.now(),from:`${team} 經紀窗口`,text:`我們對你有興趣，初步薪資可到 NT$${pc.poachOffer.salary.toLocaleString()}。若仍有合約，必須走正式轉會程序。`,unread:true,resolved:false,type:"poach",team});state.logs.push(`👀 ${team} 對夜鋒展開挖角，等待你的回覆。`)}
 function openRecruitSuggestion(){const p=state.player,pc=p.proCareer,cands=Object.values(state.characters).filter(c=>c.isPro&&c.name!==p.name).slice(0,8);modal(`<h2>🧲 建議戰隊補強</h2><div class="reply-grid">${cands.map(c=>`<button class="reply recruit-choice" data-n="${c.name}">${c.name}｜${proIdentity(c.name)||c.role}</button>`).join("")}</div>${closeBtn()}`);document.querySelectorAll('.recruit-choice').forEach(b=>b.onclick=()=>{const n=b.dataset.n,rel=p.relations[n]||0,illegal=Math.random()<clamp((rel-40)/180,.03,.28);if(illegal){const fine=rand(30000,150000);p.cash-=fine;p.adultLife.careerReputation=clamp(p.adultLife.careerReputation-5,0,100);pc.suspension=rand(1,3);state.news.unshift(`⚖️ 聯盟認定夜鋒涉及不當私下招募，罰款 NT$${fine.toLocaleString()} 並禁賽 ${pc.suspension} 場。`)}else state.logs.push(`🧲 你向管理層推薦挖角 ${n}，戰隊將評估合約、轉會費與陣容需求。`);save();document.querySelector('.modal-backdrop')?.remove();render()})}
 function rankCompetitionTick(){const p=state.player;if(!["宗師","菁英"].includes(p.rank))return;const decay=p.rank==="菁英"?rand(8,24):rand(3,12);p.lp=Math.max(0,p.lp-decay);state.logs.push(`📉 高端Rank競爭：本週其他玩家持續上分，你的排名積分相對回落 ${decay} LP。`);refreshLeaderboard()}
 function undergroundRomanceTick(){const p=state.player;Object.values(state.characters||{}).forEach(c=>{if(!c?.publicFigure||c.relationshipType!=="地下戀人")return;c.secretRomanceRisk=clamp((c.secretRomanceRisk||5)-.5,0,100);if(c.secretRomanceRisk>=20&&Math.random()<c.secretRomanceRisk/900){c.publicRomance=true;c.relationshipType=(p.romance?.partners||[]).includes(c.name)?"戀人":"曖昧對象";ensurePublicImage().haters+=rand(2,10);state.news.unshift(`📸 媒體拍到夜鋒與${c.career||"公眾人物"} ${c.name} 私下見面，地下關係面臨曝光。`);state.logs.push(`📸 與 ${c.name} 的地下戀情曝光。`)}})}
@@ -2278,7 +2348,7 @@ function commercialCard(){if(!isProfessionalStage())return "";const a=ensureComm
 function seekCommercial(){const a=ensureCommercial(),free=COMMERCIAL_CATEGORIES.filter(c=>!a.some(x=>x.category===c));if(!free.length)return;const cat=free[rand(0,free.length-1)],brand=`${["Apex","Nova","Pulse","Vertex","Prime"][rand(0,4)]} ${cat}`,pay=Math.round((rand(30000,180000)+(state.player.followers||0)/20)/1000)*1000,required=cat==="直播平台"?rand(6,12):0;a.push({category:cat,brand,pay,weeks:rand(12,52),lastPay:state.date.week,required,done:0});state.logs.push(`💼 簽下 ${brand}「${cat}」合作。${required?`每4週需直播至少 ${required} 次。`:""}`);save();render()}
 function commercialTick(){const p=state.player,a=ensureCommercial();a.forEach(x=>{x.weeks--;if((state.date.week-x.lastPay+52)%52>=4){let pay=x.pay;if(x.category==="直播平台"&&(x.done||0)<x.required){pay=Math.round(pay*.55);state.logs.push(`⚠️ ${x.brand} 直播履約不足 ${x.done||0}/${x.required}，本期酬勞遭扣減。`)}p.cash+=pay;x.lastPay=state.date.week;x.done=0}});p.proCareer.commercialContracts=a.filter(x=>x.weeks>0)}
 function professionalWeeklyTick(){syncCompanionCurrentLocation();undergroundRomanceTick();ensureRosterSubstitutes();repairSocialHomeLocations();maybeNpcVisitsPlayer();maybeSocialInvitation();maybeDefamation();commercialTick();transferMarketTick();teamRuptureWeeklyTick();disciplineRuptureTick();ensureTeammatePartners();if(Math.random()<.22)maybeMeetTeammateGirlfriend();const lp=ensureLifestyle();if(state.date.week%4===0){const ids=[...lp.assets.homes,...lp.assets.vehicles],cost=ids.reduce((sum,id)=>sum+(ASSET_CATALOG.find(x=>x.id===id)?.maint||0),0);if(cost){lp.cash=Math.max(0,lp.cash-cost);state.logs.push(`🏠 本期資產維護費 NT$${cost.toLocaleString()}。`)}}salaryTick();sponsorTick();sponsorMerchTick();childSupportTick();rankCompetitionTick();blackFanTick();poachingTick();maybeTeamEarlyRenewalOffer();ensureMeta();const p=state.player,pc=p.proCareer;if(pc.contract){completeContract(pc.contract);if(p.adultLife.careerReputation<pc.contract.requirements.reputation&&Math.random()<.2)state.logs.push("⚠️ 合約警告：目前職業風評低於戰隊要求。")}}
-function professionalDailyTick(){if(!isProfessionalStage())return;syncAnnualCompetition();if(isTransferWindow())ensureTransferMarket();salaryTick();if(state.player.proCareer.suspension>0&&isProMatchToday()){state.logs.push(`⛔ 你仍有 ${state.player.proCareer.suspension} 場禁賽處分。`)}}
+function professionalDailyTick(){if(!isProfessionalStage())return;syncAnnualCompetition();if(isTransferWindow())ensureTransferMarket();repairPermanentCivilianProfessions();recoverPoachFlow();salaryTick();if(state.player.proCareer.suspension>0&&isProMatchToday()){state.logs.push(`⛔ 你仍有 ${state.player.proCareer.suspension} 場禁賽處分。`)}}
 const PRO_ROSTER_NAMES={
  "KNG Esports":["韓曜辰","周凱文","夜鋒","林承皓","江允澤"],
  "Nova Gaming":["沈奕辰","顧言澈","許哲宇","陸子昂","程以安"],
@@ -3036,6 +3106,14 @@ function migrateProV1917(){
  p.v1917Migrated=true;
 }
 function migrateProV1918(){const p=state.player;if(p.v1918Migrated)return;repairChampionFollowers();ensureAudienceRating();ensureImageRepair();ensureMediaLaw();ensureCommercial();ensureRosterSubstitutes();syncCompanionCurrentLocation();state.logs.push("🆕 V1.9.1.8：職業生涯與社會關係大型更新完成：粉絲補償、比賽吸粉、大眾評價、教練信任、NPC所在地／多職業男女、求婚選人、婚後住所、主動邀約、粉絲見面會、團建、替補、球探挖角、法律爆料、形象修復、地下戀情、合約要求與多重商業合作。");p.v1918Migrated=true}
+function migrateProV1919(){
+ const p=state.player;if(p.v1919Migrated)return;
+ repairPermanentCivilianProfessions();
+ (state.messages||[]).forEach(m=>{if(m&&m.type==="normal"&&!m.replied&&/要不要找時間|有空嗎？想約你一起/.test(m.text||"")&&state.characters?.[m.from]){m.type="socialInvite";m.resolved=false;m.inviteLabel=(m.text.match(/找時間(.+?)？/)||m.text.match(/一起(.+?)。/)||[])[1]||"見面"}});
+ const pc=p.proCareer;if(pc?.poachOffer?.team){pc.poachOffer.status=pc.poachOffer.status||"等待回覆";recoverPoachFlow()}
+ state.logs.push("🔧 V1.9.1.9：修正NPC主動邀約可接受／婉拒；挖角正式串接轉會放行、轉會費與個人合約；生活圈人物永久保留真實職業，藝人／模特兒等不再被業餘玩家覆蓋。");
+ p.v1919Migrated=true;
+}
 function proDaySerial(){return ((state.date.year||2026)*52+(state.date.week||1))*7+(state.date.day||1)}
 function proScheduleDayLabel(x){
  if(!x)return "未排定";const days=["一","二","三","四","五","六","日"],m=careerMonthFromWeek(x.week),y=x.year;
@@ -3489,7 +3567,7 @@ function negotiateContract(kind){
   const last=pc.negotiation.transferWeek||0;if(now-last<3){state.logs.push(`💬 管理層剛處理過你的轉會要求，至少再等 ${3-(now-last)} 週才能重新提出。`);save();render();return}
   pc.negotiation.transferWeek=now;
   const chance=clamp(.22+(100-pc.coachTrust)*.003+(cs.matches>8?.08:0)+(p.adultLife.careerReputation<40?.06:0),.15,.62),roll=Math.random();
-  if(roll<chance){pc.transferRequest={status:"同意尋找買家",week:state.date.week};state.logs.push(`🔄 轉會申請獲准（成功率約 ${Math.round(chance*100)}%）。戰隊同意聽取其他隊伍報價，但仍不代表一定有人出價。`)}
+  if(roll<chance){pc.transferRequest={status:"同意尋找買家",week:state.date.week};state.logs.push(`🔄 轉會申請獲准（成功率約 ${Math.round(chance*100)}%）。戰隊同意聽取其他隊伍報價。`);if(pc.poachOffer&&!['拒絕','失敗'].includes(pc.poachOffer.status)){pc.poachOffer.status='有興趣';advancePoachTransfer()}}
   else{pc.transferRequest={status:"暫時拒絕",week:state.date.week};pc.coachTrust=clamp(pc.coachTrust-rand(1,4),0,100);state.logs.push(`⛔ 轉會申請遭拒（成功率約 ${Math.round(chance*100)}%）。戰隊目前不願放人。`)}
  }
  save();render();
