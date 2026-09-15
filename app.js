@@ -396,13 +396,17 @@ function socialActivity(person,type){
    const labels={chat:"聊天散步",food:"一起吃飯",cafe:"去咖啡廳",movie:"看電影",date:"正式約會",arcade:"去電競館",hangout:"逛街閒晃",game:"一起打遊戲",latefood:"吃宵夜"};
    state.logs.push(`社交：和 ${person}${labels[type]||"相處"}，支出 NT$${cost.toLocaleString()}，關係 +${gain}。`);
  }
- save();render();
+ save();
  if(type==="date"){
    const rel=state.player.relations?.[person]||0;
-   setTimeout(()=>modal(`<h2>💗 正式約會完成</h2><p>你和 <strong>${person}</strong> 完成了今天的正式約會。</p><div class="notice">關係 +${gain}${cost?`<br>花費 NT$${cost.toLocaleString()}`:""}<br>目前關係值：${rel}</div><p class="small">約會已確實消耗 1 格生活時段，不會直接跳過結果。</p>${closeBtn()}`),0);
- }else{
-   setTimeout(()=>maybeRomanceEvent(),0);
+   // V1.9.2.8 hard regression: never render between date settlement and result modal.
+   // Safari could replace the social page before the deferred modal was painted, making the date look skipped.
+   modal(`<h2>💗 正式約會完成</h2><p>你和 <strong>${person}</strong> 完成了今天的正式約會。</p><div class="notice goodtext">關係 +${gain}${cost?`<br>花費 NT$${cost.toLocaleString()}`:""}<br>目前關係值：${rel}</div><p>心情有所放鬆，這次正常約會不會降低競技狀態。</p><p class="small">已消耗 1 格生活時段。</p><button id="dateResultOk" class="primary">確定</button>`);
+   document.querySelector("#dateResultOk")?.addEventListener("click",()=>{document.querySelector('.modal-backdrop')?.remove();render();});
+   return;
  }
+ render();
+ setTimeout(()=>maybeRomanceEvent(),0);
 }
 function isInternationalTrip(){return isProfessionalStage()&&["MSI","世界賽"].includes(proAnnualPhase())}
 
@@ -1036,7 +1040,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  migrateProV1919();
  migrateProV1921();
  migrateProV1922();
- migrateProV1926();migrateProV1927();migrateProV1924();migrateProV1923();
+ migrateProV1926();migrateProV1928();migrateProV1924();migrateProV1923();
  migrateProV183();
  if(!p.v170Migrated){
    if(isProfessionalStage()){
@@ -3150,9 +3154,9 @@ function inferHistoricLastMatchTeam(){
  return null;
 }
 function migrateProV1921(){const p=state.player;if(p.v1921Migrated)return;const pc=p.proCareer;if(pc?.lastMatch&&!pc.lastMatch.team)inferHistoricLastMatchTeam();(pc?.matchHistory||[]).forEach(x=>{if(!x.team&&pc.lastMatch&&x.opp===pc.lastMatch.opp&&x.score===pc.lastMatch.score&&x.week===pc.lastMatch.week&&pc.lastMatch.team)x.team=pc.lastMatch.team});state.logs.push("🔧 V1.9.2.1：最近比賽紀錄改為保存『比賽當時戰隊』，轉隊後不再被新戰隊名稱覆蓋；合約『補強指定位置』可選上路／打野／中路／下路／輔助，並保存為正式談判條件。");p.v1921Migrated=true}
-function migrateProV1926(){const p=state.player;if(p.v1927Migrated)return;ensureMediaLaw();p.v1927Migrated=true;state.logs.push("🔧 V1.9.2.7：修復換日容錯與法律／公關舊存檔 teamLevel 異常，聘請按鈕恢復顯示。");}
+function migrateProV1926(){const p=state.player;if(p.v1928Migrated)return;ensureMediaLaw();p.v1928Migrated=true;state.logs.push("🔧 V1.9.2.8：修復換日容錯與法律／公關舊存檔 teamLevel 異常，聘請按鈕恢復顯示。");}
 function migrateProV1924(){const p=state.player;if(p.v1924Migrated)return;ensureMediaLaw();ensureImageRepair();(p.adultLife?.pregnancies||[]).filter(x=>x.born).forEach(ensureSupportAgreement);p.v1924Migrated=true;state.logs.push("🔧 V1.9.2.4：修復職業週換日缺失函式；法律／公關與既有子女扶養和解入口恢復顯示。");}
-function migrateProV1927(){const p=state.player;if(p.v1927Migrated)return;repairCompetitiveFormV1927();ensureProRoster();ensureRosterSubstitutes();p.v1927Migrated=true;state.logs.push("🔧 V1.9.2.7：重製競技狀態、修正正常約會不降狀態；新增戰隊頁面與比賽復盤。");}
+function migrateProV1928(){const p=state.player;if(p.v1928Migrated)return;repairCompetitiveFormV1928();ensureProRoster();ensureRosterSubstitutes();p.v1928Migrated=true;state.logs.push("🔧 V1.9.2.8：重製競技狀態、修正正常約會不降狀態；新增戰隊頁面與比賽復盤。");}
 function migrateProV1923(){const p=state.player;if(p.v1923Migrated)return;const pc=p.proCareer||{};if(pc.contract)completeContract(pc.contract);p.v1923Migrated=true;state.logs.push("🔧 V1.9.2.3：修復舊存檔載入時 contractDetails 缺失造成的生涯頁錯誤。")}
 function migrateProV1922(){const p=state.player;if(p.v1922Migrated)return;ensureEthics();ensureMediaLaw();ensureImageRepair();(p.adultLife?.pregnancies||[]).filter(x=>x.born).forEach(ensureSupportAgreement);if(!p.v1922CareerRepRefunded){const before=p.adultLife.careerReputation;p.adultLife.careerReputation=clamp(before+50,0,100);p.adultLife.reputationHistory.unshift({delta:+(p.adultLife.careerReputation-before).toFixed(1),reason:"V1.9.2.2 重複爆料職業風評補償",year:state.date.year,week:state.date.week});p.v1922CareerRepRefunded=true;state.logs.push(`🎁 V1.9.2.2 補償：因舊版同一事件重複扣除職業風評，已返還 ${Math.round(p.adultLife.careerReputation-before)} 點（上限100）。`)}state.logs.push("🔧 V1.9.2.2：同一爆料改為事件追蹤，舊聞不再重複扣完整職業風評；加入改過自新、法律／公關團隊，以及前女友親子扶養和解協議。");p.v1922Migrated=true}
 function proDaySerial(){return ((state.date.year||2026)*52+(state.date.week||1))*7+(state.date.day||1)}
@@ -3632,14 +3636,14 @@ function changeCompetitiveForm(delta,reason){
  if(actual!==0){c.formHistory.unshift({year:state.date.year,week:state.date.week,day:state.date.day,delta:actual,reason});c.formHistory=c.formHistory.slice(0,20);state.logs.push(`🔥 競技狀態 ${actual>0?"+":""}${actual.toFixed(1)}：${reason}。`)}
  return actual;
 }
-function repairCompetitiveFormV1927(){
- const p=state.player,c=ensureCompetitiveForm();if(p.v1927FormRepaired)return;
+function repairCompetitiveFormV1928(){
+ const p=state.player,c=ensureCompetitiveForm();if(p.v1928FormRepaired)return;
  const cs=p.proCareer?.careerStats||{},recent=p.proCareer?.lastMatch;
  let baseline=58+(avg()-70)*.22+(p.energy-60)*.08+(p.mood-60)*.07-(p.stress-40)*.08;
  if(recent?.win)baseline+=4;if(recent?.mvp)baseline+=3;if((cs.seriesW||0)>(cs.seriesL||0))baseline+=3;if(p.condition?.injury)baseline-=7;
  const repaired=clamp(Math.round(baseline),48,82);
- if(c.form<55&&repaired>c.form){const before=c.form;c.form=repaired;c.formHistory.unshift({year:state.date.year,week:state.date.week,day:state.date.day,delta:+(repaired-before).toFixed(1),reason:"V1.9.2.7 舊版低迷狀態重新校正"});state.logs.push(`🛠️ V1.9.2.7：競技狀態由 ${Math.round(before)} 校正為 ${Math.round(repaired)}。`)}
- p.v1927FormRepaired=true;
+ if(c.form<55&&repaired>c.form){const before=c.form;c.form=repaired;c.formHistory.unshift({year:state.date.year,week:state.date.week,day:state.date.day,delta:+(repaired-before).toFixed(1),reason:"V1.9.2.8 舊版低迷狀態重新校正"});state.logs.push(`🛠️ V1.9.2.8：競技狀態由 ${Math.round(before)} 校正為 ${Math.round(repaired)}。`)}
+ p.v1928FormRepaired=true;
 }
 function competitiveFormCard(){
  if(!isProfessionalStage())return "";const c=ensureCompetitiveForm(),h=(c.formHistory||[]).slice(0,7);
