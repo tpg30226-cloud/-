@@ -1063,6 +1063,8 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  }
  migrateProV1930();
  migrateProV1932();
+ migrateProV1933();
+ migrateProV1934();
 }
 function isProFriend(name){return !!confirmedProfessionalRecord(name)}
 function ensureProCharacter(name){
@@ -3210,6 +3212,42 @@ function migrateProV1921(){const p=state.player;if(p.v1921Migrated)return;const 
 function migrateProV1926(){const p=state.player;if(p.v1928Migrated)return;ensureMediaLaw();p.v1928Migrated=true;state.logs.push("🔧 V1.9.2.8：修復換日容錯與法律／公關舊存檔 teamLevel 異常，聘請按鈕恢復顯示。");}
 function migrateProV1924(){const p=state.player;if(p.v1924Migrated)return;ensureMediaLaw();ensureImageRepair();(p.adultLife?.pregnancies||[]).filter(x=>x.born).forEach(ensureSupportAgreement);p.v1924Migrated=true;state.logs.push("🔧 V1.9.2.4：修復職業週換日缺失函式；法律／公關與既有子女扶養和解入口恢復顯示。");}
 
+function migrateProV1934(){
+ const p=state.player,pc=p?.proCareer;if(!pc||p.v1934WorldIdentityFix)return;
+ const ev=pc.international?.worlds;
+ if(ev){
+   // 修復舊存檔分組：同一戰隊只能出現一次；玩家戰隊固定保留原本所在組（通常 A 組）。
+   if(ev.groups?.length){
+     const seen=new Set();let playerKept=false;
+     for(const g of ev.groups){
+       g.teams=(g.teams||[]).filter(t=>{if(!t)return false;if(t===pc.team){if(playerKept)return false;playerKept=true}if(seen.has(t))return false;seen.add(t);return true});
+     }
+     const valid=(ev.seedEntries||[]).map(x=>x?.team).filter(Boolean);
+     for(const t of valid){if(seen.has(t))continue;const target=[...ev.groups].sort((a,b)=>(a.teams?.length||0)-(b.teams?.length||0)).find(g=>(g.teams?.length||0)<4);if(target){target.teams.push(t);seen.add(t)}}
+     // 若舊版 seedEntries 本身已錯誤，且尚未開打，依 V1.9.3.2 規則重建整屆名單與分組。
+     const flat=ev.groups.flatMap(g=>g.teams||[]),bad=flat.length!==16||new Set(flat).size!==16;
+     if(bad&&!ev.schedule?.some(x=>x.played)){ev.groups=[];ev.seedEntries=[];ev.stage="抽籤前";buildInternationalTournament("世界賽")}
+   }
+   // 已晉級淘汰賽的舊存檔：把 LCK Summer #1 等槽位代號立即換成該屆真實種子戰隊。
+   for(const m of ev.schedule||[]){
+     if(m?.knockout&&!m.played&&/^(LCK|LPL|LEC|LCS|PCS)\s+(Spring|Summer)\s+#(\d)$/i.test(m.opp||"")){
+       const z=m.opp.match(/^(LCK|LPL|LEC|LCS|PCS)\s+(Spring|Summer)\s+#(\d)$/i),region=z[1].toUpperCase(),seed=Number(z[3]);
+       const real=(ev.seedEntries||[]).find(x=>x.region===region&&Number(x.seed)===seed)?.team||worldsSeedsForRegion(region,region===ev.msiBonusRegion)[seed-1];
+       if(real)m.opp=real;
+     }
+   }
+ }
+ p.v1934WorldIdentityFix=true;state.logs.push("🔧 V1.9.3.4：世界賽淘汰賽改用真實戰隊名稱；修復舊存檔重複 Nova Gaming 分組與 LCK Summer #1 等槽位代號。");
+}
+function migrateProV1933(){
+ const p=state.player;if(p.v1933BetrayalSpouseFix)return;
+ const spouse=p.romance?.spouse,by=p.emotion?.betrayalBy;
+ if(spouse&&by===spouse){
+   finalizeFormerSpouseState(spouse,"舊存檔修復：配偶劈腿，婚姻已破裂");
+   state.logs.push(`🔧 V1.9.3.3：${spouse} 已發生劈腿分手事件，身分由「老婆」修正為「前妻」，並清除婚姻／伴侶殘留狀態。`);
+ }
+ p.v1933BetrayalSpouseFix=true;
+}
 function migrateProV1932(){
  const p=state.player,pc=p?.proCareer;if(!pc||p.v1932WorldSeedFix)return;
  const it=ensureInternationalWorld(),ev=it?.worlds;
@@ -3271,8 +3309,14 @@ function advanceInternationalTournament(ev){
    ev.stage="淘汰賽";ev.knockoutRound=0;
    const slots=ph==="世界賽"?[[51,2],[51,5],[52,3]]:[[25,2],[25,5],[26,3]];
    const labels=["八強","四強","冠亞賽"];
-   const opps=ph==="世界賽"?["LCK Summer #1","LPL Summer #1","LEC Summer #1"]:["LCK Spring #1","LPL Spring #1","LEC Spring #1"];
-   slots.forEach((x,i)=>ev.schedule.push({id:`${ph}-KO-${i+1}`,phase:`${ph}${labels[i]}`,international:true,event:ph,knockout:true,round:i+1,year:state.date.year,week:x[0],day:x[1],opp:opps[i],bo:5,played:false}));
+   // 淘汰賽一律使用本屆世界賽已取得資格的真實戰隊名稱，不再顯示 LCK Summer #1 這類槽位代號。
+   const qualified=[...new Set((ev.seedEntries||[]).map(x=>x?.team).filter(Boolean).concat((ev.groups||[]).flatMap(g=>g.teams||[])))].filter(t=>t!==pc.team);
+   const myGroup=ev.groups?.find(g=>(g.teams||[]).includes(pc.team));
+   const sameGroup=new Set(myGroup?.teams||[]);
+   let pool=qualified.filter(t=>!sameGroup.has(t));if(pool.length<3)pool=qualified;
+   pool=[...pool].sort((a,b)=>{const ea=(ev.seedEntries||[]).find(x=>x.team===a),eb=(ev.seedEntries||[]).find(x=>x.team===b);return ((ea?.seed||9)-(eb?.seed||9))||String(a).localeCompare(String(b))});
+   const opps=[pool[0],pool.find(x=>x!==pool[0]),pool.find(x=>x!==pool[0]&&x!==pool[1])].filter(Boolean);
+   slots.forEach((x,i)=>ev.schedule.push({id:`${ph}-KO-${i+1}`,phase:`${ph}${labels[i]}`,international:true,event:ph,knockout:true,round:i+1,year:state.date.year,week:x[0],day:x[1],opp:opps[i]||qualified[i%Math.max(1,qualified.length)]||"待定戰隊",bo:5,played:false}));
    state.news.unshift(`🌍 ${pc.team} 從 ${ph} 分組賽晉級淘汰賽！`);
  }
 }
@@ -4096,9 +4140,11 @@ function maybePartnerBetrayal(){
   const tr=safeTraits(c),rel=p.relations[name]||0;
   let chance=.004+(rel<65?.012:0)+(tr.includes("心機")?.008:0)+(tr.includes("拜金")&&p.cash<5000?.006:0)-(tr.includes("老實")?.004:0);
   if(Math.random()>=clamp(chance,0,.035))continue;
+  const wasSpouse=p.romance?.spouse===name;
   p.romance.partners=p.romance.partners.filter(x=>x!==name);p.romance.partner=p.romance.partners[0]||null;
   p.relations[name]=clamp(rel-rand(40,60),0,100);p.mood=clamp(p.mood-28,0,100);p.stress=clamp(p.stress+24,0,100);if(Math.random()<.35)p.prCrisis={type:"劈腿分手後互相指控",severity:rand(1,4),source:name};
   p.emotion={betrayalUntil:state.date.week+2,betrayalBy:name};
+  if(wasSpouse)finalizeFormerSpouseState(name,"配偶劈腿，婚姻破裂");
   state.world.rumors.unshift(`${name} 被人看到和別人過度親密，你們的感情因此破裂。`);
   state.logs.push(`💔 ${name} 劈腿。夜鋒受到很大打擊，未來兩週Rank與比賽發揮下降。`);
   state.messages.push({id:"betray-"+Date.now(),from:name,text:"對不起……我做了很傷你的事。我們可能沒辦法再像以前一樣了。",unread:true,resolved:true,type:"normal"});
