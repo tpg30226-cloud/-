@@ -1064,7 +1064,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  migrateProV1930();
  migrateProV1932();
  migrateProV1933();
- migrateProV1934();
+ migrateProV1935();migrateProV1934();
 }
 function isProFriend(name){return !!confirmedProfessionalRecord(name)}
 function ensureProCharacter(name){
@@ -2771,7 +2771,12 @@ function worldsSeedsForRegion(region,hasBonus=false){
    const semis=(r.semiLosers||[]).filter(x=>!picked.includes(x)).sort((a,b)=>r.regular.indexOf(a)-r.regular.indexOf(b));
    add(semis[0]||r.regular.find(x=>!picked.includes(x)));
  }
- return picked.slice(0,hasBonus?4:3);
+ // 硬性保證每個賽區名額完整：一般3席、MSI冠軍賽區4席。
+ // 若舊存檔的季後賽結果資料不完整或冠亞軍與例行賽欄位重疊，依例行賽順位補足「尚未取得資格」的真實戰隊，絕不留下空席。
+ const need=hasBonus?4:3;
+ for(const t of r.regular||[]){if(picked.length>=need)break;add(t)}
+ for(const t of regionTeams(region)){if(picked.length>=need)break;add(t)}
+ return picked.slice(0,need);
 }
 function buildWorldsGroups(entries,playerTeam){
  const groups=["A","B","C","D"].map(name=>({name,teams:[],standings:[],regions:[]}));
@@ -3212,6 +3217,30 @@ function migrateProV1921(){const p=state.player;if(p.v1921Migrated)return;const 
 function migrateProV1926(){const p=state.player;if(p.v1928Migrated)return;ensureMediaLaw();p.v1928Migrated=true;state.logs.push("🔧 V1.9.2.8：修復換日容錯與法律／公關舊存檔 teamLevel 異常，聘請按鈕恢復顯示。");}
 function migrateProV1924(){const p=state.player;if(p.v1924Migrated)return;ensureMediaLaw();ensureImageRepair();(p.adultLife?.pregnancies||[]).filter(x=>x.born).forEach(ensureSupportAgreement);p.v1924Migrated=true;state.logs.push("🔧 V1.9.2.4：修復職業週換日缺失函式；法律／公關與既有子女扶養和解入口恢復顯示。");}
 
+function migrateProV1935(){
+ const p=state.player,pc=p?.proCareer;if(!pc||p.v1935World16Fix)return;
+ const ev=pc.international?.worlds;
+ if(ev?.groups?.length){
+   const bonus=ev.msiBonusRegion||msiChampionRegionForYear(state.date.year)||pc.region||"PCS",correct=[];
+   for(const r of PRO_REGIONS){const teams=worldsSeedsForRegion(r,r===bonus);for(let i=0;i<teams.length;i++)correct.push({team:teams[i],region:r,seed:i+1})}
+   // 60隊資料庫是唯一合法來源；每屆必須精確16隊且不得重複。
+   const legal=new Set(PRO_REGIONS.flatMap(r=>regionTeams(r))),uniq=[];
+   for(const x of correct){if(x?.team&&legal.has(x.team)&&!uniq.some(y=>y.team===x.team))uniq.push(x)}
+   // 理論上資格規則必定產生16隊；若舊資料異常，再按各賽區固定名單補足，但仍維持每區3/bonus4上限。
+   const quota=Object.fromEntries(PRO_REGIONS.map(r=>[r,r===bonus?4:3]));
+   for(const r of PRO_REGIONS){for(const t of regionTeams(r)){if(uniq.length>=16)break;if(uniq.filter(x=>x.region===r).length>=quota[r])break;if(!uniq.some(x=>x.team===t))uniq.push({team:t,region:r,seed:uniq.filter(x=>x.region===r).length+1})}}
+   ev.seedEntries=uniq.slice(0,16);ev.msiBonusRegion=bonus;
+   const allowed=new Set(ev.seedEntries.map(x=>x.team)),seen=new Set();
+   // 保留既有分組位置與已完成賽事，只移除重複／不合資格隊，再把缺少的合資格隊補進不足4隊的組。
+   for(const g of ev.groups){g.teams=(g.teams||[]).filter(t=>allowed.has(t)&&!seen.has(t)&&(seen.add(t),true))}
+   const missing=ev.seedEntries.map(x=>x.team).filter(t=>!seen.has(t));
+   for(const t of missing){const e=ev.seedEntries.find(x=>x.team===t),targets=ev.groups.filter(g=>(g.teams||[]).length<4);let target=targets.find(g=>!(g.teams||[]).some(n=>ev.seedEntries.find(x=>x.team===n)?.region===e.region))||targets[0];if(target){target.teams.push(t);seen.add(t)}}
+   // 最後一道硬檢查：若仍不是4x4，依完整16隊重新排組；玩家隊伍仍優先A組。
+   const flat=ev.groups.flatMap(g=>g.teams||[]);if(ev.groups.length!==4||ev.groups.some(g=>(g.teams||[]).length!==4)||flat.length!==16||new Set(flat).size!==16)ev.groups=buildWorldsGroups(ev.seedEntries,pc.team);
+   state.logs.push(`🔧 V1.9.3.5：世界賽名單硬性校正為16隊（${bonus} 4席，其餘賽區各3席），並補回舊版刪除重複隊伍後遺失的資格隊。`);
+ }
+ p.v1935World16Fix=true;
+}
 function migrateProV1934(){
  const p=state.player,pc=p?.proCareer;if(!pc||p.v1934WorldIdentityFix)return;
  const ev=pc.international?.worlds;
@@ -3237,7 +3266,7 @@ function migrateProV1934(){
      }
    }
  }
- p.v1934WorldIdentityFix=true;state.logs.push("🔧 V1.9.3.4：世界賽淘汰賽改用真實戰隊名稱；修復舊存檔重複 Nova Gaming 分組與 LCK Summer #1 等槽位代號。");
+ p.v1934WorldIdentityFix=true;state.logs.push("🔧 V1.9.3.5：世界賽淘汰賽改用真實戰隊名稱；修復舊存檔重複 Nova Gaming 分組與 LCK Summer #1 等槽位代號。");
 }
 function migrateProV1933(){
  const p=state.player;if(p.v1933BetrayalSpouseFix)return;
