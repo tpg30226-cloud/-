@@ -1200,7 +1200,7 @@ function currentRelationshipLabel(name){
  if(p.name===name)return "本人";
  if((p.romance?.marriage?.divorced||[]).some(x=>x.name===name)||c?.formerSpouse)return "前妻";
  if(p.romance?.spouse===name)return "老婆";
- if((p.romance?.partners||[]).includes(name))return "戀人";
+ if((p.romance?.partners||[]).includes(name))return c?.teammatePartnerOf?"地下戀情":"戀人";
  if(c?.relationshipType==="炮友")return "固定關係";
  if(c?.formerPartner)return "前任";
  if(c?.isRival)return "對手／宿敵";
@@ -1213,6 +1213,7 @@ function socialIdentity(name){
  const currentCoach=(pc.coaches||[]).find(x=>x.name===name);if(currentCoach)return `${pc.team}｜${currentCoach.role}`;
  if(c?.formerTeam&&c?.isProStaff)return `前 ${c.formerTeam}｜${c.formerRole||c.role||"教練"}`;
  if(pro)return `${pro.team}｜${pro.role}｜${pro.type}`;
+ if(c?.teammatePartnerOf)return `${c.teammatePartnerOf}的女友`;
  if(type==="業餘玩家"){const r=normalizeRole(c?.role||story?.gameRole);return `${type}${r?`｜${r}`:""}`}
  return type;
 }
@@ -1376,7 +1377,7 @@ function buyAsset(id){const p=ensureLifestyle(),x=ASSET_CATALOG.find(a=>a.id===i
 function alumniCard(){if(!isProfessionalStage())return "";const p=ensureLifestyle();return `<section class="card"><h2>🎓 回饋母校</h2><div class="small">累計回饋 NT$${p.alumni.donated.toLocaleString()}。可贊助電競社、獎學金或校園設備。</div><div class="reply-grid"><button class="reply alumni-donate" data-amt="50000">贊助電競社 5萬</button><button class="reply alumni-donate" data-amt="200000">設立獎學金 20萬</button><button class="reply alumni-donate" data-amt="1000000">校園大型回饋 100萬</button></div></section>`}
 function alumniDonate(amt){const p=ensureLifestyle();if(p.cash<amt)return;p.cash-=amt;p.alumni.donated+=amt;p.alumni.events++;changeEthics(Math.min(8,2+amt/250000),"回饋母校");positiveImageRepair("長期回饋母校與公益",Math.min(3,1+amt/500000));p.followers+=Math.round(amt/10000);state.logs.push(`🎓 回饋母校 NT$${amt.toLocaleString()}，校方與學弟妹表達感謝。`);save();render()}
 function teamBuildingCard(){if(!isProfessionalStage())return "";return `<section class="card"><h2>🏢 俱樂部團建</h2><div class="small">聚餐、慶功、KTV、烤肉、家屬活動或贊助商活動。消耗1格生活時段，可提升默契並認識隊友生活圈。</div><button id="teamBuilding" class="reply">參加俱樂部團建</button></section>`}
-function runTeamBuilding(){if(!consume("俱樂部團建",1))return;const p=state.player,pc=p.proCareer;ensureTeammatePartners();const mates=(pc.roster||[]).filter(x=>!x.isPlayer);mates.forEach(x=>p.relations[x.name]=clamp((p.relations[x.name]||50)+rand(1,3),0,100));pc.lockerRoom=clamp((pc.lockerRoom||65)+rand(2,5),0,100);pc.coachTrust=clamp((pc.coachTrust||50)+.5,0,100);const available=Object.entries(pc.teammatePartners||{}).filter(([mate,x])=>x?.name&&!state.characters?.[x.name]?.known);if(available.length&&Math.random()<.75){const [mate,x]=available[rand(0,available.length-1)];addSocialAcquaintance(x.name,25,{gender:"女",age:20+stableAgeOffset(x.name,8),identityType:`${mate}的女友`,role:"一般人",acquaintanceSource:"戰隊團建",romanceable:true,homeCountry:currentResidenceCountry(),homeCity:currentResidenceCity()});state.logs.push(`🎉 團建時 ${mate} 帶女友 ${x.name} 出席，你們正式認識。`)}else state.logs.push("🎉 參加俱樂部團建，隊友關係與團隊默契提升。");save();render()}
+function runTeamBuilding(){if(!consume("俱樂部團建",1))return;const p=state.player,pc=p.proCareer;ensureTeammatePartners();const mates=(pc.roster||[]).filter(x=>!x.isPlayer);mates.forEach(x=>p.relations[x.name]=clamp((p.relations[x.name]||50)+rand(1,3),0,100));pc.lockerRoom=clamp((pc.lockerRoom||65)+rand(2,5),0,100);pc.coachTrust=clamp((pc.coachTrust||50)+.5,0,100);const available=Object.entries(pc.teammatePartners||{}).filter(([mate,x])=>x?.name&&!state.characters?.[x.name]?.known);if(available.length&&Math.random()<.75){const [mate,x]=available[rand(0,available.length-1)];addSocialAcquaintance(x.name,25,{gender:"女",age:20+stableAgeOffset(x.name,8),identityType:`${mate}的女友`,role:"一般人",acquaintanceSource:"戰隊團建",romanceable:true,teammatePartnerOf:mate,homeCountry:currentResidenceCountry(),homeCity:currentResidenceCity()});state.logs.push(`🎉 團建時 ${mate} 帶女友 ${x.name} 出席，你們正式認識。`)}else state.logs.push("🎉 參加俱樂部團建，隊友關係與團隊默契提升。");save();render()}
 function ensureTeammatePartners(){
  const p=state.player,pc=p.proCareer;if(!isProfessionalStage()||!pc?.roster)return;
  pc.teammatePartners=pc.teammatePartners||{};
@@ -4163,12 +4164,12 @@ function resolveRomance(name,v){
  if(v==="wait"){p.romance.flags[name]={cooldown:state.date.week+1};state.logs.push(`你和 ${name} 暫時維持曖昧。`)}
  else if(v==="friend"){p.romance.flags[name]={cooldown:state.date.week+4,friendOnly:true};state.logs.push(`你決定和 ${name} 維持朋友關係。`)}
  else if(v==="accept"){
-   if(!p.romance.partners.includes(name))p.romance.partners.push(name);p.romance.partner=p.romance.partners[0]||name;p.relations[name]=clamp(rel+3,0,100);state.logs.push(`💞 你接受了 ${name} 的告白，正式開始交往。`);
+   if(!p.romance.partners.includes(name))p.romance.partners.push(name);p.romance.partner=p.romance.partners[0]||name;p.relations[name]=clamp(rel+3,0,100);if(c.teammatePartnerOf){c.relationshipType="地下戀人";c.secretRomanceRisk=Math.max(10,Number(c.secretRomanceRisk||0));state.logs.push(`🤫 你與隊友 ${c.teammatePartnerOf} 的女友 ${name} 開始地下交往。`)}else state.logs.push(`💞 你接受了 ${name} 的告白，正式開始交往。`);
  }else{
   let chance=.38+(rel-75)*.023;const tr=safeTraits(c);
   if(tr.includes("現實"))chance-=.05;if(tr.includes("天然呆"))chance-=.03;if(tr.includes("拜金")&&p.cash<10000)chance-=.10;if(tr.includes("老實"))chance+=.04;
   chance=clamp(chance,.28,.88);
-  if(Math.random()<chance){if(!p.romance.partners.includes(name))p.romance.partners.push(name);p.romance.partner=p.romance.partners[0]||name;p.relations[name]=clamp(rel+3,0,100);state.logs.push(`💞 ${name} 接受你的告白，你們正式開始交往。`)}
+  if(Math.random()<chance){if(!p.romance.partners.includes(name))p.romance.partners.push(name);p.romance.partner=p.romance.partners[0]||name;p.relations[name]=clamp(rel+3,0,100);if(c.teammatePartnerOf){c.relationshipType="地下戀人";c.secretRomanceRisk=Math.max(10,Number(c.secretRomanceRisk||0));state.logs.push(`🤫 ${name} 接受告白；因她仍是隊友 ${c.teammatePartnerOf} 的女友，你們成為地下戀情。`)}else state.logs.push(`💞 ${name} 接受你的告白，你們正式開始交往。`)}
   else{p.relations[name]=clamp(rel-2,0,100);p.romance.flags[name]={cooldown:state.date.week+3};state.logs.push(`${name} 還沒有準備好成為戀人。`)}
  }
  save();document.querySelector(".modal-backdrop")?.remove();render();
@@ -4217,6 +4218,13 @@ function offFieldFactorTick(){
  const e=["睡眠品質不佳","贊助商臨時追加拍攝","直播言論被截圖討論","交通延誤影響訓練","隊友爭吵","感情訊息影響專注","黑粉洗版","合約談判分心"][rand(0,7)];
  let de=0,ds=0,df=0;if(e.includes("睡眠")){de=rand(8,14);df=rand(2,5)}else if(e.includes("隊友")){ds=rand(5,10);pc.lockerRoom=clamp(pc.lockerRoom-rand(3,7),0,100)}else if(e.includes("黑粉")||e.includes("言論")){ds=rand(6,12);df=rand(1,4)}else{ds=rand(3,8);de=rand(2,6)}p.energy=clamp(p.energy-de,0,100);p.stress=clamp(p.stress+ds,0,100);p.condition.form=clamp(p.condition.form-df,0,100);state.logs.push(`🌐 場外因素：${e}｜體力 -${de}、壓力 +${ds}${df?`、狀態 -${df}`:""}。`)
 }
+function migrateProV1937(){
+ const p=state.player;if(p.v1937Migrated)return;const pc=p.proCareer||{};
+ Object.entries(pc.teammatePartners||{}).forEach(([mate,v])=>{if(!v?.name)return;const c=state.characters?.[v.name];if(!c)return;c.teammatePartnerOf=mate;c.identityType=`${mate}的女友`;if((p.romance?.partners||[]).includes(v.name)){c.relationshipType="地下戀人";c.secretRomanceRisk=Math.max(10,Number(c.secretRomanceRisk||0));}});
+ // Known legacy repair: 采恩 belongs to teammate 沈奕辰 when that teammate-partner pairing exists or she was introduced through the team circle.
+ const cai=state.characters?.["采恩"];if(cai&&!cai.teammatePartnerOf&&(pc.teammatePartners?.["沈奕辰"]?.name==="采恩"||String(cai.acquaintanceSource||"").includes("戰隊"))){cai.teammatePartnerOf="沈奕辰";cai.identityType="沈奕辰的女友";if((p.romance?.partners||[]).includes("采恩")){cai.relationshipType="地下戀人";cai.secretRomanceRisk=Math.max(10,Number(cai.secretRomanceRisk||0));}}
+ p.v1937Migrated=true;state.logs.push("🔧 V1.9.3.7：隊友女友身分改為明確標示所屬隊友；與隊友女友交往一律標記為地下戀情。");
+}
 function nextDay(){
  ensureV10();let oldWeek=state.date.week,oldDay=state.date.day;try{baseNextDay()}catch(err){state.logs.push(`⚠️ 換日相容修復：${err?.message||err}`);save();render()}
  const advanced=state.date.day!==oldDay||state.date.week!==oldWeek;
@@ -4242,4 +4250,5 @@ function nextDay(){
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{activeTab=b.dataset.tab;render()});
 document.querySelector("#resetBtn").onclick=()=>{if(confirm("確定刪除目前存檔並重開嗎？")){[SAVE_KEY,...OLD_KEYS].forEach(k=>localStorage.removeItem(k));state=newGame();activeTab="home";render()}};
 if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js",{updateViaCache:"none"}).then(r=>r.update()).catch(()=>{}));
+migrateProV1937();
 render();
