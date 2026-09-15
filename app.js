@@ -738,6 +738,7 @@ function openMessage(id){
  const replySets={
   duoInvite:[["yes","接受邀約"],["no","婉拒邀約"]],
   socialInvite:[["yes","接受邀約"],["no","婉拒邀約"]],
+  socialVisit:[["yes","好，這幾天見面"],["no","這次先不要"]],
   private:[["yes","接受私人邀約"],["no","婉拒私人邀約"]],
   poach:[["interest","有興趣，進入正式轉會程序"],["decline","婉拒挖角"]],
   poachContract:[["accept","接受合約並完成轉會"],["demands","先談附加條件"],["decline","拒絕這份合約"]],
@@ -773,6 +774,19 @@ function resolveMessage(m,r){
  }
  if(m.type==="socialInvite"||m.type==="private"){
   const person=m.from;if(r==="yes"){if(remain()<1){modal(`<h2>行程已滿</h2><p>接受邀約需要1格生活時段。</p>${closeBtn()}`);return}if(!socialLocationAvailable(person)){modal(`<h2>📍 目前無法赴約</h2><p>${person} 與你不在同一地區。</p>${closeBtn()}`);return}if(!consume(`接受${person}邀約`,1))return;state.player.relations[person]=clamp((state.player.relations[person]||0)+(m.type==="private"?4:2),0,100);state.logs.push(`📱 接受 ${person} 的${m.inviteLabel||"邀約"}，已占用1格生活時段並完成赴約。`);if(m.type==="private")state.logs.push(`🌙 與 ${person} 度過私人約會時光。`)}else{state.player.relations[person]=clamp((state.player.relations[person]||0)-rand(1,3),0,100);state.logs.push(`📱 婉拒 ${person} 的${m.inviteLabel||"邀約"}，關係小幅下降。`)}m.resolved=true;m.replied=true;save();document.querySelector('.modal-backdrop')?.remove();render();return;
+ }
+ if(m.type==="socialVisit"){
+  const person=m.from,c=state.characters?.[person];
+  if(r==="yes"){
+    if(c?.currentVisit){c.currentCountry=c.currentVisit.country;c.currentCity=c.currentVisit.city;c.currentTravelReason="主動來找夜鋒";}
+    state.player.relations[person]=clamp((state.player.relations[person]||0)+1,0,100);
+    state.logs.push(`✈️ 你答應 ${person} 這幾天見面；對方目前停留在你所在城市，可從社交頁安排活動。`);
+  }else{
+    if(c){delete c.currentVisit;c.currentCountry=c.homeCountry;c.currentCity=c.homeCity;delete c.currentTravelReason;}
+    state.logs.push(`📱 你婉拒了 ${person} 這次來訪的見面邀請。`);
+  }
+  m.resolved=true;m.replied=true;m.replyText=r==="yes"?"好，這幾天見面。":"這次先不要。";
+  save();document.querySelector('.modal-backdrop')?.remove();render();return;
  }
  if(m.type==="poach"){
   resolvePoachMessage(m,r);return;
@@ -1064,7 +1078,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  migrateProV1930();
  migrateProV1932();
  migrateProV1933();
- migrateProV1935();migrateProV1934();
+ migrateProV1935();migrateProV1934();migrateProV1936();
 }
 function isProFriend(name){return !!confirmedProfessionalRecord(name)}
 function ensureProCharacter(name){
@@ -3217,6 +3231,23 @@ function migrateProV1921(){const p=state.player;if(p.v1921Migrated)return;const 
 function migrateProV1926(){const p=state.player;if(p.v1928Migrated)return;ensureMediaLaw();p.v1928Migrated=true;state.logs.push("🔧 V1.9.2.8：修復換日容錯與法律／公關舊存檔 teamLevel 異常，聘請按鈕恢復顯示。");}
 function migrateProV1924(){const p=state.player;if(p.v1924Migrated)return;ensureMediaLaw();ensureImageRepair();(p.adultLife?.pregnancies||[]).filter(x=>x.born).forEach(ensureSupportAgreement);p.v1924Migrated=true;state.logs.push("🔧 V1.9.2.4：修復職業週換日缺失函式；法律／公關與既有子女扶養和解入口恢復顯示。");}
 
+function migrateProV1936(){
+ const p=state.player;if(p.v1936VisitFix)return;
+ const serial=state.date.year*364+(state.date.week-1)*7+state.date.day;
+ for(const m of (state.messages||[])){
+   if(!m?.from||!state.characters?.[m.from])continue;
+   const text=String(m.text||""),hit=text.match(/已經飛到\s*([^・。\s]+)・([^。\s]+)\s*了。這幾天要不要見面/);
+   if(!hit)continue;
+   const c=state.characters[m.from],country=hit[1],city=hit[2];
+   if(!c.homeCountry)c.homeCountry=c.currentCountry||c.nationality||null;
+   if(!c.homeCity)c.homeCity=c.currentCity||null;
+   c.currentVisit={country,city,from:{country:c.homeCountry||null,city:c.homeCity||null},untilSerial:Math.max(serial+3,c.currentVisit?.untilSerial||0),reason:"主動來找夜鋒"};
+   c.currentCountry=country;c.currentCity=city;c.currentTravelReason="主動來找夜鋒";
+   // 舊版把這類訊息直接標成已處理，導致只能按「繼續」。恢復為可接受／婉拒。
+   if(!m.replied){m.type="socialVisit";m.resolved=false;m.inviteLabel="來訪見面";}
+ }
+ p.v1936VisitFix=true;state.logs.push("🔧 V1.9.3.6：修復NPC主動飛來找你後所在地未更新，以及來訪邀請缺少接受／婉拒選項。");
+}
 function migrateProV1935(){
  const p=state.player,pc=p?.proCareer;if(!pc||p.v1935World16Fix)return;
  const ev=pc.international?.worlds;
@@ -3237,7 +3268,7 @@ function migrateProV1935(){
    for(const t of missing){const e=ev.seedEntries.find(x=>x.team===t),targets=ev.groups.filter(g=>(g.teams||[]).length<4);let target=targets.find(g=>!(g.teams||[]).some(n=>ev.seedEntries.find(x=>x.team===n)?.region===e.region))||targets[0];if(target){target.teams.push(t);seen.add(t)}}
    // 最後一道硬檢查：若仍不是4x4，依完整16隊重新排組；玩家隊伍仍優先A組。
    const flat=ev.groups.flatMap(g=>g.teams||[]);if(ev.groups.length!==4||ev.groups.some(g=>(g.teams||[]).length!==4)||flat.length!==16||new Set(flat).size!==16)ev.groups=buildWorldsGroups(ev.seedEntries,pc.team);
-   state.logs.push(`🔧 V1.9.3.5：世界賽名單硬性校正為16隊（${bonus} 4席，其餘賽區各3席），並補回舊版刪除重複隊伍後遺失的資格隊。`);
+   state.logs.push(`🔧 V1.9.3.6：世界賽名單硬性校正為16隊（${bonus} 4席，其餘賽區各3席），並補回舊版刪除重複隊伍後遺失的資格隊。`);
  }
  p.v1935World16Fix=true;
 }
@@ -3266,7 +3297,7 @@ function migrateProV1934(){
      }
    }
  }
- p.v1934WorldIdentityFix=true;state.logs.push("🔧 V1.9.3.5：世界賽淘汰賽改用真實戰隊名稱；修復舊存檔重複 Nova Gaming 分組與 LCK Summer #1 等槽位代號。");
+ p.v1934WorldIdentityFix=true;state.logs.push("🔧 V1.9.3.6：世界賽淘汰賽改用真實戰隊名稱；修復舊存檔重複 Nova Gaming 分組與 LCK Summer #1 等槽位代號。");
 }
 function migrateProV1933(){
  const p=state.player;if(p.v1933BetrayalSpouseFix)return;
@@ -3926,9 +3957,10 @@ function maybeNpcVisitsPlayer(){
  const c=candidates[Math.min(candidates.length-1,rand(0,Math.min(4,candidates.length-1)))],rel=p.relations[c.name]||0;
  const chance=clamp(.20+rel*.006+((p.romance?.partners||[]).includes(c.name)?.16:0)+(p.romance?.spouse===c.name?.22:0),.28,.88);
  if(Math.random()>chance)return;
- c.currentVisit={country:here.country,city:here.city,from:socialHomeLocation(c.name),untilSerial:serial+rand(2,5),reason:"主動來找夜鋒"};
- state.messages.push({id:"visit-"+Date.now(),from:c.name,text:`我最近剛好有時間，已經飛到 ${here.country}・${here.city} 了。這幾天要不要見面？`,unread:true,resolved:true,type:"normal"});
- state.logs.push(`✈️ ${c.name} 主動飛到 ${here.country}・${here.city} 找夜鋒，停留數天。`);
+ c.currentVisit={country:here.country,city:here.city,from:{country:c.homeCountry||c.nationality||null,city:c.homeCity||null},untilSerial:serial+rand(2,5),reason:"主動來找夜鋒"};
+ c.currentCountry=here.country;c.currentCity=here.city;c.currentTravelReason="主動來找夜鋒";
+ state.messages.push({id:"visit-"+Date.now(),from:c.name,text:`我最近剛好有時間，已經飛到 ${here.country}・${here.city} 了。這幾天要不要見面？`,unread:true,resolved:false,type:"socialVisit",inviteLabel:"來訪見面"});
+ state.logs.push(`✈️ ${c.name} 主動飛到 ${here.country}・${here.city} 找夜鋒，等待你決定是否見面。`);
 }
 function repairSocialHomeLocations(){
  Object.values(state.characters||{}).forEach(c=>{
