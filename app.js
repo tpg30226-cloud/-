@@ -1061,6 +1061,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
    }
    p.v170Migrated=true;
  }
+ migrateProV1930();
 }
 function isProFriend(name){return !!confirmedProfessionalRecord(name)}
 function ensureProCharacter(name){
@@ -3166,6 +3167,16 @@ function inferHistoricLastMatchTeam(){
 function migrateProV1921(){const p=state.player;if(p.v1921Migrated)return;const pc=p.proCareer;if(pc?.lastMatch&&!pc.lastMatch.team)inferHistoricLastMatchTeam();(pc?.matchHistory||[]).forEach(x=>{if(!x.team&&pc.lastMatch&&x.opp===pc.lastMatch.opp&&x.score===pc.lastMatch.score&&x.week===pc.lastMatch.week&&pc.lastMatch.team)x.team=pc.lastMatch.team});state.logs.push("🔧 V1.9.2.1：最近比賽紀錄改為保存『比賽當時戰隊』，轉隊後不再被新戰隊名稱覆蓋；合約『補強指定位置』可選上路／打野／中路／下路／輔助，並保存為正式談判條件。");p.v1921Migrated=true}
 function migrateProV1926(){const p=state.player;if(p.v1928Migrated)return;ensureMediaLaw();p.v1928Migrated=true;state.logs.push("🔧 V1.9.2.8：修復換日容錯與法律／公關舊存檔 teamLevel 異常，聘請按鈕恢復顯示。");}
 function migrateProV1924(){const p=state.player;if(p.v1924Migrated)return;ensureMediaLaw();ensureImageRepair();(p.adultLife?.pregnancies||[]).filter(x=>x.born).forEach(ensureSupportAgreement);p.v1924Migrated=true;state.logs.push("🔧 V1.9.2.4：修復職業週換日缺失函式；法律／公關與既有子女扶養和解入口恢復顯示。");}
+
+function migrateProV1930(){
+ const p=state.player,pc=p?.proCareer,sn=pc?.season;if(!sn)return;
+ if(sn.phase==="季後賽"&&(sn.playoffRound||0)===0&&sn.playoffSchedule&&!sn.playoffSchedule.played){
+   const sorted=[...sn.teams].sort((a,b)=>(b.w-a.w)||((b.gw-b.gl)-(a.gw-a.gl)));
+   const seed=Number(sn.seed)||Math.max(1,sorted.findIndex(x=>x.name===pc.team)+1),correct=sorted[(9-seed)-1];
+   if(correct&&sn.playoffSchedule.opp!==correct.name){const old=sn.playoffSchedule.opp;sn.playoffSchedule.opp=correct.name;state.logs.push(`🔧 V1.9.3.0：修正季後賽八強種子配對，${pc.team} 第 ${seed} 種子應對第 ${9-seed} 種子 ${correct.name}（原錯誤對手 ${old}）。`)}
+ }
+ p.v1930PlayoffSeedFix=true;
+}
 function migrateProV1928(){const p=state.player;if(p.v1928Migrated)return;repairCompetitiveFormV1928();ensureProRoster();ensureRosterSubstitutes();p.v1928Migrated=true;state.logs.push("🔧 V1.9.2.8：重製競技狀態、修正正常約會不降狀態；新增戰隊頁面與比賽復盤。");}
 function migrateProV1923(){const p=state.player;if(p.v1923Migrated)return;const pc=p.proCareer||{};if(pc.contract)completeContract(pc.contract);p.v1923Migrated=true;state.logs.push("🔧 V1.9.2.3：修復舊存檔載入時 contractDetails 缺失造成的生涯頁錯誤。")}
 function migrateProV1922(){const p=state.player;if(p.v1922Migrated)return;ensureEthics();ensureMediaLaw();ensureImageRepair();(p.adultLife?.pregnancies||[]).filter(x=>x.born).forEach(ensureSupportAgreement);if(!p.v1922CareerRepRefunded){const before=p.adultLife.careerReputation;p.adultLife.careerReputation=clamp(before+50,0,100);p.adultLife.reputationHistory.unshift({delta:+(p.adultLife.careerReputation-before).toFixed(1),reason:"V1.9.2.2 重複爆料職業風評補償",year:state.date.year,week:state.date.week});p.v1922CareerRepRefunded=true;state.logs.push(`🎁 V1.9.2.2 補償：因舊版同一事件重複扣除職業風評，已返還 ${Math.round(p.adultLife.careerReputation-before)} 點（上限100）。`)}state.logs.push("🔧 V1.9.2.2：同一爆料改為事件追蹤，舊聞不再重複扣完整職業風評；加入改過自新、法律／公關團隊，以及前女友親子扶養和解協議。");p.v1922Migrated=true}
@@ -3301,9 +3312,19 @@ function currentProOpponent(){
  const pc=state.player.proCareer,sn=pc.season;if(!sn)return null;
  if(sn.phase==="例行賽"){const m=currentScheduledProMatch();return m?sn.teams.find(x=>x.name===m.opp):null;}
  if(sn.phase==="季後賽"){
-   const sorted=[...sn.teams].sort((a,b)=>(b.w-a.w)||((b.gw-b.gl)-(a.gw-a.gl))),candidates=sorted.filter(x=>x.name!==pc.team);
-   const targets=[sn.seed<=4?8-sn.seed:9-sn.seed,rand(0,Math.min(5,candidates.length-1)),rand(0,Math.min(3,candidates.length-1))];
-   return candidates[Math.max(0,Math.min(candidates.length-1,targets[sn.playoffRound]??0))];
+   const sorted=[...sn.teams].sort((a,b)=>(b.w-a.w)||((b.gw-b.gl)-(a.gw-a.gl)));
+   // 八強固定依例行賽種子配對：1v8、2v7、3v6、4v5。不得從未晉級隊伍抽對手。
+   if((sn.playoffRound||0)===0){
+     const seed=Number(sn.seed)||Math.max(1,sorted.findIndex(x=>x.name===pc.team)+1);
+     const opponentSeed=9-seed;
+     return sorted[opponentSeed-1]||null;
+   }
+   // 四強／冠亞賽只從季後賽前八名中產生後續對手；排除自己與已交手對手。
+   const qualified=sorted.slice(0,8).filter(x=>x.name!==pc.team);
+   const played=new Set((sn.playoffOpponents||[]));
+   const available=qualified.filter(x=>!played.has(x.name));
+   const pool=available.length?available:qualified;
+   return pool.length?pool[rand(0,pool.length-1)]:null;
  }
  return null;
 }
@@ -3362,7 +3383,7 @@ function runRichLeagueMatch(){const difficultyPressure=.025+Math.max(0,(state.pl
  const need=sn.phase==="季後賽"?3:2;let my=0,his=0,logs=[],games=0;
  while(my<need&&his<need){games++;const wc=clamp((.50+(avg()-68)*.012+(p.condition.form-60)*.003+(chem-50)*.002+inj+lifeAdj+metaAdj+majorAdj)-.105-difficultyPressure,.10,.66),win=Math.random()<wc;if(win)my++;else his++;logs.push(...richGameEvents(games,opp,win))}
  if(sn.phase==="例行賽"){const sched=currentScheduledProMatch();if(sched)sched.played=true;me.w+=my>his?1:0;me.l+=my>his?0:1;me.gw+=my;me.gl+=his;opp.w+=my>his?0:1;opp.l+=my>his?1:0;opp.gw+=his;opp.gl+=my;sn.myMatches++;sn.matchesPlayed++;simulateOtherLeagueRound(me,opp);if(sn.myMatches>=22){preparePlayoffs();if(sn.phase==="季後賽")schedulePlayoffMatch();}}
- else if(sn.phase==="季後賽"){if(sn.playoffSchedule)sn.playoffSchedule.played=true;sn.matchesPlayed++;if(my>his){sn.playoffRound++;if(sn.playoffRound>=3){sn.phase="世界賽資格";sn.champion=pc.team;sn.playoffSchedule=null;state.news.unshift(`🏆 ${pc.team} 奪下聯賽冠軍，取得世界賽資格！`)}else{state.news.unshift(`🏆 ${pc.team} 贏下${playoffRoundLabel(sn.playoffRound-1)}，晉級${playoffRoundLabel(sn.playoffRound)}。`);schedulePlayoffMatch()}}else{sn.phase="賽季結束";sn.playoffSchedule=null;state.news.unshift(`${pc.team} 在季後賽遭淘汰，本季旅程結束。`)}}
+ else if(sn.phase==="季後賽"){if(sn.playoffSchedule){sn.playoffSchedule.played=true;sn.playoffOpponents=sn.playoffOpponents||[];if(sn.playoffSchedule.opp&&!sn.playoffOpponents.includes(sn.playoffSchedule.opp))sn.playoffOpponents.push(sn.playoffSchedule.opp)}sn.matchesPlayed++;if(my>his){sn.playoffRound++;if(sn.playoffRound>=3){sn.phase="世界賽資格";sn.champion=pc.team;sn.playoffSchedule=null;state.news.unshift(`🏆 ${pc.team} 奪下聯賽冠軍，取得世界賽資格！`)}else{state.news.unshift(`🏆 ${pc.team} 贏下${playoffRoundLabel(sn.playoffRound-1)}，晉級${playoffRoundLabel(sn.playoffRound)}。`);schedulePlayoffMatch()}}else{sn.phase="賽季結束";sn.playoffSchedule=null;state.news.unshift(`${pc.team} 在季後賽遭淘汰，本季旅程結束。`)}}
  const cs=rand(245,360),k=rand(my>his?4:1,my>his?10:6),d=rand(1,6),a=rand(5,14),mvp=my>his&&Math.random()<.28;
  pc.careerStats.matches++;pc.careerStats.seriesW+=my>his?1:0;pc.careerStats.seriesL+=my>his?0:1;pc.careerStats.gameW+=my;pc.careerStats.gameL+=his;pc.careerStats.kills+=k;pc.careerStats.deaths+=d;pc.careerStats.assists+=a;pc.careerStats.mvp+=mvp?1:0;
  pc.matchHistory.unshift({team:pc.team,opp:opp.name,score:`${my}:${his}`,win:my>his,k,d,a,cs,mvp,week:state.date.week});
