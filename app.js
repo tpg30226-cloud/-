@@ -1062,6 +1062,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
    p.v170Migrated=true;
  }
  migrateProV1930();
+ migrateProV1932();
 }
 function isProFriend(name){return !!confirmedProfessionalRecord(name)}
 function ensureProCharacter(name){
@@ -2733,18 +2734,59 @@ function internationalChampionRecentLines(){
  const h=ensureInternationalChampionHistory().filter(x=>x?.team).slice(0,6);
  return h.map(x=>`🏆 ${x.year} ${x.event} 冠軍：${x.team}${x.region?`（${x.region}）`:""}`);
 }
+function leagueRegularOrder(region){
+ const pc=state.player.proCareer,myRegion=pc.region||"PCS";
+ if(region===myRegion&&pc.season?.teams?.length){return [...pc.season.teams].sort((a,b)=>(b.w-a.w)||((b.gw-b.gl)-(a.gw-a.gl))).map(x=>x.name).filter(Boolean)}
+ return regionTeams(region);
+}
+function regionSummerPlayoffResult(region){
+ const pc=state.player.proCareer,myRegion=pc.region||"PCS",regular=leagueRegularOrder(region),top8=regular.slice(0,8);
+ if(region===myRegion&&pc.season?.playoffs){
+   const sn=pc.season,played=sn.playoffOpponents||[],round=Number(sn.playoffRound)||0,me=pc.team;
+   let champion=null,runnerUp=null,semiLosers=[];
+   if(sn.champion===me){champion=me;runnerUp=played[2]||top8.find(x=>x!==me)||null;semiLosers=top8.filter(x=>x!==champion&&x!==runnerUp).slice(0,2)}
+   else if(sn.phase==="賽季結束"){
+     if(round>=2){runnerUp=me;champion=played[2]||top8.find(x=>x!==me)||null;semiLosers=top8.filter(x=>x!==champion&&x!==runnerUp).slice(0,2)}
+     else if(round===1){semiLosers=[me];const finalists=top8.filter(x=>x!==me&&x!==played[0]);champion=finalists[0]||top8[0];runnerUp=finalists[1]||top8[1];const other=top8.find(x=>x!==me&&x!==champion&&x!==runnerUp);if(other)semiLosers.push(other)}
+   }
+   if(champion&&runnerUp)return {champion,runnerUp,semiLosers:[...new Set(semiLosers)].slice(0,2),regular};
+ }
+ // 非玩家賽區仍先完整模擬季後賽，再依例行賽排名作同輪淘汰排序。
+ const shift=(state.date.year+PRO_REGIONS.indexOf(region))%Math.max(1,Math.min(4,top8.length));
+ const champion=top8[shift]||regular[0],runnerUp=top8[(shift+1)%Math.max(1,top8.length)]||regular[1];
+ const semiLosers=top8.filter(x=>x!==champion&&x!==runnerUp).slice(0,2);
+ return {champion,runnerUp,semiLosers,regular};
+}
+function worldsSeedsForRegion(region,hasBonus=false){
+ const r=regionSummerPlayoffResult(region),picked=[];
+ const add=x=>{if(x&&!picked.includes(x))picked.push(x)};
+ // 季後賽成績優先：冠軍 #1、亞軍 #2。
+ add(r.champion);add(r.runnerUp);
+ // #3 為例行賽最高、且尚未因季後賽冠亞軍取得資格者。
+ add(r.regular.find(x=>!picked.includes(x)));
+ if(hasBonus){
+   // MSI 額外 #4：兩支四強敗隊中，以例行賽成績較高者優先；已取得資格者跳過。
+   const semis=(r.semiLosers||[]).filter(x=>!picked.includes(x)).sort((a,b)=>r.regular.indexOf(a)-r.regular.indexOf(b));
+   add(semis[0]||r.regular.find(x=>!picked.includes(x)));
+ }
+ return picked.slice(0,hasBonus?4:3);
+}
+function buildWorldsGroups(entries,playerTeam){
+ const groups=["A","B","C","D"].map(name=>({name,teams:[],standings:[],regions:[]}));
+ const ordered=[...entries].sort((a,b)=>(a.team===playerTeam?-1:b.team===playerTeam?1:(a.seed-b.seed)));
+ for(const e of ordered){let choices=groups.filter(g=>g.teams.length<4&&!g.regions.includes(e.region));if(!choices.length)choices=groups.filter(g=>g.teams.length<4);choices.sort((a,b)=>a.teams.length-b.teams.length);const g=e.team===playerTeam&&groups[0].teams.length<4&&!groups[0].regions.includes(e.region)?groups[0]:choices[0];g.teams.push(e.team);g.regions.push(e.region)}
+ return groups.map(({regions,...g})=>g);
+}
 function buildInternationalTournament(kind){
  const pc=state.player.proCareer,ev=chooseHost(kind,state.date.year),myRegion=pc.region||"PCS",team=pc.team||"KNG Esports";if(ev.groups?.length)return ev;
- if(kind==="MSI"){const e=[];PRO_REGIONS.forEach(r=>e.push(r===myRegion?team:`${r} Spring #1`,`${r} Spring #2`));const u=[...new Set(e)].slice(0,10);ev.groups=[{name:"A",teams:u.filter((_,i)=>i%2===0),standings:[]},{name:"B",teams:u.filter((_,i)=>i%2===1),standings:[]}];ev.format="雙循環；各組前二晉級四強BO5";ev.stage="分組賽";}
+ if(kind==="MSI"){const e=[];PRO_REGIONS.forEach(r=>e.push(r===myRegion?team:`${r} Spring #1`,`${r} Spring #2`));const u=[...new Set(e)].slice(0,10);ev.groups=[{name:"A",teams:u.filter((_,i)=>i%2===0),standings:[]},{name:"B",teams:u.filter((_,i)=>i%2===1),standings:[]}];ev.format="雙循環；各組前二晉級四強BO5";ev.stage="分組賽";ev.groups.forEach(g=>g.teams=g.teams.map(actualTeamForSlot));}
  else{
-   const e=[],bonusRegion=msiChampionRegionForYear(state.date.year)||myRegion;
-   PRO_REGIONS.forEach(r=>e.push(r===myRegion?team:`${r} Summer #1`,`${r} Summer #2`,`${r} Summer #3`));
-   e.push(`${bonusRegion} Summer #4`);
-   const u=[...new Set(e)];while(u.length<16)u.push(`Wildcard ${u.length+1}`);
-   ev.groups=["A","B","C","D"].map((g,i)=>({name:g,teams:u.filter((_,j)=>j%4===i).slice(0,4),standings:[]}));
-   ev.msiBonusRegion=bonusRegion;ev.format=`四組雙循環；各組前二晉級八強BO5。${bonusRegion} 因奪得MSI冠軍獲得第4種子席位。`;ev.stage="抽籤完成";
+   const bonusRegion=msiChampionRegionForYear(state.date.year)||myRegion,entries=[];
+   PRO_REGIONS.forEach(r=>worldsSeedsForRegion(r,r===bonusRegion).forEach((t,i)=>entries.push({team:t,region:r,seed:i+1})));
+   const unique=[];for(const x of entries)if(x.team&&!unique.some(y=>y.team===x.team))unique.push(x);
+   ev.groups=buildWorldsGroups(unique.slice(0,16),team);ev.seedEntries=unique.slice(0,16);ev.msiBonusRegion=bonusRegion;
+   ev.format=`世界賽種子：各賽區季後賽冠軍#1、亞軍#2、例行賽最高且未取得資格者#3；${bonusRegion}因MSI冠軍多1席，兩支四強敗隊比較例行賽成績決定#4。季後賽成績優先於例行賽。四組雙循環，各組前二晉級八強BO5。`;ev.stage="抽籤完成";
  }
- ev.groups.forEach(g=>g.teams=g.teams.map(actualTeamForSlot));
  return ev;
 }
 function internationalGroupsCard(){const ph=proAnnualPhase();if(!["MSI","世界賽"].includes(ph))return "";const ev=buildInternationalTournament(ph);return `<section class="card"><h2>🎲 ${ph}分組</h2>${ev.groups.map(g=>`<div class="notice"><strong>${g.name}組</strong><br>${g.teams.join("｜")}</div>`).join("")}<div class="small">${ev.format}</div></section>`;}
@@ -2786,7 +2828,7 @@ function annualAwards(year){
 }
 function internationalQualificationRules(){
  return {MSI:"五大賽區春季季後賽前二，共10隊；A/B兩組各5隊雙循環，各組前二進BO5淘汰賽。",
- WORLDS:"五大賽區夏季前三各3席，共15隊；MSI冠軍所屬賽區額外獲得1張世界賽門票，因此該賽區夏季第4種子也能晉級世界賽。固定16隊，四組各4隊雙循環，各組前二進BO5八強。"};
+ WORLDS:"各賽區世界賽種子依夏季季後賽優先：冠軍#1、亞軍#2、例行賽最高且尚未取得資格者#3；MSI冠軍賽區額外#4，由兩支季後賽四強敗隊比較例行賽成績決定。固定16隊，四組各4隊雙循環，各組前二進BO5八強。"};
 }
 function annualCalendarCard(){
  if(!isProfessionalStage())return "";const ph=proAnnualPhase(),m=careerMonthFromWeek(state.date.week);
@@ -3168,6 +3210,15 @@ function migrateProV1921(){const p=state.player;if(p.v1921Migrated)return;const 
 function migrateProV1926(){const p=state.player;if(p.v1928Migrated)return;ensureMediaLaw();p.v1928Migrated=true;state.logs.push("🔧 V1.9.2.8：修復換日容錯與法律／公關舊存檔 teamLevel 異常，聘請按鈕恢復顯示。");}
 function migrateProV1924(){const p=state.player;if(p.v1924Migrated)return;ensureMediaLaw();ensureImageRepair();(p.adultLife?.pregnancies||[]).filter(x=>x.born).forEach(ensureSupportAgreement);p.v1924Migrated=true;state.logs.push("🔧 V1.9.2.4：修復職業週換日缺失函式；法律／公關與既有子女扶養和解入口恢復顯示。");}
 
+function migrateProV1932(){
+ const p=state.player,pc=p?.proCareer;if(!pc||p.v1932WorldSeedFix)return;
+ const it=ensureInternationalWorld(),ev=it?.worlds;
+ if(ev?.groups?.length&&state.date.year===it.year&&!ev.schedule?.some(x=>x.played)){
+   ev.groups=[];ev.seedEntries=[];ev.stage="抽籤前";buildInternationalTournament("世界賽");
+   state.logs.push("🔧 V1.9.3.2：世界賽資格改為季後賽優先：冠軍#1、亞軍#2、例行賽最高未取得資格者#3；MSI冠軍賽區四強敗隊比較例行賽決定#4，並重抽尚未開打的錯誤分組。");
+ }
+ p.v1932WorldSeedFix=true;
+}
 function migrateProV1930(){
  const p=state.player,pc=p?.proCareer,sn=pc?.season;if(!sn)return;
  if(sn.phase==="季後賽"&&(sn.playoffRound||0)===0&&sn.playoffSchedule&&!sn.playoffSchedule.played){
