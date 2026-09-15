@@ -3997,10 +3997,12 @@ function npcIsVisitingPlayer(name){
 function socialLocationAvailable(name){
  if(!isLocationBoundSocial(name))return true;
  if(npcIsVisitingPlayer(name))return true;
- const h=socialHomeLocation(name),here=currentLocationProfile();
- if(!h?.country)return true;
- if(h.country!==here.country)return false;
- return !h.city||!here.city||h.city===here.city;
+ const c=state.characters?.[name],h=socialHomeLocation(name),here=currentLocationProfile();
+ // 實體見面判定必須使用「目前所在地」，常住地只作為沒有動態所在地時的 fallback。
+ const loc=(c?.currentCountry||c?.currentCity)?{country:c.currentCountry||h?.country||null,city:c.currentCity||null}:h;
+ if(!loc?.country)return true;
+ if(loc.country!==here.country)return false;
+ return !loc.city||!here.city||loc.city===here.city;
 }
 function socialLocationLabel(name){
  syncCompanionCurrentLocation();const c=state.characters?.[name],h=socialHomeLocation(name),here=currentLocationProfile();
@@ -4042,8 +4044,8 @@ function repairSocialHomeLocations(){
 function runSocialActionByName(name,act){
  const c=state.characters?.[name];if(!c){modal(`<h2>無法執行社交</h2><p>找不到 ${name} 的人物資料。</p>${closeBtn()}`);return}
  if(locationRestrictedSocialAction(act)&&!socialLocationAvailable(name)){
-   const h=socialHomeLocation(name),here=currentLocationProfile();
-   modal(`<h2>📍 無法見面</h2><p><strong>${name}</strong> 目前不在你所在的地區。</p><div class="notice">${name}：${h?.country||"其他地區"}${h?.city?`・${h.city}`:""}<br>夜鋒：${here.country}・${here.city}</div><p class="small">你需要前往對方所在地才能安排吃飯、電影、約會或私人相處；對方也有機會主動搭機來找你。</p>${closeBtn()}`);
+   const cLoc=state.characters?.[name],h=socialHomeLocation(name),here=currentLocationProfile(),loc=(cLoc?.currentCountry||cLoc?.currentCity)?{country:cLoc.currentCountry||h?.country||null,city:cLoc.currentCity||null}:h;
+   modal(`<h2>📍 無法見面</h2><p><strong>${name}</strong> 目前不在你所在的地區。</p><div class="notice">${name}：${loc?.country||"其他地區"}${loc?.city?`・${loc.city}`:""}<br>夜鋒：${here.country}・${here.city}</div><p class="small">你需要前往對方目前所在地才能安排吃飯、電影、約會或私人相處；常住地只代表她平時的生活據點。</p>${closeBtn()}`);
    return;
  }
  if(act?.startsWith("coach"))return coachSocialActivity(name,act);
@@ -4332,5 +4334,10 @@ function migrateProV1939(){
  if(isProfessionalStage()&&(!isTransferWindow()||isTransferWindowFinalWeek()))finalizeRosterBeforeTransferDeadline();
  p.v1939Migrated=true;state.logs.push("🔧 V1.9.3.9：一軍空缺必須在轉會窗截止前補齊；修正采恩為台灣人，沈奕辰跨賽區轉會後可跟隨、留台或兩邊跑。");
 }
-migrateProV1937();migrateProV1938();migrateProV1939();
+function migrateProV1940(){
+ const p=state.player;if(p.v1940Migrated)return;const c=state.characters?.["采恩"];
+ if(c){c.nationality="台灣";c.homeCountry="台灣";c.homeCity="台北";if(c.partnerMobility)partnerCurrentLocationByMode(c);}
+ p.v1940Migrated=true;state.logs.push("🔧 V1.9.4.0：社交實體見面改以目前所在地判定，不再誤用常住地；采恩常住台北但可依生活安排身處柏林等地。");
+}
+migrateProV1937();migrateProV1938();migrateProV1939();migrateProV1940();
 render();
