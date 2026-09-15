@@ -358,6 +358,16 @@ function safeTraits(c){return normalizeTraits(c)}
 
 
 
+// V1.9.2.9: social activities must never abort after consuming a time slot.
+function addSecretRomanceRisk(person,amount=0){
+ const c=state.characters?.[person];
+ if(!c||!Number.isFinite(Number(amount)))return 0;
+ const dating=(state.player.romance?.partners||[]).includes(person)||state.player.romance?.spouse===person||c.relationshipType==="地下戀人";
+ if(!dating||!c.publicFigure||c.publicRomance)return 0;
+ c.secretRomanceRisk=clamp(Number(c.secretRomanceRisk||0)+Number(amount||0),0,100);
+ return c.secretRomanceRisk;
+}
+
 function socialActivity(person,type){
  const costs={group:200,chat:0,food:350,cafe:280,movie:650,date:900,arcade:250,hangout:180,game:100,latefood:220,duo:0};
  const cost=costs[type]??0;
@@ -384,7 +394,7 @@ function socialActivity(person,type){
  if(type==="date"&&(state.player.relations?.[person]||0)>=88)gain+=1;
  state.player.relations=state.player.relations||{};
  state.player.relations[person]=clamp((state.player.relations[person]||0)+gain,0,100);
- state.player.mood=clamp(state.player.mood+3,0,100);if(["food","cafe","movie","date","hangout","latefood"].includes(type))addSecretRomanceRisk(person,type==="date"?8:4);
+ state.player.mood=clamp(state.player.mood+3,0,100);if(["food","cafe","movie","date","hangout","latefood"].includes(type)){try{addSecretRomanceRisk(person,type==="date"?8:4)}catch(err){state.logs.push(`⚠️ 社交風險相容修復：${err?.message||err}`)}}
  if(type==="duo"){
    const f=state.friends?.[person],npcForm=f?.form??0,win=Math.random()<clamp(.50+npcForm/100,.30,.70);
    state.logs.push(`社交：和 ${person} Rank雙排，${win?"拿下一勝":"這場輸掉了"}，關係 +${gain}。`);
