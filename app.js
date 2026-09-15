@@ -285,6 +285,7 @@ function playRank(isDuo=false){
   const high=["宗師","菁英"].includes(p.rank);let delta=win?rand(high?15:18,high?23:27):-rand(high?17:15,high?25:23);if(m.level<25)delta-=2;
   if(win){p.wins++;p.lp+=delta;p.mood=clamp(p.mood+2,0,100);m.wins++;if(winChance<.46&&Math.random()<.35){const g=+(Math.random()*.10+.05).toFixed(2);p.stats.心態=clamp(p.stats.心態+g,0,100);state.logs.push(`🧠 逆風局取勝，心態 +${g.toFixed(2)}。`)}}else{p.losses++;p.lp+=delta;p.mood=clamp(p.mood-4,0,100);const resilience=clamp((p.stats.心態-55)/45,0,.65);p.stress=clamp(p.stress+5*(1-resilience*.45),0,100);if(Math.random()<.12){const g=+(Math.random()*.07+.03).toFixed(2);p.stats.心態=clamp(p.stats.心態+g,0,100);state.logs.push(`🧠 從失利中累積抗壓經驗，心態 +${g.toFixed(2)}。`)}}
   m.games++;m.level=clamp(m.level+(win?.14:.09),0,100);p.energy=clamp(p.energy-6,0,100);
+  if(isProfessionalStage())changeCompetitiveForm(win?.6:-.4,win?"Rank勝利":"Rank失利");
   const rankGrowth=rankAbilityGrowth(heroId,win,metPro);adjustRank();
   if(rankGrowth.length)state.logs.push(`📈 Rank實戰成長：${rankGrowth.map(x=>`${x[0]} +${x[1].toFixed(2)}`).join("、")}。`);
   let friendNote="";
@@ -318,11 +319,11 @@ function finishTraining(type){
   if(!consume("心理訓練",1))return;
   const p=state.player,before=p.stats.心態,scale=before>=90?.42:before>=85?.55:before>=80?.70:1,gain=(Math.random()*.15+.20)*scale,stress0=p.stress;
   p.stats.心態=clamp(before+gain,0,100);p.stress=clamp(p.stress-rand(4,8),0,100);p.energy=clamp(p.energy-5,0,100);
-  rewardCoachTrustForTraining("心理訓練",.35);state.logs.push(`心理訓練：心態 ${before.toFixed(2)} → ${p.stats.心態.toFixed(2)}，壓力 -${Math.round(stress0-p.stress)}。`);save();render();
+  rewardCoachTrustForTraining("心理訓練",.35);changeCompetitiveForm(1.5,"心理訓練與壓力調整");state.logs.push(`心理訓練：心態 ${before.toFixed(2)} → ${p.stats.心態.toFixed(2)}，壓力 -${Math.round(stress0-p.stress)}。`);save();render();
   modal(`<h2>🧠 心理訓練完成</h2><div class="big-number">${before.toFixed(2)} → ${p.stats.心態.toFixed(2)}</div><p class="goodtext">心態 +${gain.toFixed(2)}</p><p>壓力 -${Math.round(stress0-p.stress)}</p>${closeBtn()}`);return;
  }
  if(type==="hero"){
-  chooseHero(id=>{if(!consume("角色專項訓練",1))return;let m=state.player.mastery[id],h=HEROES.find(x=>x.id===id),before=m.level,scale=before>=90?.45:before>=80?.65:before>=70?.82:1,gain=(Math.random()*.28+.28)*scale;m.level=clamp(m.level+gain,0,100);const hpGain=addAbilityGrowth("英雄池",Math.random()*.06+.05);state.player.energy=clamp(state.player.energy-8,0,100);state.player.stress=clamp(state.player.stress+2,0,100);rewardCoachTrustForTraining("角色專項訓練",.55);state.logs.push(`專項訓練：${h.name} 熟練度 +${gain.toFixed(2)}、英雄池 +${hpGain.toFixed(2)}`);save();render();modal(`<h2>角色專項訓練</h2><div class="big-number">${before.toFixed(2)} → ${m.level.toFixed(2)}</div><p class="goodtext">+${gain.toFixed(2)}</p>${closeBtn()}`)});
+  chooseHero(id=>{if(!consume("角色專項訓練",1))return;let m=state.player.mastery[id],h=HEROES.find(x=>x.id===id),before=m.level,scale=before>=90?.45:before>=80?.65:before>=70?.82:1,gain=(Math.random()*.28+.28)*scale;m.level=clamp(m.level+gain,0,100);const hpGain=addAbilityGrowth("英雄池",Math.random()*.06+.05);state.player.energy=clamp(state.player.energy-8,0,100);state.player.stress=clamp(state.player.stress+2,0,100);rewardCoachTrustForTraining("角色專項訓練",.55);changeCompetitiveForm(1.2,"角色專項訓練");state.logs.push(`專項訓練：${h.name} 熟練度 +${gain.toFixed(2)}、英雄池 +${hpGain.toFixed(2)}`);save();render();modal(`<h2>角色專項訓練</h2><div class="big-number">${before.toFixed(2)} → ${m.level.toFixed(2)}</div><p class="goodtext">+${gain.toFixed(2)}</p>${closeBtn()}`)});
   return;
  }
  if(!consume(type==="review"?"復盤研究":"基礎訓練",1))return;
@@ -331,7 +332,7 @@ function finishTraining(type){
  let gain=(Math.random()*.15+.20)*scale;
  if(type!=="review"&&p.inventory?.includes("mouse"))gain*=1.05;if(k==="溝通"&&p.inventory?.includes("headset"))gain*=1.08;
  p.stats[k]=clamp(p.stats[k]+gain,0,100);p.energy=clamp(p.energy-8,0,100);p.stress=clamp(p.stress+2,0,100);
- rewardCoachTrustForTraining(type==="review"?"復盤研究":"基礎訓練",type==="review"?.7:.55);state.logs.push(`訓練：${k} ${before.toFixed(2)} → ${p.stats[k].toFixed(2)}`);save();render();modal(`<h2>訓練完成</h2><p>${k}</p><div class="big-number">${before.toFixed(2)} → ${p.stats[k].toFixed(2)}</div><p class="goodtext">+${gain.toFixed(2)}</p>${closeBtn()}`);
+ rewardCoachTrustForTraining(type==="review"?"復盤研究":"基礎訓練",type==="review"?.7:.55);changeCompetitiveForm(type==="review"?1.4:1.2,type==="review"?"復盤研究":"基礎訓練");state.logs.push(`訓練：${k} ${before.toFixed(2)} → ${p.stats[k].toFixed(2)}`);save();render();modal(`<h2>訓練完成</h2><p>${k}</p><div class="big-number">${before.toFixed(2)} → ${p.stats[k].toFixed(2)}</div><p class="goodtext">+${gain.toFixed(2)}</p>${closeBtn()}`);
 }
 function chooseStream(){
  if(remain()<1)return;modal(`<h2>直播內容</h2><div class="reply-grid">${["Rank實況","教學台","雜談","娛樂場"].map(x=>`<button class="reply stream-choice" data-v="${x}">${x}</button>`).join("")}</div>`);
@@ -396,7 +397,12 @@ function socialActivity(person,type){
    state.logs.push(`社交：和 ${person}${labels[type]||"相處"}，支出 NT$${cost.toLocaleString()}，關係 +${gain}。`);
  }
  save();render();
- setTimeout(()=>maybeRomanceEvent(),0);
+ if(type==="date"){
+   const rel=state.player.relations?.[person]||0;
+   setTimeout(()=>modal(`<h2>💗 正式約會完成</h2><p>你和 <strong>${person}</strong> 完成了今天的正式約會。</p><div class="notice">關係 +${gain}${cost?`<br>花費 NT$${cost.toLocaleString()}`:""}<br>目前關係值：${rel}</div><p class="small">約會已確實消耗 1 格生活時段，不會直接跳過結果。</p>${closeBtn()}`),0);
+ }else{
+   setTimeout(()=>maybeRomanceEvent(),0);
+ }
 }
 function isInternationalTrip(){return isProfessionalStage()&&["MSI","世界賽"].includes(proAnnualPhase())}
 
@@ -661,8 +667,8 @@ function attemptConsensualPrivateEvent(name,kind="social"){
    try{registerAffair(name)}catch(e){console.warn("registerAffair",e)}
  }
 
- if(p.condition.privateRecent>=3){
-   p.condition.form=clamp((p.condition.form||70)-rand(3,7),0,100);
+ if(p.condition.privateRecent>=5){
+   changeCompetitiveForm(-2,"短期內私人行程過度密集造成疲勞");
    if(Math.random()<.18&&!p.condition.injury){
      p.condition.injury={type:["腰背疲勞","肩頸不適","睡眠不足"][rand(0,2)],severity:"輕微",days:rand(2,5)};
    }
@@ -1030,7 +1036,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  migrateProV1919();
  migrateProV1921();
  migrateProV1922();
- migrateProV1925();migrateProV1924();migrateProV1923();
+ migrateProV1926();migrateProV1927();migrateProV1924();migrateProV1923();
  migrateProV183();
  if(!p.v170Migrated){
    if(isProfessionalStage()){
@@ -1554,15 +1560,41 @@ function phone(){
  <button id="cleanupMessages" class="reply" style="width:100%;margin-top:12px">🧹 整理一般舊訊息</button></section>
  ${relationshipCard()}${rumorCard()}<section class="card"><h2>📰 電競新聞</h2>${state.news.slice(0,12).map(n=>`<div class="log">${n}</div>`).join("")}</section>`;
 }
+function rosterRating(x){if(x?.isPlayer)return Math.round(avg());if(Number.isFinite(x?.rating))return Math.round(x.rating);const c=state.characters?.[x?.name]||{};return Math.round(c.rating||c.strength||68+stableAgeOffset(x?.name||"player",19));}
+function rosterStatus(x){if(x?.isPlayer){if(state.player.condition?.injury)return `傷病：${state.player.condition.injury.type}`;return `${formLabel()}｜體力 ${Math.round(state.player.energy)}`;}const c=state.characters?.[x?.name]||{};return c.injury?`傷病：${c.injury}`:(c.form>=75?"狀態火熱":c.form<=45?"狀態低迷":"狀態正常");}
+function proTeamPageCard(){
+ if(!isProfessionalStage())return "";ensureProRoster();ensureRosterSubstitutes();const p=state.player,pc=p.proCareer,subs=pc.substitutes||[],coaches=pc.coaches||[];
+ const rows=(pc.roster||[]).map(x=>`<div class="schedule-item"><div><strong>${x.isPlayer?"⭐ ":""}${x.name}</strong><div class="small">${x.role}｜能力 ${rosterRating(x)}｜${rosterStatus(x)}</div></div><span class="badge">${x.isPlayer?"先發・你":"先發"}</span></div>`).join("");
+ const subrows=subs.length?subs.map(x=>`<div class="schedule-item"><div><strong>${x.name}</strong><div class="small">${x.role}｜能力 ${rosterRating(x)}｜${rosterStatus(x)}</div></div><span class="badge">替補</span></div>`).join(""):`<div class="small">目前戰隊沒有替補選手。</div>`;
+ const coachrows=coaches.map(x=>`<div class="schedule-item"><div><strong>${x.name}</strong><div class="small">${x.role}｜對夜鋒信任 ${Math.round(pc.coachTrust||50)}</div></div><span class="badge">教練團</span></div>`).join("");
+ return `<section class="card"><div class="row space"><div><div class="small">${pc.region||fixedTeamRegion(pc.team)} 賽區</div><h2>🛡️ ${pc.team} 戰隊頁面</h2></div><span class="badge">${pc.stage==="starter"?"一軍先發":pc.stage==="sub"?"替補":"青訓"}</span></div><h3>先發陣容</h3>${rows}<h3>替補隊友（最多2名）</h3>${subrows}<h3>教練團</h3>${coachrows}<div class="stat-grid">${stat("更衣室",Math.round(pc.lockerRoom||65))}${stat("團隊默契",Math.round(teamChemistry()))}${stat("教練信任",Math.round(pc.coachTrust||50))}${stat("夜鋒狀態",`${Math.round(p.condition.form)}/100`)}</div></section>`;
+}
+function matchReviewAnalysis(m){
+ if(!m)return [];
+ const p=state.player,pc=p.proCareer,out=[];
+ if(m.win){out.push("勝因：團隊在關鍵資源與中後期決策上執行較完整。");if(m.mvp)out.push("夜鋒是本場主要勝因之一，個人影響力明顯。");}
+ else{
+   if(m.d>=5)out.push("主要問題：夜鋒死亡次數偏高，部分時間點讓隊伍失去地圖主動權。");
+   if((m.k+m.a)<10)out.push("輸出／參戰影響不足，沒有在中期建立足夠的個人節奏。");
+   if(teamChemistry()<55)out.push("團隊問題：目前默契偏低，資源交換與團戰協同容易不同步。");
+   if((p.condition?.form||65)<55)out.push("個人狀態：比賽時競技狀態偏低，穩定度受到影響。");
+   if(p.stress>70)out.push("心理因素：壓力過高，可能影響臨場判斷。");
+   if(p.energy<45)out.push("體能因素：體力偏低，長局表現容易下滑。");
+   if(playerMetaFit()<0)out.push("版本因素：目前英雄池與版本強勢角色契合度不足。");
+   if(!out.length)out.push("主要問題：本場關鍵團戰與資源交換處理較差，屬於團隊執行層面的失利。");
+ }
+ out.push(`建議：${!m.win&&playerMetaFit()<0?"優先練版本強勢英雄並安排Scrim":"利用復盤研究＋Scrim針對本場問題修正"}。`);return out;
+}
+function showMatchReview(){const m=state.player.proCareer?.lastMatch;if(!m)return;const a=matchReviewAnalysis(m);modal(`<h2>🧠 比賽復盤｜${m.team} ${m.score} ${m.opp}</h2><div class="notice">${a.join("<br><br>")}</div><div class="small">復盤依本場KDA、競技狀態、體力、壓力、團隊默契與版本適應分析。</div>${closeBtn()}`);}
 function career(){
  ensureV10();const p=state.player;
- return `${proCareerCard()}${recentProMatchCard()}${annualCalendarCard()}${transferMarketCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${commercialCard()}${fanMeetingCard()}${teamBuildingCard()}${legalMediaCard()}${assetCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${isProfessionalStage()?stat("大眾評價",Math.round(ensureAudienceRating().rating)):""}${stat("聲譽",p.reputation)}</div></section>
+ return `${proCareerCard()}${competitiveFormCard()}${proTeamPageCard()}${recentProMatchCard()}${annualCalendarCard()}${transferMarketCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${commercialCard()}${fanMeetingCard()}${teamBuildingCard()}${legalMediaCard()}${assetCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${isProfessionalStage()?stat("大眾評價",Math.round(ensureAudienceRating().rating)):""}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
  <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.2.4</strong>｜修復無法換日；法律／公關與扶養和解入口強化。</div></section>`;
 }
 function bind(){
- document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));document.querySelector("#doTryout")?.addEventListener("click",doProTryout);document.querySelector("#signProContract")?.addEventListener("click",signProContract);document.querySelector("#counterOffer")?.addEventListener("click",counterInitialOffer);document.querySelector("#declineOffer")?.addEventListener("click",declineInitialOffer);document.querySelector("#playLeagueMatch")?.addEventListener("click",playLeagueMatch);document.querySelector("#askRaise")?.addEventListener("click",()=>negotiateContract("raise"));document.querySelector("#offerCut")?.addEventListener("click",()=>negotiateContract("cut"));document.querySelector("#requestTransfer")?.addEventListener("click",()=>negotiateContract("transfer"));document.querySelector("#earlyRenewal")?.addEventListener("click",earlyRenewalTalk);document.querySelectorAll(".pregnancy-talk").forEach(b=>b.onclick=()=>pregnancyDecisionByName(b.dataset.name));document.querySelectorAll(".child-choice").forEach(b=>b.onclick=()=>childSupportDecision(b.dataset.name,b.dataset.choice));document.querySelectorAll(".sponsor-action").forEach(b=>b.onclick=()=>sponsorAction(b.dataset.action));document.querySelector("#launchMerch")?.addEventListener("click",launchSponsorMerch);document.querySelectorAll(".donate-btn").forEach(b=>b.onclick=()=>makeDonation(+b.dataset.amt));document.querySelector("#proposeMarriage")?.addEventListener("click",proposeMarriage);document.querySelector("#marriageTalk")?.addEventListener("click",resolveMarriageCrisis);document.querySelector("#prAction")?.addEventListener("click",openPRResponse);document.querySelector("#suggestRecruit")?.addEventListener("click",openRecruitSuggestionV1918);document.querySelector("#contractDemands")?.addEventListener("click",contractDemandTalk);document.querySelector("#stiScreen")?.addEventListener("click",doStiScreen);document.querySelectorAll(".rupture-talk").forEach(b=>b.onclick=()=>{resolveTeamRupture(b.dataset.mate);save();render()});document.querySelectorAll(".asset-buy").forEach(b=>b.onclick=()=>buyAsset(b.dataset.id));document.querySelectorAll(".alumni-donate").forEach(b=>b.onclick=()=>alumniDonate(+b.dataset.amt));document.querySelector("#fanMeeting")?.addEventListener("click",runFanMeeting);document.querySelector("#teamBuilding")?.addEventListener("click",runTeamBuilding);document.querySelector("#seekCommercial")?.addEventListener("click",seekCommercial);document.querySelectorAll(".legal-action").forEach(b=>b.onclick=()=>handleLegalAction(b.dataset.a));document.querySelector("#hireLawyer")?.addEventListener("click",()=>hireMediaTeam(1));document.querySelector("#hirePRTeam")?.addEventListener("click",()=>hireMediaTeam(2));document.querySelector("#leakSomeone")?.addEventListener("click",leakSomeone);document.querySelectorAll(".support-settlement").forEach(b=>b.onclick=()=>openSupportSettlement(b.dataset.name));document.querySelectorAll(".leave-request").forEach(b=>b.onclick=()=>requestCoachLeave(b.dataset.reason));document.querySelector("#main")?.addEventListener("click",e=>{const b=e.target.closest?.(".birth-event");if(b){e.preventDefault();e.stopPropagation();b.dataset.pregId?resolveBirthEventById(b.dataset.pregId):resolveBirthEvent(b.dataset.name)}});document.querySelectorAll(".child-care-action").forEach(b=>b.onclick=()=>spendTimeWithChild(b.dataset.name));document.querySelectorAll(".infant-care-action").forEach(b=>b.onclick=()=>infantCare(b.dataset.name));document.querySelectorAll(".legacy-birth-choice").forEach(b=>b.onclick=()=>recordLegacyBirthChoice(b.dataset.name,b.dataset.choice));document.querySelectorAll(".legacy-child-choice").forEach(b=>b.onclick=()=>childSupportDecision(b.dataset.name,b.dataset.choice));document.querySelector("#injuryTreat")?.addEventListener("click",treatInjury);document.querySelector("#injuryRehab")?.addEventListener("click",rehabInjury);document.querySelector("#healthCheck")?.addEventListener("click",generalHealthCheck);document.querySelector("#stiTreat")?.addEventListener("click",treatSti);document.querySelector("#viewLastMatchReport")?.addEventListener("click",showMatchReport);document.querySelector("#resumePostInterview")?.addEventListener("click",showPostMatchMedia);
+ document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));document.querySelector("#doTryout")?.addEventListener("click",doProTryout);document.querySelector("#signProContract")?.addEventListener("click",signProContract);document.querySelector("#counterOffer")?.addEventListener("click",counterInitialOffer);document.querySelector("#declineOffer")?.addEventListener("click",declineInitialOffer);document.querySelector("#playLeagueMatch")?.addEventListener("click",playLeagueMatch);document.querySelector("#askRaise")?.addEventListener("click",()=>negotiateContract("raise"));document.querySelector("#offerCut")?.addEventListener("click",()=>negotiateContract("cut"));document.querySelector("#requestTransfer")?.addEventListener("click",()=>negotiateContract("transfer"));document.querySelector("#earlyRenewal")?.addEventListener("click",earlyRenewalTalk);document.querySelectorAll(".pregnancy-talk").forEach(b=>b.onclick=()=>pregnancyDecisionByName(b.dataset.name));document.querySelectorAll(".child-choice").forEach(b=>b.onclick=()=>childSupportDecision(b.dataset.name,b.dataset.choice));document.querySelectorAll(".sponsor-action").forEach(b=>b.onclick=()=>sponsorAction(b.dataset.action));document.querySelector("#launchMerch")?.addEventListener("click",launchSponsorMerch);document.querySelectorAll(".donate-btn").forEach(b=>b.onclick=()=>makeDonation(+b.dataset.amt));document.querySelector("#proposeMarriage")?.addEventListener("click",proposeMarriage);document.querySelector("#marriageTalk")?.addEventListener("click",resolveMarriageCrisis);document.querySelector("#prAction")?.addEventListener("click",openPRResponse);document.querySelector("#suggestRecruit")?.addEventListener("click",openRecruitSuggestionV1918);document.querySelector("#contractDemands")?.addEventListener("click",contractDemandTalk);document.querySelector("#stiScreen")?.addEventListener("click",doStiScreen);document.querySelectorAll(".rupture-talk").forEach(b=>b.onclick=()=>{resolveTeamRupture(b.dataset.mate);save();render()});document.querySelectorAll(".asset-buy").forEach(b=>b.onclick=()=>buyAsset(b.dataset.id));document.querySelectorAll(".alumni-donate").forEach(b=>b.onclick=()=>alumniDonate(+b.dataset.amt));document.querySelector("#fanMeeting")?.addEventListener("click",runFanMeeting);document.querySelector("#teamBuilding")?.addEventListener("click",runTeamBuilding);document.querySelector("#seekCommercial")?.addEventListener("click",seekCommercial);document.querySelectorAll(".legal-action").forEach(b=>b.onclick=()=>handleLegalAction(b.dataset.a));document.querySelector("#hireLawyer")?.addEventListener("click",()=>hireMediaTeam(1));document.querySelector("#hirePRTeam")?.addEventListener("click",()=>hireMediaTeam(2));document.querySelector("#leakSomeone")?.addEventListener("click",leakSomeone);document.querySelectorAll(".support-settlement").forEach(b=>b.onclick=()=>openSupportSettlement(b.dataset.name));document.querySelectorAll(".leave-request").forEach(b=>b.onclick=()=>requestCoachLeave(b.dataset.reason));document.querySelector("#main")?.addEventListener("click",e=>{const b=e.target.closest?.(".birth-event");if(b){e.preventDefault();e.stopPropagation();b.dataset.pregId?resolveBirthEventById(b.dataset.pregId):resolveBirthEvent(b.dataset.name)}});document.querySelectorAll(".child-care-action").forEach(b=>b.onclick=()=>spendTimeWithChild(b.dataset.name));document.querySelectorAll(".infant-care-action").forEach(b=>b.onclick=()=>infantCare(b.dataset.name));document.querySelectorAll(".legacy-birth-choice").forEach(b=>b.onclick=()=>recordLegacyBirthChoice(b.dataset.name,b.dataset.choice));document.querySelectorAll(".legacy-child-choice").forEach(b=>b.onclick=()=>childSupportDecision(b.dataset.name,b.dataset.choice));document.querySelector("#injuryTreat")?.addEventListener("click",treatInjury);document.querySelector("#injuryRehab")?.addEventListener("click",rehabInjury);document.querySelector("#healthCheck")?.addEventListener("click",generalHealthCheck);document.querySelector("#stiTreat")?.addEventListener("click",treatSti);document.querySelector("#viewLastMatchReport")?.addEventListener("click",showMatchReport);document.querySelector("#viewMatchReview")?.addEventListener("click",showMatchReview);document.querySelector("#resumePostInterview")?.addEventListener("click",showPostMatchMedia);
  document.querySelector("#nextDayBtn")?.addEventListener("click",nextDay);
  document.querySelectorAll(".message-open").forEach(b=>b.onclick=e=>{e.preventDefault();openMessage(b.dataset.msg)});
  document.querySelector("#cleanupMessages")?.addEventListener("click",()=>{cleanupOldMessages(true);save();render()});document.querySelectorAll(".fa-offer").forEach(b=>b.addEventListener("click",()=>acceptFreeAgentOffer(+b.dataset.i)));
@@ -1991,7 +2023,7 @@ function proScrim(){
  mates.forEach(x=>p.relations[x.name]=clamp((p.relations[x.name]||50)+(win?rand(1,2):-rand(1,2)),0,100));
  pc.scrimStreak=win?Math.max(1,(pc.scrimStreak||0)+1):Math.min(-1,(pc.scrimStreak||0)-1);pc.lockerRoom=clamp((pc.lockerRoom||65)+(win?2:-3),0,100);
  [["溝通",.16],["團戰",.14],["決策",.11],["英雄池",.08]].forEach(([k,g])=>addAbilityGrowth(k,g*Math.random()+g));
- p.energy=clamp(p.energy-10,0,100);p.stress=clamp(p.stress+(win?-2:4),0,100);p.mood=clamp(p.mood+(win?4:-4),0,100);
+ p.energy=clamp(p.energy-10,0,100);p.stress=clamp(p.stress+(win?-2:4),0,100);p.mood=clamp(p.mood+(win?4:-4),0,100);changeCompetitiveForm(win?3:0.5,win?"Scrim勝利與團隊磨合":"Scrim失利但完成高強度實戰");
  const report=[
   `05:${rand(10,59)}｜雙方中野第一次河道碰撞，${teamChemistry()>=60?"隊伍溝通順暢":"語音出現短暫分歧"}。`,
   `11:${rand(10,59)}｜第一條小龍爭奪，${win?pc.team+"取得主動權":opp+"先拿資源優勢"}。`,
@@ -3118,8 +3150,9 @@ function inferHistoricLastMatchTeam(){
  return null;
 }
 function migrateProV1921(){const p=state.player;if(p.v1921Migrated)return;const pc=p.proCareer;if(pc?.lastMatch&&!pc.lastMatch.team)inferHistoricLastMatchTeam();(pc?.matchHistory||[]).forEach(x=>{if(!x.team&&pc.lastMatch&&x.opp===pc.lastMatch.opp&&x.score===pc.lastMatch.score&&x.week===pc.lastMatch.week&&pc.lastMatch.team)x.team=pc.lastMatch.team});state.logs.push("🔧 V1.9.2.1：最近比賽紀錄改為保存『比賽當時戰隊』，轉隊後不再被新戰隊名稱覆蓋；合約『補強指定位置』可選上路／打野／中路／下路／輔助，並保存為正式談判條件。");p.v1921Migrated=true}
-function migrateProV1925(){const p=state.player;if(p.v1925Migrated)return;ensureMediaLaw();p.v1925Migrated=true;state.logs.push("🔧 V1.9.2.5：修復換日容錯與法律／公關舊存檔 teamLevel 異常，聘請按鈕恢復顯示。");}
+function migrateProV1926(){const p=state.player;if(p.v1927Migrated)return;ensureMediaLaw();p.v1927Migrated=true;state.logs.push("🔧 V1.9.2.7：修復換日容錯與法律／公關舊存檔 teamLevel 異常，聘請按鈕恢復顯示。");}
 function migrateProV1924(){const p=state.player;if(p.v1924Migrated)return;ensureMediaLaw();ensureImageRepair();(p.adultLife?.pregnancies||[]).filter(x=>x.born).forEach(ensureSupportAgreement);p.v1924Migrated=true;state.logs.push("🔧 V1.9.2.4：修復職業週換日缺失函式；法律／公關與既有子女扶養和解入口恢復顯示。");}
+function migrateProV1927(){const p=state.player;if(p.v1927Migrated)return;repairCompetitiveFormV1927();ensureProRoster();ensureRosterSubstitutes();p.v1927Migrated=true;state.logs.push("🔧 V1.9.2.7：重製競技狀態、修正正常約會不降狀態；新增戰隊頁面與比賽復盤。");}
 function migrateProV1923(){const p=state.player;if(p.v1923Migrated)return;const pc=p.proCareer||{};if(pc.contract)completeContract(pc.contract);p.v1923Migrated=true;state.logs.push("🔧 V1.9.2.3：修復舊存檔載入時 contractDetails 缺失造成的生涯頁錯誤。")}
 function migrateProV1922(){const p=state.player;if(p.v1922Migrated)return;ensureEthics();ensureMediaLaw();ensureImageRepair();(p.adultLife?.pregnancies||[]).filter(x=>x.born).forEach(ensureSupportAgreement);if(!p.v1922CareerRepRefunded){const before=p.adultLife.careerReputation;p.adultLife.careerReputation=clamp(before+50,0,100);p.adultLife.reputationHistory.unshift({delta:+(p.adultLife.careerReputation-before).toFixed(1),reason:"V1.9.2.2 重複爆料職業風評補償",year:state.date.year,week:state.date.week});p.v1922CareerRepRefunded=true;state.logs.push(`🎁 V1.9.2.2 補償：因舊版同一事件重複扣除職業風評，已返還 ${Math.round(p.adultLife.careerReputation-before)} 點（上限100）。`)}state.logs.push("🔧 V1.9.2.2：同一爆料改為事件追蹤，舊聞不再重複扣完整職業風評；加入改過自新、法律／公關團隊，以及前女友親子扶養和解協議。");p.v1922Migrated=true}
 function proDaySerial(){return ((state.date.year||2026)*52+(state.date.week||1))*7+(state.date.day||1)}
@@ -3319,7 +3352,7 @@ function runRichLeagueMatch(){const difficultyPressure=.025+Math.max(0,(state.pl
  const cs=rand(245,360),k=rand(my>his?4:1,my>his?10:6),d=rand(1,6),a=rand(5,14),mvp=my>his&&Math.random()<.28;
  pc.careerStats.matches++;pc.careerStats.seriesW+=my>his?1:0;pc.careerStats.seriesL+=my>his?0:1;pc.careerStats.gameW+=my;pc.careerStats.gameL+=his;pc.careerStats.kills+=k;pc.careerStats.deaths+=d;pc.careerStats.assists+=a;pc.careerStats.mvp+=mvp?1:0;
  pc.matchHistory.unshift({team:pc.team,opp:opp.name,score:`${my}:${his}`,win:my>his,k,d,a,cs,mvp,week:state.date.week});
- p.condition.form=clamp(p.condition.form+(my>his?rand(1,4):-rand(2,5)),0,100);p.condition.fatigue=clamp(p.condition.fatigue+12,0,100);
+ changeCompetitiveForm(my>his?(mvp?6:4):-2,my>his?(mvp?"正式比賽勝利＋MVP":"正式比賽勝利"):"正式比賽失利");p.condition.fatigue=clamp(p.condition.fatigue+12,0,100);
  state.news.unshift(`職業聯賽：${pc.team} ${my}:${his} ${opp.name}；${p.name} ${k}/${d}/${a}${mvp?"，獲選MVP":""}。`);
  pc.lastMatch={team:pc.team,opp:opp.name,win:my>his,score:`${my}:${his}`,logs:[...logs],k,d,a,cs,mvp,year:state.date.year,week:state.date.week,day:state.date.day,phase:sn.phase||"正式比賽",postInterviewDone:false};
  pc.pendingPostInterview=true;
@@ -3340,7 +3373,7 @@ function recentProMatchCard(){
  <div class="notice"><strong>${m.team||pc.team} ${m.score} ${m.opp}</strong><br>${m.phase||"正式比賽"}｜KDA ${m.k}/${m.d}/${m.a}｜CS ${m.cs}${m.mvp?"｜⭐ MVP":""}</div>
  ${champions.length?`<div class="notice"><strong>國際賽冠軍</strong><br>${champions.join("<br>")}</div>`:""}
  <div class="stat-grid">${stat("生涯系列賽",`${cs.seriesW||0}勝${cs.seriesL||0}敗`)}${stat("生涯小局",`${cs.gameW||0}勝${cs.gameL||0}敗`)}${stat("正式場次",cs.matches||0)}${stat("MVP",cs.mvp||0)}</div>
- <div class="reply-grid"><button id="viewLastMatchReport" class="reply">查看完整戰報</button>${pc.pendingPostInterview&&!m.postInterviewDone?`<button id="resumePostInterview" class="reply">🎙️ 完成賽後採訪</button>`:""}</div></section>`;
+ <div class="reply-grid"><button id="viewLastMatchReport" class="reply">查看完整戰報</button><button id="viewMatchReview" class="reply">🧠 比賽復盤</button>${pc.pendingPostInterview&&!m.postInterviewDone?`<button id="resumePostInterview" class="reply">🎙️ 完成賽後採訪</button>`:""}</div></section>`;
 }
 function showPostMatchMedia(){
  const m=state.player.proCareer.lastMatch;
@@ -3586,6 +3619,32 @@ function negotiateContract(kind){
 function maybeTeammateConflict(){
  const p=state.player,pc=p.proCareer;if(!isProfessionalStage()||Math.random()>.08)return;const mates=(pc.roster||[]).filter(x=>!x.isPlayer);if(!mates.length)return;const x=mates[rand(0,mates.length-1)],rel=p.relations[x.name]||50;if(rel<35){state.logs.push(`⚠️ 更衣室：你與 ${x.name} 的關係持續惡化，管理層開始擔心有人會要求離隊。`);if(rel<22&&Math.random()<.25){x.wantsOut=true;state.news.unshift(`${pc.team} 內部傳出陣容不合消息，${x.name}可能考慮離隊。`)}}else if(rel>75){state.logs.push(`🤝 ${x.name}與你在團練中配合出色，隊伍默契提升。`)}}
 const PRO_TEAMS=["KNG Esports","Nova Gaming","Titan Core","Astra Five","Vortex","Eclipse","Phoenix","Orion","Tempest","Mirage","Vertex","Radiant"];
+function ensureCompetitiveForm(){
+ const p=state.player;p.condition=p.condition||{};
+ if(!Number.isFinite(p.condition.form))p.condition.form=65;
+ p.condition.form=clamp(p.condition.form,0,100);
+ p.condition.formHistory=Array.isArray(p.condition.formHistory)?p.condition.formHistory:[];
+ return p.condition;
+}
+function changeCompetitiveForm(delta,reason){
+ const p=state.player,c=ensureCompetitiveForm(),before=c.form;
+ c.form=clamp(c.form+delta,0,100);const actual=+(c.form-before).toFixed(1);
+ if(actual!==0){c.formHistory.unshift({year:state.date.year,week:state.date.week,day:state.date.day,delta:actual,reason});c.formHistory=c.formHistory.slice(0,20);state.logs.push(`🔥 競技狀態 ${actual>0?"+":""}${actual.toFixed(1)}：${reason}。`)}
+ return actual;
+}
+function repairCompetitiveFormV1927(){
+ const p=state.player,c=ensureCompetitiveForm();if(p.v1927FormRepaired)return;
+ const cs=p.proCareer?.careerStats||{},recent=p.proCareer?.lastMatch;
+ let baseline=58+(avg()-70)*.22+(p.energy-60)*.08+(p.mood-60)*.07-(p.stress-40)*.08;
+ if(recent?.win)baseline+=4;if(recent?.mvp)baseline+=3;if((cs.seriesW||0)>(cs.seriesL||0))baseline+=3;if(p.condition?.injury)baseline-=7;
+ const repaired=clamp(Math.round(baseline),48,82);
+ if(c.form<55&&repaired>c.form){const before=c.form;c.form=repaired;c.formHistory.unshift({year:state.date.year,week:state.date.week,day:state.date.day,delta:+(repaired-before).toFixed(1),reason:"V1.9.2.7 舊版低迷狀態重新校正"});state.logs.push(`🛠️ V1.9.2.7：競技狀態由 ${Math.round(before)} 校正為 ${Math.round(repaired)}。`)}
+ p.v1927FormRepaired=true;
+}
+function competitiveFormCard(){
+ if(!isProfessionalStage())return "";const c=ensureCompetitiveForm(),h=(c.formHistory||[]).slice(0,7);
+ return `<section class="card"><div class="row space"><h2>🔥 競技狀態</h2><span class="badge">${Math.round(c.form)}/100｜${formLabel()}</span></div><div class="small">正式比賽、Scrim與訓練是主要來源；Rank只提供小幅影響。正常約會、吃飯、團建不會無故降低狀態。</div>${h.length?`<div class="log">${h.map(x=>`${x.delta>0?"+":""}${x.delta}｜${x.reason}`).join("<br>")}</div>`:"<div class=small>尚無近期狀態變化。</div>"}</section>`;
+}
 function formLabel(){const v=state.player.condition?.form||65;return v>=85?"🔥 火熱":v>=70?"良好":v>=55?"普通":v>=40?"低迷":"極差"}
 function proCareerTick(){
  const p=state.player,pc=p.proCareer;if(p.adultLife?.graduationPath!=="職業圈"||["starter","academy","sub"].includes(pc.stage))return;
@@ -3860,6 +3919,7 @@ function simple(name,cost,fn){
   p.energy=clamp(p.energy+24+(p.inventory?.includes("chair")?2:0),0,100);
   p.mood=clamp(p.mood+7,0,100);
   p.stress=clamp(p.stress-14,0,100);
+  if(isProfessionalStage()&&p.condition.form<75)changeCompetitiveForm(1.5,"充分休息與恢復");
   state.logs.push(`休息：體力 +${Math.round(p.energy-e0)}、心情 +${Math.round(p.mood-m0)}、壓力 -${Math.round(s0-p.stress)}。`);
   save();render();
   modal(`<h2>休息完成</h2><p>你放下遊戲，好好休息了一段時間。</p><div class="stat-grid">${stat("體力",`${Math.round(e0)} → ${Math.round(p.energy)}`)}${stat("心情",`${Math.round(m0)} → ${Math.round(p.mood)}`)}${stat("壓力",`${Math.round(s0)} → ${Math.round(p.stress)}`)}</div>${closeBtn()}`);
