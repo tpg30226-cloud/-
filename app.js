@@ -1078,7 +1078,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  migrateProV1930();
  migrateProV1932();
  migrateProV1933();
- migrateProV1935();migrateProV1934();migrateProV1936();
+ migrateProV1935();migrateProV1934();migrateProV1936();migrateProV1937();migrateProV1938();
 }
 function isProFriend(name){return !!confirmedProfessionalRecord(name)}
 function ensureProCharacter(name){
@@ -2383,7 +2383,7 @@ function undergroundRomanceTick(){ if(typeof maybeRomanceExposure==="function") 
 function maybeSocialInvitation(){ if(typeof maybeNpcInvitation==="function") maybeNpcInvitation(); }
 function rankCompetitionTick(){ if(typeof syncAnnualCompetition==="function") syncAnnualCompetition(); }
 function poachingTick(){ if(typeof recoverPoachFlow==="function") recoverPoachFlow(); }
-function professionalWeeklyTick(){syncCompanionCurrentLocation();undergroundRomanceTick();ensureRosterSubstitutes();repairSocialHomeLocations();maybeNpcVisitsPlayer();maybeSocialInvitation();maybeDefamation();legalTeamTick();imageRepairTick();commercialTick();transferMarketTick();teamRuptureWeeklyTick();disciplineRuptureTick();ensureTeammatePartners();if(Math.random()<.22)maybeMeetTeammateGirlfriend();const lp=ensureLifestyle();if(state.date.week%4===0){const ids=[...lp.assets.homes,...lp.assets.vehicles],cost=ids.reduce((sum,id)=>sum+(ASSET_CATALOG.find(x=>x.id===id)?.maint||0),0);if(cost){lp.cash=Math.max(0,lp.cash-cost);state.logs.push(`🏠 本期資產維護費 NT$${cost.toLocaleString()}。`)}}salaryTick();sponsorTick();sponsorMerchTick();childSupportTick();rankCompetitionTick();blackFanTick();poachingTick();maybeTeamEarlyRenewalOffer();ensureMeta();const p=state.player,pc=p.proCareer;if(pc.contract){completeContract(pc.contract);if(p.adultLife.careerReputation<pc.contract.requirements.reputation&&Math.random()<.2)state.logs.push("⚠️ 合約警告：目前職業風評低於戰隊要求。")}}
+function professionalWeeklyTick(){Object.values(state.characters||{}).forEach(c=>partnerCurrentLocationByMode(c));syncCompanionCurrentLocation();undergroundRomanceTick();ensureRosterSubstitutes();repairSocialHomeLocations();maybeNpcVisitsPlayer();maybeSocialInvitation();maybeDefamation();legalTeamTick();imageRepairTick();commercialTick();transferMarketTick();teamRuptureWeeklyTick();disciplineRuptureTick();ensureTeammatePartners();if(Math.random()<.22)maybeMeetTeammateGirlfriend();const lp=ensureLifestyle();if(state.date.week%4===0){const ids=[...lp.assets.homes,...lp.assets.vehicles],cost=ids.reduce((sum,id)=>sum+(ASSET_CATALOG.find(x=>x.id===id)?.maint||0),0);if(cost){lp.cash=Math.max(0,lp.cash-cost);state.logs.push(`🏠 本期資產維護費 NT$${cost.toLocaleString()}。`)}}salaryTick();sponsorTick();sponsorMerchTick();childSupportTick();rankCompetitionTick();blackFanTick();poachingTick();maybeTeamEarlyRenewalOffer();ensureMeta();const p=state.player,pc=p.proCareer;if(pc.contract){completeContract(pc.contract);if(p.adultLife.careerReputation<pc.contract.requirements.reputation&&Math.random()<.2)state.logs.push("⚠️ 合約警告：目前職業風評低於戰隊要求。")}}
 function professionalDailyTick(){if(!isProfessionalStage())return;syncAnnualCompetition();if(isTransferWindow())ensureTransferMarket();repairPermanentCivilianProfessions();recoverPoachFlow();salaryTick();if(state.player.proCareer.suspension>0&&isProMatchToday()){state.logs.push(`⛔ 你仍有 ${state.player.proCareer.suspension} 場禁賽處分。`)}}
 const PRO_ROSTER_NAMES={
  "KNG Esports":["韓曜辰","周凱文","夜鋒","林承皓","江允澤"],
@@ -2440,12 +2440,47 @@ function archiveCurrentCoaches(team){
  const p=state.player,pc=p.proCareer;if(!pc.coaches?.length)return;pc.coachHistory=pc.coachHistory||[];
  pc.coaches.forEach(x=>{pc.coachHistory.push({name:x.name,team,role:x.role,fromYear:pc.coachJoinedYear||state.date.year,toYear:state.date.year});const c=state.characters?.[x.name];if(c){c.isPro=false;c.isProStaff=true;c.formerTeam=team;c.formerRole=x.role;c.currentTeam=null;c.socialContact=true;c.identityType="教練";c.acquaintanceSource=`${team} 任職期間`}});
 }
+function regionalReplacementName(region,team,role){
+ const pools={
+  PCS:["林冠宇","陳奕翔","黃柏鈞","張曜廷","周昱辰","江承恩","許皓軒","葉宇哲","吳柏翰","方俊傑"],
+  LCK:["Kim Min-jae","Park Ji-hoon","Lee Hyun-woo","Choi Jun-seo","Kang Tae-yun","Han Seung-min","Yoon Do-hyun","Jung Woo-jin"],
+  LPL:["Chen Yuze","Li Haoran","Wang Zixuan","Zhao Yichen","Xu Minghao","Liu Tianyu","Sun Haoxuan","Zhou Yifan"],
+  LEC:["Lukas Weber","Noah Fischer","Elias Novak","Milan Keller","Leo Moreau","Oscar Lind","Felix Bauer","Nico Rossi"],
+  LCS:["Ethan Cole","Mason Reed","Ryan Brooks","Dylan Hayes","Logan Price","Caleb Stone","Owen Parker","Jack Bennett"]
+ };
+ const used=new Set(Object.keys(state.characters||{}));
+ const arr=pools[region]||pools.PCS;
+ for(let i=0;i<arr.length;i++){const n=arr[(stableAgeOffset(team+role,arr.length)+i)%arr.length];if(!used.has(n))return n}
+ return `${arr[stableAgeOffset(team+role+state.date.year,arr.length)]} ${state.date.year%100}`;
+}
+function signImmediateRosterReplacement(role,reason="轉會後補強"){
+ const p=state.player,pc=p.proCareer;if(!pc?.team)return null;pc.roster=pc.roster||[];
+ const nr=normalizeRole(role)||role,existing=pc.roster.find(x=>!x.isSub&&normalizeRole(x.role)===nr);if(existing)return existing;
+ const name=regionalReplacementName(pc.region||fixedTeamRegion(pc.team)||"PCS",pc.team,nr),rating=clamp(64+stableAgeOffset(name+pc.team,22),58,86);
+ const x={name,role:nr,isPlayer:false,isSub:false,rating,relation:50,trust:50,chemistry:45,recruitedYear:state.date.year,recruitedWeek:state.date.week};pc.roster.push(x);
+ state.characters[name]=Object.assign(state.characters[name]||{},{name,known:true,gender:"男",age:18+stableAgeOffset(name,9),role:nr,isPro:true,identityType:"職業選手",currentTeam:pc.team,team:pc.team,region:pc.region||fixedTeamRegion(pc.team)||"PCS",acquaintanceSource:`${pc.team} 戰隊`,socialContact:true,rating});
+ p.relations[name]=p.relations[name]??50;p.proFriends=p.proFriends||[];if(!p.proFriends.includes(name))p.proFriends.push(name);
+ state.logs.push(`✍️ ${pc.team} 在${reason}後補進 ${name}（${nr}｜能力 ${rating}），填補一軍空缺。`);return x;
+}
+function repairCurrentProRosterVacancies(reason="陣容校正"){
+ const p=state.player,pc=p.proCareer;if(!pc?.team||!isProfessionalStage())return;pc.roster=Array.isArray(pc.roster)?pc.roster:[];
+ // A player recorded as sold away from the current club must never be restored by the fixed default roster.
+ const sold=new Set([...(pc.transferMarket?.history||[]),...(pc.transferMarket?.listings||[])].filter(x=>x?.status==="已成交"&&x.team===pc.team&&x.name!==p.name).map(x=>x.name));
+ pc.roster=pc.roster.filter(x=>x?.name&&!sold.has(x.name));
+ const roles=["上路","打野","中路","ADC","輔助"],myRole=normalizeRole(p.role)==="下路"?"ADC":normalizeRole(p.role);
+ let me=pc.roster.find(x=>x.isPlayer||x.name===p.name);if(!me){me={name:p.name,role:myRole||"中路",isPlayer:true,relation:100,trust:100,chemistry:100};pc.roster.push(me)}else{me.name=p.name;me.role=myRole||me.role;me.isPlayer=true;me.isSub=false}
+ roles.forEach(role=>{if(role===normalizeRole(me.role))return;if(!pc.roster.some(x=>!x.isSub&&normalizeRole(x.role)===role))signImmediateRosterReplacement(role,reason)});
+}
 function ensureProRoster(){
- const p=state.player,pc=p.proCareer;if(!pc?.team)return;pc.roster=pc.roster||[];pc.coaches=pc.coaches||[];
- const roles=["上路","打野","中路","ADC","輔助"],pr=p.role==="下路"?"ADC":p.role,pi=Math.max(0,roles.indexOf(pr)),baseNames=[...(PRO_ROSTER_NAMES[pc.team]||["韓曜辰","周凱文","季凌川","林承皓","江允澤"])];
- baseNames[pi]=p.name;pc.roster=baseNames.map((name,i)=>({name,role:roles[i],isPlayer:i===pi,relation:i===pi?100:(p.relations[name]??rand(48,68)),trust:i===pi?100:rand(48,70),chemistry:i===pi?100:rand(45,68)}));
+ const p=state.player,pc=p.proCareer;if(!pc?.team)return;pc.roster=Array.isArray(pc.roster)?pc.roster:[];pc.coaches=Array.isArray(pc.coaches)?pc.coaches:[];
+ // Only create the fixed five once. Existing rosters are persistent and may change through transfers.
+ if(!pc.roster.length){
+  const roles=["上路","打野","中路","ADC","輔助"],pr=normalizeRole(p.role)==="下路"?"ADC":normalizeRole(p.role),pi=Math.max(0,roles.indexOf(pr)),baseNames=[...(PRO_ROSTER_NAMES[pc.team]||["韓曜辰","周凱文","季凌川","林承皓","江允澤"])];
+  baseNames[pi]=p.name;pc.roster=baseNames.map((name,i)=>({name,role:roles[i],isPlayer:i===pi,relation:i===pi?100:(p.relations[name]??rand(48,68)),trust:i===pi?100:rand(48,70),chemistry:i===pi?100:rand(45,68)}));
+ }
+ if(!isTransferWindow()||isTransferWindowFinalWeek())repairCurrentProRosterVacancies("轉會窗截止前補強");
  if(!pc.coaches.length){pc.coaches=coachNamesForTeam(pc.team,pc.region||"PCS");pc.coachJoinedYear=state.date.year}
- [...pc.roster,...pc.coaches].forEach(x=>{if(x.isPlayer)return;const isCoach=x.role.includes("教練");if(!state.characters[x.name])state.characters[x.name]={name:x.name,known:true,gender:"男",age:isCoach?32+stableAgeOffset(x.name,12):18+stableAgeOffset(x.name,10),role:x.role,isProStaff:isCoach,isPro:!isCoach,traits:[["冷靜","努力","直率","溫和"][stableAgeOffset(x.name,4)]]};const c=state.characters[x.name];c.known=true;c.socialContact=true;if(isCoach){c.isPro=false;c.isProStaff=true;c.identityType="教練";c.currentTeam=pc.team;c.currentRole=x.role;c.role=x.role;c.acquaintanceSource=`${pc.team} 戰隊`;delete c.formerTeam}p.relations[x.name]=p.relations[x.name]??x.relation??55;p.proFriends=p.proFriends||[];if(!p.proFriends.includes(x.name))p.proFriends.push(x.name)});
+ [...pc.roster,...pc.coaches].forEach(x=>{if(x.isPlayer)return;const isCoach=String(x.role||"").includes("教練");if(!state.characters[x.name])state.characters[x.name]={name:x.name,known:true,gender:"男",age:isCoach?32+stableAgeOffset(x.name,12):18+stableAgeOffset(x.name,10),role:x.role,isProStaff:isCoach,isPro:!isCoach,traits:[["冷靜","努力","直率","溫和"][stableAgeOffset(x.name,4)]]};const c=state.characters[x.name];c.known=true;c.socialContact=true;if(isCoach){c.isPro=false;c.isProStaff=true;c.identityType="教練";c.currentTeam=pc.team;c.currentRole=x.role;c.role=x.role;c.acquaintanceSource=`${pc.team} 戰隊`;delete c.formerTeam}else{c.isPro=true;c.currentTeam=pc.team;c.team=pc.team;c.region=pc.region||fixedTeamRegion(pc.team)||"PCS"}p.relations[x.name]=p.relations[x.name]??x.relation??55;p.proFriends=p.proFriends||[];if(!p.proFriends.includes(x.name))p.proFriends.push(x.name)});
 }
 
 function isPlaceholderPersonName(name){
@@ -3684,10 +3719,38 @@ function applyNpcTransferListing(listing,buyer,buyerRegion,toAcademy){
  const pc=state.player.proCareer;
  if(listing.team===pc.team){
    const entry=(pc.roster||[]).find(x=>x.name===listing.name);
-   if(entry)pc.roster=pc.roster.filter(x=>x.name!==listing.name);
+   if(entry){pc.roster=pc.roster.filter(x=>x.name!==listing.name);pc.pendingRosterVacancies=pc.pendingRosterVacancies||[];if(!pc.pendingRosterVacancies.includes(normalizeRole(entry.role)))pc.pendingRosterVacancies.push(normalizeRole(entry.role));state.logs.push(`📋 ${pc.team} 因 ${listing.name} 轉會出現 ${normalizeRole(entry.role)} 空缺，管理層必須在本次轉會窗結束前完成補強。`);}
  }
  moveDatabaseProAfterTransfer(listing,buyer,buyerRegion,toAcademy);
- const c=state.characters?.[listing.name];if(c){c.formerTeammate=c.formerTeammate||listing.team===pc.team;c.socialContact=true}
+ const c=state.characters?.[listing.name];if(c){c.formerTeammate=c.formerTeammate||listing.team===pc.team;c.socialContact=true}updatePartnerResidenceAfterProTransfer(listing.name,buyer,buyerRegion);
+}
+function isTransferWindowFinalWeek(){
+ if(!isTransferWindow())return false;const m=careerMonthFromWeek(state.date.week),next=careerMonthFromWeek(Math.min(52,state.date.week+1));return next!==m;
+}
+function finalizeRosterBeforeTransferDeadline(){
+ const p=state.player,pc=p.proCareer;if(!isProfessionalStage()||!pc?.team)return;
+ const roles=["上路","打野","中路","ADC","輔助"],meRole=normalizeRole(p.role)==="下路"?"ADC":normalizeRole(p.role);
+ const missing=roles.filter(r=>r!==meRole&&!pc.roster?.some(x=>!x.isSub&&normalizeRole(x.role)===r));
+ missing.forEach(r=>signImmediateRosterReplacement(r,"轉會窗截止補強"));pc.pendingRosterVacancies=[];
+ if(missing.length)state.news.unshift(`✍️ ${pc.team} 在轉會窗截止前完成 ${missing.join("、")} 補強，一軍五個位置已補齊。`);
+}
+function partnerCurrentLocationByMode(c){
+ if(!c?.partnerMobility)return;const m=c.partnerMobility;
+ if(m.mode==="跟隨男友"){c.currentCountry=m.partnerCountry;c.currentCity=m.partnerCity;c.currentTravelReason=`陪 ${c.teammatePartnerOf} 在海外生活`;return}
+ if(m.mode==="留在台灣"){c.currentCountry="台灣";c.currentCity="台北";c.currentTravelReason="留在台灣生活";return}
+ // 兩邊跑：以週次穩定切換，不會每次 render 亂跳。
+ const abroad=stableAgeOffset(c.name+state.date.year+"-"+state.date.week,2)===1;c.currentCountry=abroad?m.partnerCountry:"台灣";c.currentCity=abroad?m.partnerCity:"台北";c.currentTravelReason=abroad?`兩邊跑・目前陪 ${c.teammatePartnerOf}`:"兩邊跑・目前在台灣";
+}
+function updatePartnerResidenceAfterProTransfer(proName,buyer,buyerRegion){
+ const p=state.player,pc=p.proCareer||{},entry=pc.teammatePartners?.[proName],name=entry?.name;if(!name)return;
+ const c=state.characters?.[name];if(!c)return;
+ // 隊友女友的原生常住地不因男友轉會被程式覆蓋；采恩固定是台灣人。
+ if(name==="采恩"){c.nationality="台灣";c.homeCountry="台灣";c.homeCity="台北"}
+ const dest=TEAM_RESIDENCE[buyer]||REGION_DEFAULT_RESIDENCE[buyerRegion]||{country:"台灣",city:"台北"};
+ const underground=(p.romance?.partners||[]).includes(name),modes=underground?["跟隨男友","留在台灣","兩邊跑"]:["跟隨男友","留在台灣","兩邊跑"];
+ const mode=modes[stableAgeOffset(name+proName+buyer+state.date.year,modes.length)];
+ c.partnerMobility={mode,partnerTeam:buyer,partnerCountry:dest.country,partnerCity:dest.city,sinceYear:state.date.year,sinceWeek:state.date.week};
+ partnerCurrentLocationByMode(c);state.logs.push(`✈️ ${proName} 轉往 ${buyer} 後，${name} 決定「${mode}」。她的常住地仍記錄為台灣・台北，目前所在地會依生活安排變化。`);
 }
 function resolveTransferListings(){
  if(!isProfessionalStage())return;const tm=ensureTransferMarket();
@@ -3712,7 +3775,7 @@ function resolveTransferListings(){
 }
 function transferMarketTick(){
  if(!isTransferWindow())return;
- ensureTransferMarket();maybeGenerateTransferListings();resolveTransferListings();
+ ensureTransferMarket();maybeGenerateTransferListings();resolveTransferListings();if(isTransferWindowFinalWeek())finalizeRosterBeforeTransferDeadline();
 }
 function transferMarketCard(){
  if(!isProfessionalStage())return "";const tm=ensureTransferMarket(),active=isTransferWindow(),list=(tm.listings||[]).slice(0,12),hist=(tm.history||[]).slice(0,8);
@@ -4225,6 +4288,16 @@ function migrateProV1937(){
  const cai=state.characters?.["采恩"];if(cai&&!cai.teammatePartnerOf&&(pc.teammatePartners?.["沈奕辰"]?.name==="采恩"||String(cai.acquaintanceSource||"").includes("戰隊"))){cai.teammatePartnerOf="沈奕辰";cai.identityType="沈奕辰的女友";if((p.romance?.partners||[]).includes("采恩")){cai.relationshipType="地下戀人";cai.secretRomanceRisk=Math.max(10,Number(cai.secretRomanceRisk||0));}}
  p.v1937Migrated=true;state.logs.push("🔧 V1.9.3.7：隊友女友身分改為明確標示所屬隊友；與隊友女友交往一律標記為地下戀情。");
 }
+function migrateProV1938(){
+ const p=state.player;if(p.v1938Migrated)return;const pc=p.proCareer||{};
+ if(isProfessionalStage()&&pc.team){
+  const sold=[...(pc.transferMarket?.history||[]),...(pc.transferMarket?.listings||[])].filter(x=>x?.status==="已成交"&&x.team===pc.team&&x.name!==p.name);
+  const soldNames=new Set(sold.map(x=>x.name));pc.roster=(pc.roster||[]).filter(x=>!soldNames.has(x.name));
+  sold.forEach(x=>{const c=state.characters?.[x.name];if(c){c.formerTeammate=true;c.formerTeam=pc.team;if(x.buyer){c.currentTeam=x.buyer;c.team=x.buyer;c.region=x.buyerRegion||c.region}}});
+  repairCurrentProRosterVacancies("轉會市場補強");
+ }
+ p.v1938Migrated=true;state.logs.push("🔧 V1.9.3.8：已成交選手立即移出原戰隊陣容；戰隊會依缺少位置立即補進具名新選手，固定初始名單不再覆蓋轉會結果。");
+}
 function nextDay(){
  ensureV10();let oldWeek=state.date.week,oldDay=state.date.day;try{baseNextDay()}catch(err){state.logs.push(`⚠️ 換日相容修復：${err?.message||err}`);save();render()}
  const advanced=state.date.day!==oldDay||state.date.week!==oldWeek;
@@ -4250,5 +4323,14 @@ function nextDay(){
 document.querySelectorAll(".nav-btn").forEach(b=>b.onclick=()=>{activeTab=b.dataset.tab;render()});
 document.querySelector("#resetBtn").onclick=()=>{if(confirm("確定刪除目前存檔並重開嗎？")){[SAVE_KEY,...OLD_KEYS].forEach(k=>localStorage.removeItem(k));state=newGame();activeTab="home";render()}};
 if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js",{updateViaCache:"none"}).then(r=>r.update()).catch(()=>{}));
-migrateProV1937();
+function migrateProV1939(){
+ const p=state.player;if(p.v1939Migrated)return;const pc=p.proCareer||{},c=state.characters?.["采恩"];
+ if(c){c.nationality="台灣";c.homeCountry="台灣";c.homeCity="台北";c.teammatePartnerOf=c.teammatePartnerOf||"沈奕辰";c.identityType=`${c.teammatePartnerOf}的女友`;}
+ const sold=[...(pc.transferMarket?.history||[]),...(pc.transferMarket?.listings||[])].find(x=>x?.name==="沈奕辰"&&x.status==="已成交"&&x.buyer);
+ if(c&&sold){updatePartnerResidenceAfterProTransfer("沈奕辰",sold.buyer,sold.buyerRegion||fixedTeamRegion(sold.buyer)||"LEC");}
+ // 既有存檔若仍有一軍空缺，允許在轉會期內保留，但截止週一定補齊；非轉會期立即補齊。
+ if(isProfessionalStage()&&(!isTransferWindow()||isTransferWindowFinalWeek()))finalizeRosterBeforeTransferDeadline();
+ p.v1939Migrated=true;state.logs.push("🔧 V1.9.3.9：一軍空缺必須在轉會窗截止前補齊；修正采恩為台灣人，沈奕辰跨賽區轉會後可跟隨、留台或兩邊跑。");
+}
+migrateProV1937();migrateProV1938();migrateProV1939();
 render();
