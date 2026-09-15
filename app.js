@@ -1068,7 +1068,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  migrateProV183();
  if(!p.v170Migrated){
    if(isProfessionalStage()){
-    p.proCareer.lockerRoom=p.proCareer.lockerRoom||65;ensureProEconomy();ensureMeta();ensurePublicImage();cleanupUnnamedFriends();
+    p.proCareer.lockerRoom=p.proCareer.lockerRoom||65;ensureProEconomy();ensureMeta();ensurePublicImage();cleanupUnnamedFriends();migrateProV1941();syncCanonicalAges();
     state.world.tournaments=[];state.tournament=null;Object.keys(state.weeklyPlan||{}).forEach(d=>state.weeklyPlan[d]=(state.weeklyPlan[d]||[]).filter(e=>e.type!=="amateurTournament"&&e.type!=="tournament"));
     if(p.proCareer.contract)completeContract(p.proCareer.contract);
     state.logs.push("🆕 V1.7.0：職業生活切換為每日5格，業餘杯賽關閉；合約、薪資補發、版本Meta、Scrim、贊助與公關系統啟用。");
@@ -1604,7 +1604,7 @@ function proTeamPageCard(){
 }
 function matchReviewAnalysis(m){
  if(!m)return [];
- const p=state.player,pc=p.proCareer,out=[];
+ const p=state.player,pc=p.proCareer,out=[];if(m.tactic&&TACTIC_DEFS[m.tactic])out.push(`戰術：${TACTIC_DEFS[m.tactic].name}｜適配評估 ${tacticFit(m.tactic)>=1?"良好":"需要調整"}。`);
  if(m.win){out.push("勝因：團隊在關鍵資源與中後期決策上執行較完整。");if(m.mvp)out.push("夜鋒是本場主要勝因之一，個人影響力明顯。");}
  else{
    if(m.d>=5)out.push("主要問題：夜鋒死亡次數偏高，部分時間點讓隊伍失去地圖主動權。");
@@ -1619,14 +1619,58 @@ function matchReviewAnalysis(m){
  out.push(`建議：${!m.win&&playerMetaFit()<0?"優先練版本強勢英雄並安排Scrim":"利用復盤研究＋Scrim針對本場問題修正"}。`);return out;
 }
 function showMatchReview(){const m=state.player.proCareer?.lastMatch;if(!m)return;const a=matchReviewAnalysis(m);modal(`<h2>🧠 比賽復盤｜${m.team} ${m.score} ${m.opp}</h2><div class="notice">${a.join("<br><br>")}</div><div class="small">復盤依本場KDA、競技狀態、體力、壓力、團隊默契與版本適應分析。</div>${closeBtn()}`);}
+
+// === V1.9.5.0 Career 2.0: additive modules; legacy social/date flows are intentionally untouched ===
+const TACTIC_DEFS={
+ midjungle:{name:"中野聯動",roles:["中路","打野"],desc:"以中野節奏帶動河道與邊線。"},
+ botcarry:{name:"下路核心",roles:["ADC","輔助"],desc:"資源傾斜下路，保護射手接管團戰。"},
+ topside:{name:"上野核心",roles:["上路","打野"],desc:"上半區建立領先並轉化先鋒資源。"},
+ split:{name:"四一分推",roles:["上路","中路"],desc:"單帶牽制，四人組控圖交換資源。"},
+ teamfight:{name:"團戰陣容",roles:["中路","ADC","輔助"],desc:"圍繞龍魂、大龍與正面團戰。"},
+ tempo:{name:"前期速攻",roles:["打野","中路","輔助"],desc:"前期主動碰撞，快速滾大經濟差。"},
+ scaling:{name:"後期營運",roles:["中路","ADC"],desc:"降低前期風險，以資源交換進入後期。"},
+ junglecarry:{name:"野核",roles:["打野"],desc:"讓打野吃高資源並成為主輸出點。"},
+ midcarry:{name:"中路核心",roles:["中路"],desc:"資源集中夜鋒，讓中路成為主要勝利條件。"},
+ doublecarry:{name:"雙C體系",roles:["中路","ADC"],desc:"中下雙核心共同承擔中後期輸出。"}
+};
+function ensureCareer20(){const p=state.player,pc=p.proCareer||{};pc.tactics=pc.tactics||{selected:"midjungle",mastery:{midjungle:62,botcarry:55,topside:52,split:45,teamfight:60,tempo:56,scaling:58,junglecarry:48,midcarry:64,doublecarry:58},history:[]};pc.tactics.mastery=pc.tactics.mastery||{};Object.keys(TACTIC_DEFS).forEach(k=>{if(!Number.isFinite(pc.tactics.mastery[k]))pc.tactics.mastery[k]=45});pc.clubEquity=pc.clubEquity||{team:pc.team||null,shares:{},dividends:0};pc.clubEquity.shares=pc.clubEquity.shares||{};pc.legacy=pc.legacy||{starPower:0,rivals:{},enemies:{},apprentices:{},hallOfFame:{eligible:false,inducted:false,consideredYears:[]},postCareer:null};pc.mediaNetwork=pc.mediaNetwork||[];return pc}
+function rosterRoleRating(role){const pc=state.player.proCareer,me=role===(state.player.role==="下路"?"ADC":state.player.role)?avg():0,x=(pc.roster||[]).filter(v=>!v.isSub&&(v.role===role||(role==="ADC"&&v.role==="下路"))).map(rosterRating);return Math.max(me,...x,62)}
+function tacticMetaFit(key){const m=state.world?.meta||{},txt=JSON.stringify(m);let v=0;if(key==="botcarry"&&/ADC|下路|射手/.test(txt))v+=5;if(key==="midjungle"&&/中路|打野|節奏/.test(txt))v+=4;if(key==="teamfight"&&/團戰|龍/.test(txt))v+=4;if(key==="scaling"&&/後期|發育/.test(txt))v+=4;return v}
+function tacticFit(key){ensureCareer20();const p=state.player,pc=p.proCareer,t=TACTIC_DEFS[key]||TACTIC_DEFS.midjungle,master=pc.tactics.mastery[key]||45,role=t.roles.reduce((a,r)=>a+rosterRoleRating(r),0)/t.roles.length,form=p.condition?.form||65,meta=tacticMetaFit(key),chem=teamChemistry();return clamp((master-50)*.12+(role-70)*.09+(form-60)*.035+(chem-55)*.025+meta*.12,-8,9)}
+function tacticMatchAdjustment(){const k=ensureCareer20().tactics.selected||"midjungle";return tacticFit(k)*.008}
+function tacticsCard(){if(!isProfessionalStage())return "";const pc=ensureCareer20(),sel=pc.tactics.selected||"midjungle",fit=tacticFit(sel);return `<section class="card"><div class="row space"><h2>🧠 戰隊戰術體系</h2><span class="badge">目前：${TACTIC_DEFS[sel].name}</span></div><div class="notice">${TACTIC_DEFS[sel].desc}<br>本場適配：${fit>=4?"非常適合":fit>=1?"適合":fit>-2?"普通":"不理想"}｜熟練度 ${Math.round(pc.tactics.mastery[sel])}</div><div class="reply-grid">${Object.entries(TACTIC_DEFS).map(([k,t])=>`<button class="reply tactic-select" data-tactic="${k}">${t.name}</button>`).join("")}</div><div class="small">適配會綜合陣容能力、夜鋒狀態、團隊默契、戰術熟練度與版本。正式比賽會實際影響執行品質。</div></section>`}
+function selectTactic(k){const pc=ensureCareer20();if(!TACTIC_DEFS[k])return;pc.tactics.selected=k;pc.tactics.mastery[k]=clamp((pc.tactics.mastery[k]||45)+.4,0,100);pc.tactics.history.unshift({year:state.date.year,week:state.date.week,tactic:k});state.logs.push(`🧠 戰術會議：本場準備採用「${TACTIC_DEFS[k].name}」。`);save();render()}
+function starPowerForPlayer(){const p=state.player,pc=ensureCareer20(),cs=pc.careerStats||{},ach=pc.achievements||[];let n=Math.log10(Math.max(10,p.followers||0))*9+(cs.mvp||0)*1.1+(pc.worldChampionYear?18:0)+ach.filter(x=>/世界賽|MSI|冠軍|MVP/.test(x.name||x.title||"")).length*4+(p.adultLife?.careerReputation||50)*.18;pc.legacy.starPower=clamp(Math.round(n),0,100);return pc.legacy.starPower}
+function starLabel(v){return v>=90?"超級巨星":v>=78?"明星選手":v>=65?"焦點選手":v>=50?"受到關注":"一般職業選手"}
+function equityPct(){const pc=ensureCareer20(),e=pc.clubEquity;if(e.team!==pc.team){e.team=pc.team;e.shares=e.shares||{}}return Number(e.shares[pc.team]||0)}
+function equityRights(pct){return pct>=34?"重大管理權":pct>=20?"正式管理指示權":pct>=10?"董事會影響力":pct>=5?"正式提案權":"財務投資"}
+function equityPricePerPct(){const pc=state.player.proCareer,base=900000+(REGION_STRENGTH[pc.region||"PCS"]||75)*22000;return Math.round(base*(1+starPowerForPlayer()/180)/10000)*10000}
+function clubEquityCard(){if(!isProfessionalStage())return "";const p=state.player,pc=ensureCareer20(),pct=equityPct(),price=equityPricePerPct();return `<section class="card"><div class="row space"><h2>🏢 ${pc.team} 股權</h2><span class="badge">持股 ${pct.toFixed(1)}%</span></div><div class="notice">目前權力：${equityRights(pct)}<br>估計每1%股權：NT$${price.toLocaleString()}</div><div class="reply-grid"><button class="reply equity-buy" data-pct="1">購買1%</button><button class="reply equity-buy" data-pct="5">購買5%</button>${pct>=20?`<button class="reply equity-direct" data-role="ADC">指示補強下路</button><button class="reply equity-direct" data-role="上路">指示補強上路</button><button class="reply equity-direct" data-role="打野">指示補強打野</button>`:""}</div><div class="small">達20%後，補強從「建議」升級為管理層必須正式執行／回報的指示；交易仍受預算、選手意願與轉會規則限制。</div></section>`}
+function buyEquity(pct){const p=state.player,pc=ensureCareer20(),now=equityPct(),buy=Math.min(Number(pct)||0,49-now),cost=Math.round(equityPricePerPct()*buy);if(buy<=0)return modal(`<h2>🏢 股權</h2><p>目前無法再增加這筆持股。</p>${closeBtn()}`);if(p.cash<cost)return modal(`<h2>資金不足</h2><p>購買 ${buy}% 需要 NT$${cost.toLocaleString()}。</p>${closeBtn()}`);p.cash-=cost;pc.clubEquity.shares[pc.team]=now+buy;state.logs.push(`🏢 投資 ${pc.team}：購入 ${buy}% 股權，持股來到 ${(now+buy).toFixed(1)}%。`);save();render();modal(`<h2>🏢 股權購入完成</h2><p>持股 ${(now+buy).toFixed(1)}%｜${equityRights(now+buy)}</p>${closeBtn()}`)}
+function equityDirective(role){const pc=ensureCareer20();if(equityPct()<20)return;pc.managementDirective={type:"補強",role,status:"管理層執行中",year:state.date.year,week:state.date.week};pc.recruitDemand={role,source:"股東正式指示",mandatoryResponse:true};state.logs.push(`📋 股東指示：要求 ${pc.team} 正式補強${role}，管理層已列入執行事項。`);save();render();modal(`<h2>📋 管理指示已送達</h2><p>你以持股權要求管理層補強「${role}」。這不是一般建議，管理層必須執行評估並回報結果。</p>${closeBtn()}`)}
+function legacyRelationsCard(){if(!isProfessionalStage())return "";syncLegacyRelations();const pc=ensureCareer20(),l=pc.legacy,star=starPowerForPlayer(),r=Object.entries(pc.rivals||{}).sort((a,b)=>(b[1].meetings||0)-(a[1].meetings||0))[0];if(r&&!l.rivals[r[0]])l.rivals[r[0]]={name:r[0],meetings:r[1].meetings||0,respect:60};return `<section class="card"><h2>🌟 職業圈地位</h2><div class="stat-grid">${stat("明星度",`${star}/100`)}${stat("社會定位",starLabel(star))}${stat("宿敵",Object.keys(l.rivals).length)}${stat("仇敵",Object.keys(l.enemies).length)}${stat("徒弟",Object.keys(l.apprentices).length)}</div>${r?`<div class="notice">⚔️ 主要宿敵：${r[0]}｜正式交手 ${r[1].meetings||0} 次</div>`:""}<div class="small">宿敵是競技競爭；仇敵屬私人／職業敵對。重大背叛、隊內決裂或公開衝突可能形成仇敵；資深後可培養徒弟。</div><button id="seekApprentice" class="reply">🎓 尋找值得指導的新秀</button></section>`}
+function hallScorePlayer(){const p=state.player,pc=ensureCareer20(),cs=pc.careerStats||{},ach=pc.achievements||[],world=ach.filter(x=>/世界賽冠軍/.test(x.name||x.title||"")).length+(pc.worldChampionYear?1:0),msi=ach.filter(x=>/MSI冠軍/.test(x.name||x.title||"")).length,dom=ach.filter(x=>/聯賽冠軍|國內聯賽冠軍/.test(x.name||x.title||"")).length;return world*28+msi*14+dom*5+(cs.mvp||0)*1.4+Math.max(0,(pc.careerStats?.matches||0)-120)*.035+starPowerForPlayer()*.12}
+
+function ensureHallUniverse(){const pc=ensureCareer20();pc.hallUniverse=pc.hallUniverse||{records:[],profiles:{},lastEvalYear:null};return pc.hallUniverse}
+function updateHallProfilesFromAwards(year){const pc=state.player.proCareer,h=ensureHallUniverse();Object.values(pc.regionalAwards||{}).filter((_,i)=>true).forEach(a=>{if(!a)return;const n=a.年度MVP;if(n&&n!=="未定"){const q=h.profiles[n]=h.profiles[n]||{name:n,mvp:0,eliteYears:0,worlds:0,msi:0,domestic:0};q.mvp++}});const db=ensureGlobalProDatabase();Object.values(db).forEach(reg=>Object.values(reg).forEach(roster=>roster.forEach(x=>{const q=h.profiles[x.name]=h.profiles[x.name]||{name:x.name,mvp:0,eliteYears:0,worlds:0,msi:0,domestic:0};if(x.rating>=90)q.eliteYears++;q.rating=x.rating;q.retired=!!x.retired;if(x.retired&&!q.retirementYear)q.retirementYear=year})));}
+function evaluateHallOfFame(year){const pc=state.player.proCareer,h=ensureHallUniverse();if(h.lastEvalYear===year)return;h.lastEvalYear=year;updateHallProfilesFromAwards(year);const inducted=[];Object.values(h.profiles).forEach(q=>{if(!q.retired||year-(q.retirementYear||year)<3||q.inducted)return;const score=(q.mvp||0)*13+(q.eliteYears||0)*7+(q.worlds||0)*30+(q.msi||0)*16+(q.domestic||0)*5+(q.rating>=94?8:0);if(score>=105&&((q.mvp||0)>=3||(q.eliteYears||0)>=8)){q.inducted=true;q.inductedYear=year;inducted.push(q.name);h.records.unshift({year,name:q.name,type:"NPC"})}});if(inducted.length)state.news.unshift(`🏛️ ${year} 電競名人堂：${inducted.join("、")} 正式入選。`);else state.logs.push(`🏛️ ${year} 名人堂評選：本年度沒有任何退役選手達到極高入選標準，從缺。`)}
+function syncLegacyRelations(){const pc=ensureCareer20(),l=pc.legacy;Object.values(pc.teamRuptures||{}).forEach(x=>{if(["決裂","冷戰共存","已解約","已轉隊"].includes(x.status)&&(x.severity||0)>=4)l.enemies[x.mate]=l.enemies[x.mate]||{name:x.mate,hostility:70,source:x.reason||"隊內決裂"}});Object.entries(pc.rivals||{}).forEach(([name,x])=>{if((x.meetings||0)>=3)l.rivals[name]=l.rivals[name]||{name,meetings:x.meetings,respect:60}})}
+function apprenticeAction(){const p=state.player,pc=ensureCareer20(),l=pc.legacy;if(p.age<24)return modal(`<h2>🎓 師徒</h2><p>目前夜鋒仍處於職業生涯前中期，還沒有足夠資歷正式帶徒弟。</p>${closeBtn()}`);const db=ensureGlobalProDatabase(),pool=Object.values(db).flatMap(r=>Object.values(r).flat()).filter(x=>x.active&&!x.retired&&x.age<=21&&x.name!==p.name&&!l.apprentices[x.name]);if(!pool.length)return modal(`<h2>🎓 師徒</h2><p>目前沒有合適的新生代選手。</p>${closeBtn()}`);const x=pool.sort((a,b)=>b.rating-a.rating)[0];l.apprentices[x.name]={name:x.name,role:x.role,team:x.team,progress:10};addSocialAcquaintance(x.name,45,{isPro:true,role:x.role,team:x.team,age:x.age,identityType:"職業選手・徒弟",acquaintanceSource:"職業圈指導"});state.logs.push(`🎓 ${x.name} 開始固定向夜鋒請教，建立師徒關係。`);save();render()}
+function hallOfFameCard(){if(!isProfessionalStage())return "";const pc=ensureCareer20(),h=pc.legacy.hallOfFame,score=hallScorePlayer(),status=h.inducted?"🏛️ 名人堂成員":score>=95?"傳奇級呼聲":score>=78?"熱門候選討論":score>=60?"開始受到評審關注":"尚未達到歷史級討論";return `<section class="card"><div class="row space"><h2>🏛️ 電競名人堂</h2><span class="badge">${status}</span></div><div class="small">由遊戲公司從所有職業選手的完整生涯評估。沒有固定入選名額，任何年度都可以0人入選；明星度高也不保證入選。正式門檻與評分不向玩家公開。</div></section>`}
+function postCareerCard(){const p=state.player,pc=ensureCareer20();if(p.age<26&&!pc.legacy.postCareer)return "";return `<section class="card"><h2>🛤️ 生涯第二曲線</h2><div class="small">資深選手可以嘗試轉位置延長職業生命；退役後可走教練團、母校電競班、主播／賽評、管理層或股東經營。轉型不是必定成功。</div><div class="reply-grid"><button class="reply career-shift" data-path="轉輔助">嘗試轉輔助</button><button class="reply career-shift" data-path="教練準備">準備教練路線</button><button class="reply career-shift" data-path="主播準備">培養主播／賽評能力</button></div></section>`}
+function careerShift(path){const p=state.player,pc=ensureCareer20(),chance=clamp(.25+(p.stats?.gameSense||p.stats?.decision||60)/180+(pc.coachTrust||50)/300-(p.age-28)*.018,.18,.82),ok=Math.random()<chance;pc.legacy.postCareer={path,progress:clamp((pc.legacy.postCareer?.progress||0)+(ok?18:7),0,100),lastResult:ok?"順利":"受挫"};state.logs.push(`${ok?"✅":"⚠️"} 生涯轉型「${path}」${ok?"取得明顯進展":"本階段適應不順，仍可繼續嘗試"}。`);save();render()}
+function mediaNetworkCard(){if(!isProfessionalStage())return "";const pc=ensureCareer20();return `<section class="card"><h2>🎙️ 媒體與電競圈</h2><div class="small">賽前、季後賽、MSI、世界賽與重大轉會會增加專訪。可認識電競主播、主持人、記者與賽後採訪主持；回答會影響明星度、粉絲與職業形象。</div>${pc.mediaNetwork.length?`<div class="notice">已建立媒體人脈：${pc.mediaNetwork.slice(0,5).map(x=>`${x.name}（${x.job}）`).join("、")}</div>`:""}<button id="meetMediaContact" class="reply">參加媒體活動</button></section>`}
+function meetMediaContact(){const pc=ensureCareer20(),jobs=["電競主播","賽事主持人","電競記者","賽後採訪主持","賽評"],job=jobs[rand(0,jobs.length-1)],names=["周子晴","林以辰","夏妍","陳洛","許芷晴","高宇衡"],name=names.find(n=>!pc.mediaNetwork.some(x=>x.name===n))||`${job}${pc.mediaNetwork.length+1}`;pc.mediaNetwork.push({name,job,relation:30});addSocialAcquaintance(name,30,{gender:/晴|妍|芷/.test(name)?"女":"男",age:22+rand(0,9),identityType:job,career:job,occupation:job,acquaintanceSource:"電競媒體活動",romanceable:/晴|妍|芷/.test(name)});state.logs.push(`🎙️ 媒體活動認識 ${name}（${job}）。`);save();render()}
+
 function career(){
  ensureV10();const p=state.player;
- return `${proCareerCard()}${competitiveFormCard()}${proTeamPageCard()}${recentProMatchCard()}${annualCalendarCard()}${transferMarketCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${commercialCard()}${fanMeetingCard()}${teamBuildingCard()}${legalMediaCard()}${assetCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${isProfessionalStage()?stat("大眾評價",Math.round(ensureAudienceRating().rating)):""}${stat("聲譽",p.reputation)}</div></section>
+ return `${proCareerCard()}${competitiveFormCard()}${tacticsCard()}${clubEquityCard()}${legacyRelationsCard()}${hallOfFameCard()}${postCareerCard()}${mediaNetworkCard()}${proTeamPageCard()}${recentProMatchCard()}${annualCalendarCard()}${transferMarketCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${commercialCard()}${fanMeetingCard()}${teamBuildingCard()}${legalMediaCard()}${assetCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${isProfessionalStage()?stat("大眾評價",Math.round(ensureAudienceRating().rating)):""}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.2.4</strong>｜修復無法換日；法律／公關與扶養和解入口強化。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.5.0</strong>｜職業生涯2.0第一階段：戰術、股權、明星／宿敵／仇敵／徒弟、名人堂、生涯轉型與媒體圈。</div></section>`;
 }
 function bind(){
+ document.querySelectorAll(".tactic-select").forEach(b=>b.onclick=()=>selectTactic(b.dataset.tactic));document.querySelectorAll(".equity-buy").forEach(b=>b.onclick=()=>buyEquity(+b.dataset.pct));document.querySelectorAll(".equity-direct").forEach(b=>b.onclick=()=>equityDirective(b.dataset.role));document.querySelectorAll(".career-shift").forEach(b=>b.onclick=()=>careerShift(b.dataset.path));document.querySelector("#meetMediaContact")?.addEventListener("click",meetMediaContact);document.querySelector("#seekApprentice")?.addEventListener("click",apprenticeAction);
  document.querySelectorAll(".action-btn").forEach(b=>b.onclick=()=>act(b.dataset.action));document.querySelector("#doTryout")?.addEventListener("click",doProTryout);document.querySelector("#signProContract")?.addEventListener("click",signProContract);document.querySelector("#counterOffer")?.addEventListener("click",counterInitialOffer);document.querySelector("#declineOffer")?.addEventListener("click",declineInitialOffer);document.querySelector("#playLeagueMatch")?.addEventListener("click",playLeagueMatch);document.querySelector("#askRaise")?.addEventListener("click",()=>negotiateContract("raise"));document.querySelector("#offerCut")?.addEventListener("click",()=>negotiateContract("cut"));document.querySelector("#requestTransfer")?.addEventListener("click",()=>negotiateContract("transfer"));document.querySelector("#earlyRenewal")?.addEventListener("click",earlyRenewalTalk);document.querySelectorAll(".pregnancy-talk").forEach(b=>b.onclick=()=>pregnancyDecisionByName(b.dataset.name));document.querySelectorAll(".child-choice").forEach(b=>b.onclick=()=>childSupportDecision(b.dataset.name,b.dataset.choice));document.querySelectorAll(".sponsor-action").forEach(b=>b.onclick=()=>sponsorAction(b.dataset.action));document.querySelector("#launchMerch")?.addEventListener("click",launchSponsorMerch);document.querySelectorAll(".donate-btn").forEach(b=>b.onclick=()=>makeDonation(+b.dataset.amt));document.querySelector("#proposeMarriage")?.addEventListener("click",proposeMarriage);document.querySelector("#marriageTalk")?.addEventListener("click",resolveMarriageCrisis);document.querySelector("#prAction")?.addEventListener("click",openPRResponse);document.querySelector("#suggestRecruit")?.addEventListener("click",openRecruitSuggestionV1918);document.querySelector("#contractDemands")?.addEventListener("click",contractDemandTalk);document.querySelector("#stiScreen")?.addEventListener("click",doStiScreen);document.querySelectorAll(".rupture-talk").forEach(b=>b.onclick=()=>{resolveTeamRupture(b.dataset.mate);save();render()});document.querySelectorAll(".asset-buy").forEach(b=>b.onclick=()=>buyAsset(b.dataset.id));document.querySelectorAll(".alumni-donate").forEach(b=>b.onclick=()=>alumniDonate(+b.dataset.amt));document.querySelector("#fanMeeting")?.addEventListener("click",runFanMeeting);document.querySelector("#teamBuilding")?.addEventListener("click",runTeamBuilding);document.querySelector("#seekCommercial")?.addEventListener("click",seekCommercial);document.querySelectorAll(".legal-action").forEach(b=>b.onclick=()=>handleLegalAction(b.dataset.a));document.querySelector("#hireLawyer")?.addEventListener("click",()=>hireMediaTeam(1));document.querySelector("#hirePRTeam")?.addEventListener("click",()=>hireMediaTeam(2));document.querySelector("#leakSomeone")?.addEventListener("click",leakSomeone);document.querySelectorAll(".support-settlement").forEach(b=>b.onclick=()=>openSupportSettlement(b.dataset.name));document.querySelectorAll(".leave-request").forEach(b=>b.onclick=()=>requestCoachLeave(b.dataset.reason));document.querySelector("#main")?.addEventListener("click",e=>{const b=e.target.closest?.(".birth-event");if(b){e.preventDefault();e.stopPropagation();b.dataset.pregId?resolveBirthEventById(b.dataset.pregId):resolveBirthEvent(b.dataset.name)}});document.querySelectorAll(".child-care-action").forEach(b=>b.onclick=()=>spendTimeWithChild(b.dataset.name));document.querySelectorAll(".infant-care-action").forEach(b=>b.onclick=()=>infantCare(b.dataset.name));document.querySelectorAll(".legacy-birth-choice").forEach(b=>b.onclick=()=>recordLegacyBirthChoice(b.dataset.name,b.dataset.choice));document.querySelectorAll(".legacy-child-choice").forEach(b=>b.onclick=()=>childSupportDecision(b.dataset.name,b.dataset.choice));document.querySelector("#injuryTreat")?.addEventListener("click",treatInjury);document.querySelector("#injuryRehab")?.addEventListener("click",rehabInjury);document.querySelector("#healthCheck")?.addEventListener("click",generalHealthCheck);document.querySelector("#stiTreat")?.addEventListener("click",treatSti);document.querySelector("#viewLastMatchReport")?.addEventListener("click",showMatchReport);document.querySelector("#viewMatchReview")?.addEventListener("click",showMatchReview);document.querySelector("#resumePostInterview")?.addEventListener("click",showPostMatchMedia);
  document.querySelector("#nextDayBtn")?.addEventListener("click",nextDay);
  document.querySelectorAll(".message-open").forEach(b=>b.onclick=e=>{e.preventDefault();openMessage(b.dataset.msg)});
@@ -2706,9 +2750,39 @@ function annualNpcCareerLifecycle(year){
    else{x.contractYears=1;x.careerStatus=old?"一年短約續約":"續約";}
  })));
 }
+function syncCanonicalAges(){
+ const p=state.player;
+ // Keep a stable birth year once established; age must never be incremented by both year rollover and birthday.
+ if(!Number.isFinite(p.birthYear))p.birthYear=state.date.year-(Number(p.age)||16);
+ Object.values(state.characters||{}).forEach(c=>{
+   if(!c||!c.name)return;
+   if(!Number.isFinite(c.birthYear)&&Number.isFinite(c.age))c.birthYear=state.date.year-c.age;
+   // Story relationships have a fixed age gap to Nightblade and must age together.
+   const d=String(c.desc||"");
+   if(c.name==="林雨晴"||c.name==="許安然"||/同班同學|國中同學|同屆同學|高中好友|同班好友/.test(d)){
+     c.age=p.age;c.birthYear=p.birthYear;
+   }else if(/學妹|高一/.test(d)){
+     c.age=Math.max(16,p.age-1);c.birthYear=p.birthYear+1;
+   }else if(/學姊|高三/.test(d)){
+     c.age=p.age+1;c.birthYear=p.birthYear-1;
+   }
+ });
+}
+function migrateProV1941(){
+ const p=state.player;if(p.v1941AgeFixed)return;
+ // Saves affected by the former double-aging path are one year too old at this point.
+ // Correct the protagonist once, then anchor all story-relative NPC ages to the corrected age.
+ if(Number.isFinite(p.age)&&p.age>=18)p.age=Math.max(16,p.age-1);
+ p.birthYear=state.date.year-p.age;
+ p.v1941AgeFixed=true;
+ syncCanonicalAges();
+ state.logs?.push(`🎂 V1.9.4.1：修正年齡重複成長；夜鋒目前 ${p.age} 歲，同學／學妹／學姊年齡已同步校正。`);
+}
 function annualAgeAndDecline(year){
  const p=state.player;if(p.lastAgingYear===year)return;p.lastAgingYear=year;ensureAges();
- p.age++;Object.values(state.characters||{}).forEach(c=>{if(Number.isFinite(c.age))c.age++});
+ // V1.9.4.1: age is advanced only by the birthday/calendar system.
+ // The old annual rollover incremented everyone again, making Nightblade gain 2 years in one year.
+ syncCanonicalAges();
  const decline=(obj,stats,age)=>{
    if(age<26)return;const years=age-25,op=Math.min(3.5,.25+years*.28);
    ["對線","團戰"].forEach(k=>{if(Number.isFinite(stats[k]))stats[k]=clamp(stats[k]-Math.random()*op,0,100)});
@@ -2881,7 +2955,7 @@ function annualAwards(year){
  pc.regionalAwards=pc.regionalAwards||{};PRO_REGIONS.forEach(r=>{{const db=ensureGlobalProDatabase()[r]||{},all=Object.values(db).flat().filter(x=>x.active&&!x.retired),pick=role=>all.filter(x=>x.role===role).sort((a,b)=>b.rating-a.rating)[0]?.name||"未定";pc.regionalAwards[`${year}-${r}`]={最佳戰隊:Object.keys(db)[0]||`${r}年度強隊`,最佳教練:`${r}年度教練`,最佳上路:pick("上路"),最佳打野:pick("打野"),最佳中路:pick("中路"),最佳ADC:pick("ADC"),最佳輔助:pick("輔助"),最佳新秀:all.filter(x=>x.age<=20).sort((a,b)=>b.rating-a.rating)[0]?.name||pick("中路"),年度MVP:all.sort((a,b)=>b.rating-a.rating)[0]?.name||"未定"};}});
  const awards=[];if(score>78)awards.push(`年度最佳${p.role==="下路"?"ADC":p.role}`);if(score>86)awards.push("年度MVP");if(rookie&&score>72)awards.push("年度最佳新秀");
  awards.forEach(x=>{p.awards.unshift({year,title:x,region:pc.region||"PCS",team:pc.team});addAchievement(`award-${x}`,x,"年度頒獎",year,false)});
- state.logs.push(`🏆 ${year}年度頒獎完成：五大賽區評選最佳戰隊、最佳教練、五路最佳選手、年度MVP與最佳新秀。${awards.length?`夜鋒獲得：${awards.join("、")}`:""}`);
+ state.logs.push(`🏆 ${year}年度頒獎完成：五大賽區評選最佳戰隊、最佳教練、五路最佳選手、年度MVP與最佳新秀。${awards.length?`夜鋒獲得：${awards.join("、")}`:""}`);evaluateHallOfFame(year);
 }
 function internationalQualificationRules(){
  return {MSI:"五大賽區春季季後賽前二，共10隊；A/B兩組各5隊雙循環，各組前二進BO5淘汰賽。",
@@ -3569,10 +3643,10 @@ function runRichLeagueMatch(){const difficultyPressure=.025+Math.max(0,(state.pl
  const scheduled=currentScheduledProMatch();
  if(!opp&&scheduled?.opp){opp=sn.teams.find(x=>x.name===scheduled.opp)||{name:scheduled.opp,w:0,l:0,gw:0,gl:0};if(!sn.teams.includes(opp))sn.teams.push(opp)}
  if(!opp){modal(`<h2>⚠️ 賽程修復</h2><p>找不到本場對手資料，已保留賽程，請重新進入比賽。</p>${closeBtn()}`);save();return}
- const chem=teamChemistry(),inj=p.condition.injury?-.07:0;const lifeAdj=clamp((p.energy-60)*.0015+(p.mood-60)*.0012-(p.stress-35)*.0015,-.16,.12),metaAdj=playerMetaFit()*.004;
+ const chem=teamChemistry(),inj=p.condition.injury?-.07:0,tacticAdj=tacticMatchAdjustment();const lifeAdj=clamp((p.energy-60)*.0015+(p.mood-60)*.0012-(p.stress-35)*.0015,-.16,.12),metaAdj=playerMetaFit()*.004;
  const major=["MSI","世界賽"].includes(proAnnualPhase()),majorAdj=major?majorEventExperienceFactor()+playerMetaFit()*.018-(p.stress-50)*.002:0;
  const need=sn.phase==="季後賽"?3:2;let my=0,his=0,logs=[],games=0;
- while(my<need&&his<need){games++;const wc=clamp((.50+(avg()-68)*.012+(p.condition.form-60)*.003+(chem-50)*.002+inj+lifeAdj+metaAdj+majorAdj)-.105-difficultyPressure,.10,.66),win=Math.random()<wc;if(win)my++;else his++;logs.push(...richGameEvents(games,opp,win))}
+ while(my<need&&his<need){games++;const wc=clamp((.50+(avg()-68)*.012+(p.condition.form-60)*.003+(chem-50)*.002+inj+lifeAdj+metaAdj+majorAdj+tacticAdj)-.105-difficultyPressure,.10,.66),win=Math.random()<wc;if(win)my++;else his++;logs.push(...richGameEvents(games,opp,win))}
  if(sn.phase==="例行賽"){const sched=currentScheduledProMatch();if(sched)sched.played=true;me.w+=my>his?1:0;me.l+=my>his?0:1;me.gw+=my;me.gl+=his;opp.w+=my>his?0:1;opp.l+=my>his?1:0;opp.gw+=his;opp.gl+=my;sn.myMatches++;sn.matchesPlayed++;simulateOtherLeagueRound(me,opp);if(sn.myMatches>=22){preparePlayoffs();if(sn.phase==="季後賽")schedulePlayoffMatch();}}
  else if(sn.phase==="季後賽"){if(sn.playoffSchedule){sn.playoffSchedule.played=true;sn.playoffOpponents=sn.playoffOpponents||[];if(sn.playoffSchedule.opp&&!sn.playoffOpponents.includes(sn.playoffSchedule.opp))sn.playoffOpponents.push(sn.playoffSchedule.opp)}sn.matchesPlayed++;if(my>his){sn.playoffRound++;if(sn.playoffRound>=3){sn.phase="世界賽資格";sn.champion=pc.team;sn.playoffSchedule=null;state.news.unshift(`🏆 ${pc.team} 奪下聯賽冠軍，取得世界賽資格！`)}else{state.news.unshift(`🏆 ${pc.team} 贏下${playoffRoundLabel(sn.playoffRound-1)}，晉級${playoffRoundLabel(sn.playoffRound)}。`);schedulePlayoffMatch()}}else{sn.phase="賽季結束";sn.playoffSchedule=null;state.news.unshift(`${pc.team} 在季後賽遭淘汰，本季旅程結束。`)}}
  const cs=rand(245,360),k=rand(my>his?4:1,my>his?10:6),d=rand(1,6),a=rand(5,14),mvp=my>his&&Math.random()<.28;
@@ -3580,7 +3654,7 @@ function runRichLeagueMatch(){const difficultyPressure=.025+Math.max(0,(state.pl
  pc.matchHistory.unshift({team:pc.team,opp:opp.name,score:`${my}:${his}`,win:my>his,k,d,a,cs,mvp,week:state.date.week});
  changeCompetitiveForm(my>his?(mvp?6:4):-2,my>his?(mvp?"正式比賽勝利＋MVP":"正式比賽勝利"):"正式比賽失利");p.condition.fatigue=clamp(p.condition.fatigue+12,0,100);
  state.news.unshift(`職業聯賽：${pc.team} ${my}:${his} ${opp.name}；${p.name} ${k}/${d}/${a}${mvp?"，獲選MVP":""}。`);
- pc.lastMatch={team:pc.team,opp:opp.name,win:my>his,score:`${my}:${his}`,logs:[...logs],k,d,a,cs,mvp,year:state.date.year,week:state.date.week,day:state.date.day,phase:sn.phase||"正式比賽",postInterviewDone:false};
+ pc.lastMatch={team:pc.team,opp:opp.name,win:my>his,score:`${my}:${his}`,logs:[...logs],k,d,a,cs,mvp,year:state.date.year,week:state.date.week,day:state.date.day,phase:sn.phase||"正式比賽",tactic:pc.tactics?.selected||"midjungle",postInterviewDone:false};
  pc.pendingPostInterview=true;
  updateTeamRelationsAfterMatch(my>his);updateProfessionalReputation(my>his,mvp);awardMatchPopularity(my>his,mvp,sn.phase==="季後賽"?`${sn.seasonName}季後賽`:"職業聯賽");
  state.logs.push(`🏆 正式賽事：${pc.team} ${my}:${his} ${opp.name}｜系列賽${my>his?"勝":"負"}｜累計 ${me.w}勝${me.l}敗。`);
@@ -4337,7 +4411,8 @@ function migrateProV1939(){
 function migrateProV1940(){
  const p=state.player;if(p.v1940Migrated)return;const c=state.characters?.["采恩"];
  if(c){c.nationality="台灣";c.homeCountry="台灣";c.homeCity="台北";if(c.partnerMobility)partnerCurrentLocationByMode(c);}
- p.v1940Migrated=true;state.logs.push("🔧 V1.9.4.0：社交實體見面改以目前所在地判定，不再誤用常住地；采恩常住台北但可依生活安排身處柏林等地。");
+ p.v1940Migrated=true;state.logs.push("🔧 V1.9.4.1：社交實體見面改以目前所在地判定，不再誤用常住地；采恩常住台北但可依生活安排身處柏林等地。");
 }
 migrateProV1937();migrateProV1938();migrateProV1939();migrateProV1940();
+if(isProfessionalStage()){ensureCareer20();if(!state.player.v1950Migrated){state.player.v1950Migrated=true;state.logs.push("🆕 V1.9.5.0：職業生涯2.0第一階段啟用；既有社交、約會、懷孕、比賽、轉會流程保持原邏輯。");save();}}
 render();
