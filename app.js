@@ -1068,7 +1068,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  migrateProV183();
  if(!p.v170Migrated){
    if(isProfessionalStage()){
-    p.proCareer.lockerRoom=p.proCareer.lockerRoom||65;ensureProEconomy();ensureMeta();ensurePublicImage();cleanupUnnamedFriends();migrateProV1941();syncCanonicalAges();
+    p.proCareer.lockerRoom=p.proCareer.lockerRoom||65;ensureProEconomy();ensureMeta();ensurePublicImage();cleanupUnnamedFriends();migrateProV1941();migrateProV1951AgeRepair();syncCanonicalAges();
     state.world.tournaments=[];state.tournament=null;Object.keys(state.weeklyPlan||{}).forEach(d=>state.weeklyPlan[d]=(state.weeklyPlan[d]||[]).filter(e=>e.type!=="amateurTournament"&&e.type!=="tournament"));
     if(p.proCareer.contract)completeContract(p.proCareer.contract);
     state.logs.push("🆕 V1.7.0：職業生活切換為每日5格，業餘杯賽關閉；合約、薪資補發、版本Meta、Scrim、贊助與公關系統啟用。");
@@ -1667,7 +1667,7 @@ function career(){
  return `${proCareerCard()}${competitiveFormCard()}${tacticsCard()}${clubEquityCard()}${legacyRelationsCard()}${hallOfFameCard()}${postCareerCard()}${mediaNetworkCard()}${proTeamPageCard()}${recentProMatchCard()}${annualCalendarCard()}${transferMarketCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${commercialCard()}${fanMeetingCard()}${teamBuildingCard()}${legalMediaCard()}${assetCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${isProfessionalStage()?stat("大眾評價",Math.round(ensureAudienceRating().rating)):""}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.5.0</strong>｜職業生涯2.0第一階段：戰術、股權、明星／宿敵／仇敵／徒弟、名人堂、生涯轉型與媒體圈。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.5.1</strong>｜年齡時間線修正＋職業生涯2.0第一階段：戰術、股權、明星／宿敵／仇敵／徒弟、名人堂、生涯轉型與媒體圈。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".tactic-select").forEach(b=>b.onclick=()=>selectTactic(b.dataset.tactic));document.querySelectorAll(".equity-buy").forEach(b=>b.onclick=()=>buyEquity(+b.dataset.pct));document.querySelectorAll(".equity-direct").forEach(b=>b.onclick=()=>equityDirective(b.dataset.role));document.querySelectorAll(".career-shift").forEach(b=>b.onclick=()=>careerShift(b.dataset.path));document.querySelector("#meetMediaContact")?.addEventListener("click",meetMediaContact);document.querySelector("#seekApprentice")?.addEventListener("click",apprenticeAction);
@@ -2685,7 +2685,8 @@ function ensureAges(forceStoryRules=false){
    if(/同班同學|國中同學|高中好友|同班好友/.test(String(c.desc||""))&&Math.abs(c.age-p.age)>1)c.age=inferred;
    if(/學妹/.test(String(c.desc||""))&&c.age>=p.age)c.age=Math.max(16,p.age-1);
    if(/學姊/.test(String(c.desc||""))&&c.age<=p.age)c.age=p.age+1;
-   c.birthYear=state.date.year-c.age;
+   // Keep established birth years stable; recalculating them every load caused age drift.
+   if(!Number.isFinite(c.birthYear))c.birthYear=state.date.year-c.age;
    if(c.isPro&&!Number.isFinite(c.proSinceYear))c.proSinceYear=Math.max(state.date.year-(Math.max(18,c.age)-18),state.date.year-10);
  });
 }
@@ -2778,6 +2779,24 @@ function migrateProV1941(){
  syncCanonicalAges();
  state.logs?.push(`🎂 V1.9.4.1：修正年齡重複成長；夜鋒目前 ${p.age} 歲，同學／學妹／學姊年齡已同步校正。`);
 }
+
+function migrateProV1951AgeRepair(){
+ const p=state.player,pc=p.proCareer||{};if(p.v1951AgeFixed)return;
+ // Canonical pro timeline: Nightblade enters the top league at age 18 and gains exactly one year per season.
+ // Use the recorded debut year instead of the previously corrupted age counter.
+ const debutYear=Number(pc.proDebutYear||pc.joinedAt?.year);
+ if(Number.isFinite(debutYear)&&state.date.year>=debutYear){
+   p.age=Math.max(18,18+(state.date.year-debutYear));
+ }
+ // Mark all birthdays through the current calendar point as already accounted for, so syncCalendarFields
+ // cannot immediately add the old duplicated years again. The next real May birthday will add exactly one.
+ p.birthdaysPassed=Math.max(0,(state.date.year-2026)+(state.date.week>=35?1:0));
+ p.birthYear=state.date.year-p.age;
+ p.v1951AgeFixed=true;
+ syncCanonicalAges();
+ state.logs?.push(`🎂 V1.9.5.1：依18歲職業出道時間線重新校正年齡；夜鋒目前 ${p.age} 歲，同學同歲、學妹小1歲、學姊大1歲。`);
+}
+
 function annualAgeAndDecline(year){
  const p=state.player;if(p.lastAgingYear===year)return;p.lastAgingYear=year;ensureAges();
  // V1.9.4.1: age is advanced only by the birthday/calendar system.
