@@ -110,7 +110,14 @@ function syncCalendarFields(){
  if(!Number.isFinite(state.player.birthdaysPassed))state.player.birthdaysPassed=0;
  // Start age 16 in Sep 2026; birthday is in May. May begins around week 35.
  const shouldHavePassed=Math.max(0,(state.date.year-2026)+(state.date.week>=35?1:0));
- if(shouldHavePassed>state.player.birthdaysPassed){
+ if(state.player.v1952AgeTimelineFixed){
+   // V1.9.5.2+: age follows the canonical story season (2026=16, 2028=18, 2030=20).
+   // Birthday tracking remains for events only and must never add another year.
+   state.player.age=Math.max(16,16+(state.date.year-2026));
+   state.player.birthYear=2010;
+   state.player.birthdaysPassed=shouldHavePassed;
+   if(typeof syncCanonicalAges==="function")syncCanonicalAges();
+ }else if(shouldHavePassed>state.player.birthdaysPassed){
    const diff=shouldHavePassed-state.player.birthdaysPassed;
    state.player.age+=diff;
    state.player.birthdaysPassed=shouldHavePassed;
@@ -1068,7 +1075,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  migrateProV183();
  if(!p.v170Migrated){
    if(isProfessionalStage()){
-    p.proCareer.lockerRoom=p.proCareer.lockerRoom||65;ensureProEconomy();ensureMeta();ensurePublicImage();cleanupUnnamedFriends();migrateProV1941();migrateProV1951AgeRepair();syncCanonicalAges();
+    p.proCareer.lockerRoom=p.proCareer.lockerRoom||65;ensureProEconomy();ensureMeta();ensurePublicImage();cleanupUnnamedFriends();migrateProV1941();migrateProV1951AgeRepair();migrateProV1952AgeTimelineRepair();syncCanonicalAges();
     state.world.tournaments=[];state.tournament=null;Object.keys(state.weeklyPlan||{}).forEach(d=>state.weeklyPlan[d]=(state.weeklyPlan[d]||[]).filter(e=>e.type!=="amateurTournament"&&e.type!=="tournament"));
     if(p.proCareer.contract)completeContract(p.proCareer.contract);
     state.logs.push("🆕 V1.7.0：職業生活切換為每日5格，業餘杯賽關閉；合約、薪資補發、版本Meta、Scrim、贊助與公關系統啟用。");
@@ -2795,6 +2802,21 @@ function migrateProV1951AgeRepair(){
  p.v1951AgeFixed=true;
  syncCanonicalAges();
  state.logs?.push(`🎂 V1.9.5.1：依18歲職業出道時間線重新校正年齡；夜鋒目前 ${p.age} 歲，同學同歲、學妹小1歲、學姊大1歲。`);
+}
+
+function migrateProV1952AgeTimelineRepair(){
+ const p=state.player;if(p.v1952AgeTimelineFixed)return;
+ // Canonical story timeline: Sep 2026 starts at 16; each new season/year adds exactly one year.
+ // Therefore 2028=18 (pro-league entry) and 2030=20. Do not trust legacy age/birthYear/debut fields,
+ // because older migrations could already have stored the duplicated +2/year value.
+ const canonicalAge=Math.max(16,16+(Number(state.date.year||2026)-2026));
+ p.age=canonicalAge;
+ p.birthYear=2026-16;
+ // Calendar birthday counter is synchronized without modifying age again.
+ p.birthdaysPassed=Math.max(0,(Number(state.date.year||2026)-2026)+(Number(state.date.week||1)>=35?1:0));
+ p.v1952AgeTimelineFixed=true;
+ syncCanonicalAges();
+ state.logs?.push(`🎂 V1.9.5.2：重新以2026年16歲的故事時間線校正；${state.date.year}年夜鋒為 ${p.age} 歲，同班／同屆同歲、學妹小1歲、學姊大1歲。`);
 }
 
 function annualAgeAndDecline(year){
