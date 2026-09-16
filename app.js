@@ -1082,6 +1082,11 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
    }
    p.v170Migrated=true;
  }
+ // V1.9.5.3: age repair must run for every loaded save.
+ // Older professional saves already have v170Migrated=true, so nesting this repair inside the V1.7 migration made it unreachable.
+ migrateProV1952AgeTimelineRepair();
+ syncCalendarFields();
+ syncCanonicalAges();
  migrateProV1930();
  migrateProV1932();
  migrateProV1933();
