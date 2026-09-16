@@ -925,7 +925,7 @@ const SHOP_ITEMS=[
 ];
 const LADDER_NAMES=["Raven","Luna","Kaito","Zero9","Mori","Nox","Aster","Haku","ViperX","Nagi","Frost","Mika","Rex","Nova","Sena","Crow","Yuzu","Kairos","Melo","Tide"];
 
-function migrateProV1962(){const p=state.player;if(p.v1962CompetitionFixed)return;if(isProfessionalStage()){const pc=p.proCareer,sn=pc.season;if(sn?.seasonName==="春季"&&sn.playoffs)archiveCurrentPlayerPlayoff();const it=ensureInternationalWorld();if(it.msi){it.msi.groups=[];it.msi.qualifiers=[];it.msi.qualified=false;it.msi.stage="尚未開始"}if(proAnnualPhase()==="MSI")buildInternationalTournament("MSI");state.logs.push("🔧 V1.9.6.2：修正季後賽硬月份、MSI資格與重複分組；新增季後賽對戰表與國際賽主辦地輪換。") }p.v1962CompetitionFixed=true}
+function migrateProV1962(){const p=state.player;if(p.v1963CompetitionFixed)return;if(isProfessionalStage()){const pc=p.proCareer,sn=pc.season;if(sn?.seasonName==="春季"&&sn.playoffs)archiveCurrentPlayerPlayoff();const it=ensureInternationalWorld();if(it.msi){it.msi.groups=[];it.msi.qualifiers=[];it.msi.qualified=false;it.msi.stage="尚未開始"}if(proAnnualPhase()==="MSI")buildInternationalTournament("MSI");state.logs.push("🔧 V1.9.6.3：修正季後賽硬月份、MSI資格與重複分組；新增季後賽對戰表與國際賽主辦地輪換。") }p.v1963CompetitionFixed=true}
 function ensureV10(){migrateProV1962();(state.player.proFriends||[]).forEach(n=>ensureProCharacter(n));Object.keys(state.characters||{}).filter(n=>state.characters[n]?.isPro).forEach(n=>ensureProCharacter(n));
  const previousVersion=state?.version||"";
  state=normalize(state);
@@ -1617,19 +1617,26 @@ function proTeamPageCard(){
 }
 function matchReviewAnalysis(m){
  if(!m)return [];
- const p=state.player,pc=p.proCareer,out=[];if(m.tactic&&TACTIC_DEFS[m.tactic])out.push(`戰術：${TACTIC_DEFS[m.tactic].name}｜適配評估 ${tacticFit(m.tactic)>=1?"良好":"需要調整"}。`);
- if(m.win){out.push("勝因：團隊在關鍵資源與中後期決策上執行較完整。");if(m.mvp)out.push("夜鋒是本場主要勝因之一，個人影響力明顯。");}
- else{
-   if(m.d>=5)out.push("主要問題：夜鋒死亡次數偏高，部分時間點讓隊伍失去地圖主動權。");
-   if((m.k+m.a)<10)out.push("輸出／參戰影響不足，沒有在中期建立足夠的個人節奏。");
-   if(teamChemistry()<55)out.push("團隊問題：目前默契偏低，資源交換與團戰協同容易不同步。");
-   if((p.condition?.form||65)<55)out.push("個人狀態：比賽時競技狀態偏低，穩定度受到影響。");
-   if(p.stress>70)out.push("心理因素：壓力過高，可能影響臨場判斷。");
-   if(p.energy<45)out.push("體能因素：體力偏低，長局表現容易下滑。");
-   if(playerMetaFit()<0)out.push("版本因素：目前英雄池與版本強勢角色契合度不足。");
-   if(!out.length)out.push("主要問題：本場關鍵團戰與資源交換處理較差，屬於團隊執行層面的失利。");
+ const p=state.player,pc=p.proCareer,out=[];
+ if(m.tactic&&TACTIC_DEFS[m.tactic])out.push(`戰術：${TACTIC_DEFS[m.tactic].name}｜適配評估 ${tacticFit(m.tactic)>=1?"良好":"需要調整"}。`);
+ if(m.win){
+   out.push("勝因：團隊在關鍵資源與中後期決策上執行較完整。");
+   if(m.mvp)out.push("夜鋒是本場主要勝因之一，個人影響力明顯。");
+ }else{
+   const reasons=[];
+   if((m.d||0)>=5)reasons.push("夜鋒死亡次數偏高，部分時間點讓隊伍失去地圖主動權");
+   if(((m.k||0)+(m.a||0))<10)reasons.push("夜鋒參戰影響不足，中期沒有建立足夠的個人節奏");
+   if(teamChemistry()<55)reasons.push("團隊默契偏低，資源交換與團戰協同不同步");
+   if((p.condition?.form||65)<55)reasons.push("競技狀態偏低，操作與臨場穩定度受到影響");
+   if((p.stress||0)>70)reasons.push("壓力過高，影響臨場判斷與決策");
+   if((p.energy||0)<45)reasons.push("體力偏低，長局與連續對局表現下滑");
+   if(playerMetaFit()<0)reasons.push("英雄池與目前版本強勢角色契合度不足");
+   if(m.tactic&&TACTIC_DEFS[m.tactic]&&tacticFit(m.tactic)<1)reasons.push(`教練安排的「${TACTIC_DEFS[m.tactic].name}」與目前陣容適配不足`);
+   if(!reasons.length)reasons.push("關鍵團戰與資源交換處理較差，未能把局面轉化為勝勢");
+   out.push(`失利原因：${reasons.slice(0,3).join("；")}。`);
  }
- out.push(`建議：${!m.win&&playerMetaFit()<0?"優先練版本強勢英雄並安排Scrim":"利用復盤研究＋Scrim針對本場問題修正"}。`);return out;
+ out.push(`建議：${!m.win&&playerMetaFit()<0?"優先練版本強勢英雄並安排Scrim":"利用復盤研究＋Scrim針對本場問題修正"}。`);
+ return out;
 }
 function showMatchReview(){const m=state.player.proCareer?.lastMatch;if(!m)return;const a=matchReviewAnalysis(m);modal(`<h2>🧠 比賽復盤｜${m.team} ${m.score} ${m.opp}</h2><div class="notice">${a.join("<br><br>")}</div><div class="small">復盤依本場KDA、競技狀態、體力、壓力、團隊默契與版本適應分析。</div>${closeBtn()}`);}
 
@@ -1694,7 +1701,7 @@ function career(){
  return `${proCareerCard()}${competitiveFormCard()}${tacticsCard()}${clubEquityCard()}${legacyRelationsCard()}${hallOfFameCard()}${postCareerCard()}${mediaNetworkCard()}${proTeamPageCard()}${recentProMatchCard()}${playoffBracketCard()}${annualCalendarCard()}${transferMarketCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${commercialCard()}${fanMeetingCard()}${teamBuildingCard()}${legalMediaCard()}${assetCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${isProfessionalStage()?stat("大眾評價",Math.round(ensureAudienceRating().rating)):""}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.6.2</strong>｜職業生涯2.0第二階段：教練掌握正式戰術、陣容能力限制戰術上限、Scrim磨合、局間調整、換帥管理權與重大事件完整專訪。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.6.3</strong>｜職業生涯2.0第二階段：教練掌握正式戰術、陣容能力限制戰術上限、Scrim磨合、局間調整、換帥管理權與重大事件完整專訪。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".tactic-practice").forEach(b=>b.onclick=()=>practiceTactic(b.dataset.tactic));document.querySelectorAll(".tactic-suggest").forEach(b=>b.onclick=()=>suggestTactic(b.dataset.tactic));document.querySelectorAll(".equity-buy").forEach(b=>b.onclick=()=>buyEquity(+b.dataset.pct));document.querySelectorAll(".equity-direct").forEach(b=>b.onclick=()=>equityDirective(b.dataset.role));document.querySelectorAll(".career-shift").forEach(b=>b.onclick=()=>careerShift(b.dataset.path));document.querySelector(".coach-suggest")?.addEventListener("click",()=>coachChangeProposal(false));document.querySelector(".coach-change")?.addEventListener("click",()=>coachChangeProposal(true));document.querySelector("#capitalInjection")?.addEventListener("click",injectClubCapital);document.querySelector("#seekApprentice")?.addEventListener("click",apprenticeAction);
