@@ -425,7 +425,7 @@ function socialActivity(person,type){
  render();
  setTimeout(()=>maybeRomanceEvent(),0);
 }
-function isInternationalTrip(){return isProfessionalStage()&&["MSI","世界賽"].includes(proAnnualPhase())}
+function isInternationalTrip(){const ph=proAnnualPhase();return isProfessionalStage()&&["MSI","世界賽"].includes(ph)&&playerQualifiedForInternational(ph)}
 
 const FREE_TRAVEL_DESTINATIONS=[
  {id:"taipei",country:"台灣",city:"台北",cost:18000},{id:"taoyuan",country:"台灣",city:"桃園",cost:17000},
@@ -925,7 +925,8 @@ const SHOP_ITEMS=[
 ];
 const LADDER_NAMES=["Raven","Luna","Kaito","Zero9","Mori","Nox","Aster","Haku","ViperX","Nagi","Frost","Mika","Rex","Nova","Sena","Crow","Yuzu","Kairos","Melo","Tide"];
 
-function ensureV10(){(state.player.proFriends||[]).forEach(n=>ensureProCharacter(n));Object.keys(state.characters||{}).filter(n=>state.characters[n]?.isPro).forEach(n=>ensureProCharacter(n));
+function migrateProV1961(){const p=state.player;if(p.v1961CompetitionFixed)return;if(isProfessionalStage()){const pc=p.proCareer,sn=pc.season;if(sn?.seasonName==="春季"&&sn.playoffs)archiveCurrentPlayerPlayoff();const it=ensureInternationalWorld();if(it.msi){it.msi.groups=[];it.msi.qualifiers=[];it.msi.qualified=false;it.msi.stage="尚未開始"}if(proAnnualPhase()==="MSI")buildInternationalTournament("MSI");state.logs.push("🔧 V1.9.6.1：修正季後賽硬月份、MSI資格與重複分組；新增季後賽對戰表與國際賽主辦地輪換。") }p.v1961CompetitionFixed=true}
+function ensureV10(){migrateProV1961();(state.player.proFriends||[]).forEach(n=>ensureProCharacter(n));Object.keys(state.characters||{}).filter(n=>state.characters[n]?.isPro).forEach(n=>ensureProCharacter(n));
  const previousVersion=state?.version||"";
  state=normalize(state);
  const p=state.player;
@@ -1690,10 +1691,10 @@ function answerMajorInterview(a){const p=state.player,pc=ensureCareer20(),iv=pc.
 
 function career(){
  ensureV10();const p=state.player;
- return `${proCareerCard()}${competitiveFormCard()}${tacticsCard()}${clubEquityCard()}${legacyRelationsCard()}${hallOfFameCard()}${postCareerCard()}${mediaNetworkCard()}${proTeamPageCard()}${recentProMatchCard()}${annualCalendarCard()}${transferMarketCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${commercialCard()}${fanMeetingCard()}${teamBuildingCard()}${legalMediaCard()}${assetCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${isProfessionalStage()?stat("大眾評價",Math.round(ensureAudienceRating().rating)):""}${stat("聲譽",p.reputation)}</div></section>
+ return `${proCareerCard()}${competitiveFormCard()}${tacticsCard()}${clubEquityCard()}${legacyRelationsCard()}${hallOfFameCard()}${postCareerCard()}${mediaNetworkCard()}${proTeamPageCard()}${recentProMatchCard()}${playoffBracketCard()}${annualCalendarCard()}${transferMarketCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${commercialCard()}${fanMeetingCard()}${teamBuildingCard()}${legalMediaCard()}${assetCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${isProfessionalStage()?stat("大眾評價",Math.round(ensureAudienceRating().rating)):""}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.6.0</strong>｜職業生涯2.0第二階段：教練掌握正式戰術、陣容能力限制戰術上限、Scrim磨合、局間調整、換帥管理權與重大事件完整專訪。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.6.1</strong>｜職業生涯2.0第二階段：教練掌握正式戰術、陣容能力限制戰術上限、Scrim磨合、局間調整、換帥管理權與重大事件完整專訪。</div></section>`;
 }
 function bind(){
  document.querySelectorAll(".tactic-practice").forEach(b=>b.onclick=()=>practiceTactic(b.dataset.tactic));document.querySelectorAll(".tactic-suggest").forEach(b=>b.onclick=()=>suggestTactic(b.dataset.tactic));document.querySelectorAll(".equity-buy").forEach(b=>b.onclick=()=>buyEquity(+b.dataset.pct));document.querySelectorAll(".equity-direct").forEach(b=>b.onclick=()=>equityDirective(b.dataset.role));document.querySelectorAll(".career-shift").forEach(b=>b.onclick=()=>careerShift(b.dataset.path));document.querySelector(".coach-suggest")?.addEventListener("click",()=>coachChangeProposal(false));document.querySelector(".coach-change")?.addEventListener("click",()=>coachChangeProposal(true));document.querySelector("#seekApprentice")?.addEventListener("click",apprenticeAction);
@@ -2645,8 +2646,10 @@ function proSocialAllowed(c){
 const PRO_REGIONS=["PCS","LCK","LPL","LEC","LCS"];
 const careerMonthFromWeek=w=>Math.min(12,Math.max(1,Math.floor(((Math.max(1,w)-1)*12)/52)+1));
 const INTERNATIONAL_HOSTS=[
- {country:"韓國",city:"首爾"},{country:"韓國",city:"釜山"},{country:"日本",city:"東京"},{country:"中國",city:"上海"},
- {country:"中國",city:"成都"},{country:"法國",city:"巴黎"},{country:"英國",city:"倫敦"},{country:"美國",city:"洛杉磯"}
+ {country:"韓國",city:"首爾"},{country:"韓國",city:"釜山"},{country:"日本",city:"東京"},{country:"日本",city:"大阪"},
+ {country:"中國",city:"上海"},{country:"中國",city:"成都"},{country:"台灣",city:"台北"},{country:"新加坡",city:"新加坡"},
+ {country:"法國",city:"巴黎"},{country:"德國",city:"柏林"},{country:"英國",city:"倫敦"},{country:"西班牙",city:"馬德里"},
+ {country:"美國",city:"洛杉磯"},{country:"美國",city:"紐約"},{country:"加拿大",city:"溫哥華"},{country:"加拿大",city:"多倫多"}
 ];
 function monthWeekRange(month){const start=Math.floor((month-1)*52/12)+1,end=Math.floor(month*52/12);return [start,end]}
 function proAnnualPhase(){
@@ -2862,8 +2865,17 @@ function ensureInternationalWorld(){
  PRO_REGIONS.forEach(r=>{if(!cur.regions[r])cur.regions[r]={springTop:["#1 "+r,"#2 "+r],summerTop:["#1 "+r,"#2 "+r,"#3 "+r,"#4 "+r]};});
  return cur;
 }
-function chooseHost(kind,year){const it=ensureInternationalWorld(),key=kind==="MSI"?"msi":"worlds";if(!it[key]){const h=INTERNATIONAL_HOSTS[(year+kind.length)%INTERNATIONAL_HOSTS.length];it[key]={host:h,groups:[],stage:"尚未開始",qualified:false}}return it[key]}
-function internationalRecoveryMultiplier(){const ph=proAnnualPhase();return (ph==="MSI"||ph==="世界賽")?.55:1}
+function chooseHost(kind,year){
+ const pc=state.player.proCareer,it=ensureInternationalWorld(),key=kind==="MSI"?"msi":"worlds";pc.internationalHostHistory=pc.internationalHostHistory||[];
+ if(!it[key]){
+  const hist=pc.internationalHostHistory.filter(x=>x.kind===kind&&x.year<year).sort((a,b)=>b.year-a.year),recentCountries=new Set(hist.filter(x=>year-x.year<=3).map(x=>x.country)),recentCities=new Set(hist.filter(x=>year-x.year<=2).map(x=>x.city));
+  let pool=INTERNATIONAL_HOSTS.filter(h=>!recentCountries.has(h.country)&&!recentCities.has(h.city));if(!pool.length)pool=INTERNATIONAL_HOSTS.filter(h=>!recentCities.has(h.city));if(!pool.length)pool=INTERNATIONAL_HOSTS;
+  const h=pool[Math.abs((year*17+kind.length*13))%pool.length];it[key]={host:{...h},groups:[],stage:"尚未開始",qualified:false};
+  if(!pc.internationalHostHistory.some(x=>x.kind===kind&&x.year===year))pc.internationalHostHistory.push({kind,year,country:h.country,city:h.city});
+ }
+ return it[key]
+}
+function internationalRecoveryMultiplier(){const ph=proAnnualPhase();return ((ph==="MSI"||ph==="世界賽")&&playerQualifiedForInternational(ph))?.55:1}
 function majorEventExperienceFactor(){
  const p=state.player,pc=p.proCareer,roster=pc.roster||[],rookies=roster.filter(x=>x.isPlayer?(p.internationalExperience?.世界賽||0)===0:((state.characters[x.name]?.proSinceYear||state.date.year)===state.date.year)).length;
  const exp=(p.internationalExperience?.世界賽||0)+(p.internationalExperience?.MSI||0)*.7;
@@ -2968,9 +2980,25 @@ function buildWorldsGroups(entries,playerTeam){
  for(const e of ordered){let choices=groups.filter(g=>g.teams.length<4&&!g.regions.includes(e.region));if(!choices.length)choices=groups.filter(g=>g.teams.length<4);choices.sort((a,b)=>a.teams.length-b.teams.length);const g=e.team===playerTeam&&groups[0].teams.length<4&&!groups[0].regions.includes(e.region)?groups[0]:choices[0];g.teams.push(e.team);g.regions.push(e.region)}
  return groups.map(({regions,...g})=>g);
 }
+function deterministicSeriesWinner(a,b,salt=""){const ra=REGION_STRENGTH[internationalTeamRegion(a)||""]||75,rb=REGION_STRENGTH[internationalTeamRegion(b)||""]||75,h=[...`${a}|${b}|${state.date.year}|${salt}`].reduce((n,c)=>(n*33+c.charCodeAt(0))>>>0,5381)%100;return h<clamp(50+(ra-rb)*2,25,75)?a:b}
+function simulateRegionPlayoffBracket(region,seasonName="春季"){
+ const regular=leagueRegularOrder(region),top=regular.slice(0,8),q=[];for(let i=0;i<4;i++){const a=top[i],b=top[7-i];if(a&&b)q.push({round:"八強",a,b,winner:deterministicSeriesWinner(a,b,`${region}-${seasonName}-Q${i}`)})}
+ const semis=[];if(q.length===4){[[0,3],[1,2]].forEach((pair,i)=>{const a=q[pair[0]].winner,b=q[pair[1]].winner;semis.push({round:"四強",a,b,winner:deterministicSeriesWinner(a,b,`${region}-${seasonName}-S${i}`)})})}
+ let final=null;if(semis.length===2){const a=semis[0].winner,b=semis[1].winner;final={round:"冠亞賽",a,b,winner:deterministicSeriesWinner(a,b,`${region}-${seasonName}-F`)}}
+ return {region,seasonName,year:state.date.year,quarterfinals:q,semifinals:semis,final,champion:final?.winner||null,runnerUp:final?(final.winner===final.a?final.b:final.a):null};
+}
+function ensurePlayoffArchive(){const pc=state.player.proCareer;pc.playoffArchive=pc.playoffArchive||{};return pc.playoffArchive}
+function archiveCurrentPlayerPlayoff(){const pc=state.player.proCareer,sn=pc.season;if(!sn?.seasonName||!sn.playoffs)return null;const key=`${state.date.year}-${sn.seasonName}-${pc.region||"PCS"}`,arc=ensurePlayoffArchive();if(!arc[key])arc[key]=simulateRegionPlayoffBracket(pc.region||"PCS",sn.seasonName);const b=arc[key],me=pc.team,played=sn.playoffOpponents||[];
+ if(sn.phase==="賽季結束"&&played.length){const lostRound=Math.max(0,Math.min(2,Number(sn.playoffRound)||0)),opp=played[played.length-1],arr=[b.quarterfinals,b.semifinals,[b.final]][lostRound]||[];let m=arr.find(x=>x&&(x.a===me||x.b===me));if(!m&&lostRound===0){m={round:"八強",a:me,b:opp,winner:opp};b.quarterfinals[0]=m}else if(m)m.winner=opp;if(lostRound===0&&b.quarterfinals.length===4){b.semifinals=[];[[0,3],[1,2]].forEach((pair,i)=>{const a=b.quarterfinals[pair[0]].winner,bb=b.quarterfinals[pair[1]].winner;b.semifinals.push({round:"四強",a,b:bb,winner:deterministicSeriesWinner(a,bb,`${b.region}-${b.seasonName}-repairS${i}`)})});const a=b.semifinals[0].winner,bb=b.semifinals[1].winner,w=deterministicSeriesWinner(a,bb,`${b.region}-${b.seasonName}-repairF`);b.final={round:"冠亞賽",a,b:bb,winner:w};b.champion=w;b.runnerUp=w===a?bb:a}b.playerFinish=playoffRoundLabel(lostRound);b.playerEliminated=true;b.playerEliminatedBy=opp}
+ if(sn.champion===me){b.champion=me;b.playerFinish="冠軍";b.playerEliminated=false}
+ return b}
+function springPlayoffResult(region){const pc=state.player.proCareer,key=`${state.date.year}-春季-${region}`,arc=ensurePlayoffArchive();if(region===(pc.region||"PCS")&&pc.season?.seasonName==="春季")archiveCurrentPlayerPlayoff();if(!arc[key])arc[key]=simulateRegionPlayoffBracket(region,"春季");return arc[key]}
+function msiQualifiers(){const out=[];for(const r of PRO_REGIONS){const b=springPlayoffResult(r),add=t=>{if(t&&!out.some(x=>x.team===t))out.push({team:t,region:r})};add(b.champion);add(b.runnerUp);if(out.filter(x=>x.region===r).length<2){for(const t of leagueRegularOrder(r)){add(t);if(out.filter(x=>x.region===r).length>=2)break}}}return out.slice(0,10)}
+function playerQualifiedForInternational(kind){const pc=state.player.proCareer;if(kind==="MSI")return msiQualifiers().some(x=>x.team===pc.team);const ev=pc.international?.worlds;return !!ev?.seedEntries?.some(x=>x.team===pc.team)}
+function playoffBracketCard(){if(!isProfessionalStage())return "";const pc=state.player.proCareer,season=pc.season?.seasonName;if(!season)return "";const key=`${state.date.year}-${season}-${pc.region||"PCS"}`,arc=ensurePlayoffArchive();if(pc.season?.playoffs)archiveCurrentPlayerPlayoff();const b=arc[key];if(!b)return "";const line=x=>x?`${x.a} → <strong>${x.winner}</strong> ← ${x.b}`:"尚未產生";return `<section class="card"><h2>🏆 ${pc.region||"PCS"} ${state.date.year}${season}季後賽對戰表</h2><div class="small">八強 → 四強 → 冠亞賽；淘汰結果會直接決定國際賽資格。</div><div class="notice"><strong>八強</strong><br>${(b.quarterfinals||[]).map(line).join("<br>")}</div><div class="notice"><strong>四強</strong><br>${(b.semifinals||[]).map(line).join("<br>")||"尚未完成"}</div><div class="notice"><strong>冠亞賽</strong><br>${line(b.final)}${b.champion?`<br>🏆 冠軍：${b.champion}`:""}</div>${b.playerEliminated?`<div class="small badtext">${pc.team}：${b.playerFinish}淘汰｜淘汰者：${b.playerEliminatedBy}</div>`:""}</section>`}
 function buildInternationalTournament(kind){
  const pc=state.player.proCareer,ev=chooseHost(kind,state.date.year),myRegion=pc.region||"PCS",team=pc.team||"KNG Esports";if(ev.groups?.length)return ev;
- if(kind==="MSI"){const e=[];PRO_REGIONS.forEach(r=>e.push(r===myRegion?team:`${r} Spring #1`,`${r} Spring #2`));const u=[...new Set(e)].slice(0,10);ev.groups=[{name:"A",teams:u.filter((_,i)=>i%2===0),standings:[]},{name:"B",teams:u.filter((_,i)=>i%2===1),standings:[]}];ev.format="雙循環；各組前二晉級四強BO5";ev.stage="分組賽";ev.groups.forEach(g=>g.teams=g.teams.map(actualTeamForSlot));}
+ if(kind==="MSI"){const q=msiQualifiers(),u=[...new Set(q.map(x=>x.team))].slice(0,10);ev.qualifiers=q;ev.qualified=u.includes(team);ev.groups=[{name:"A",teams:u.filter((_,i)=>i%2===0),standings:[]},{name:"B",teams:u.filter((_,i)=>i%2===1),standings:[]}];ev.format="五大賽區春季季後賽前二，共10隊；雙循環，各組前二晉級四強BO5";ev.stage="分組賽";}
  else{
    const bonusRegion=msiChampionRegionForYear(state.date.year)||myRegion,entries=[];
    PRO_REGIONS.forEach(r=>worldsSeedsForRegion(r,r===bonusRegion).forEach((t,i)=>entries.push({team:t,region:r,seed:i+1})));
@@ -2980,14 +3008,14 @@ function buildInternationalTournament(kind){
  }
  return ev;
 }
-function internationalGroupsCard(){const ph=proAnnualPhase();if(!["MSI","世界賽"].includes(ph))return "";const ev=buildInternationalTournament(ph);return `<section class="card"><h2>🎲 ${ph}分組</h2>${ev.groups.map(g=>`<div class="notice"><strong>${g.name}組</strong><br>${g.teams.join("｜")}</div>`).join("")}<div class="small">${ev.format}</div></section>`;}
+function internationalGroupsCard(){const ph=proAnnualPhase();if(!["MSI","世界賽"].includes(ph))return "";const ev=buildInternationalTournament(ph),q=ph==="MSI"?ev.qualified:playerQualifiedForInternational(ph);return `<section class="card"><h2>🎲 ${ph}分組</h2>${!q?`<div class="notice badtext">${state.player.proCareer.team} 未取得本屆${ph}參賽資格；你仍可查看其他戰隊賽況。</div>`:""}${ev.groups.map(g=>`<div class="notice"><strong>${g.name}組</strong><br>${g.teams.join("｜")}</div>`).join("")}<div class="small">${ev.format}</div></section>`;}
 function internationalCard(){
  if(!isProfessionalStage())return "";const ph=proAnnualPhase(),it=ensureInternationalWorld(),p=state.player;if(ph!=="MSI"&&ph!=="世界賽")return "";
- const ev=chooseHost(ph,state.date.year);
- return `<section class="card"><h2>${ph==="MSI"?"🌍 MSI":"🌎 世界賽"}｜${state.date.year}</h2><div class="notice">📍 ${ev.host.country}・${ev.host.city}<br>${ph==="MSI"?"10隊｜A/B兩組各5隊｜雙循環｜各組前2晉級BO5淘汰賽":"16隊｜A/B/C/D四組各4隊｜雙循環｜各組前2晉級BO5淘汰賽"}</div><p class="small">國際大賽期間版本適應、大賽經驗與壓力權重提高；體力與壓力恢復速度約為聯賽期的55%。海外活動也可能帶來國外粉絲、媒體與新的社交邂逅。</p></section>`;
+ const ev=buildInternationalTournament(ph),qualified=ph==="MSI"?ev.qualified:playerQualifiedForInternational(ph);
+ return `<section class="card"><h2>${ph==="MSI"?"🌍 MSI":"🌎 世界賽"}｜${state.date.year}</h2><div class="notice">📍 ${ev.host.country}・${ev.host.city}<br>${ph==="MSI"?"10隊｜A/B兩組各5隊｜雙循環｜各組前2晉級BO5淘汰賽":"16隊｜A/B/C/D四組各4隊｜雙循環｜各組前2晉級BO5淘汰賽"}</div>${!qualified?`<div class="notice badtext">❌ ${state.player.proCareer.team} 未取得本屆${ph}資格。國際賽照常進行，但夜鋒不會被排入賽程或隨隊前往。</div>`:""}<p class="small">主辦地按年度輪換；同一賽事原則上3年內不重複國家、2年內不重複城市。</p></section>`;
 }
 function maybeInternationalSocial(){
- const ph=proAnnualPhase();if(!isProfessionalStage()||(ph!=="MSI"&&ph!=="世界賽")||Math.random()>.075)return;
+ const ph=proAnnualPhase();if(!isProfessionalStage()||(ph!=="MSI"&&ph!=="世界賽")||!playerQualifiedForInternational(ph)||Math.random()>.075)return;
  const p=state.player,ev=chooseHost(ph,state.date.year),foreign=Math.random()<.7;
  if(foreign){
   const pools={
@@ -3510,7 +3538,7 @@ function buildProRegularSchedule(){
 }
 function ensureInternationalSchedule(){
  const ph=proAnnualPhase();if(!["MSI","世界賽"].includes(ph)||state.player.proCareer.stage!=="starter")return null;
- const pc=state.player.proCareer,ev=buildInternationalTournament(ph),team=pc.team;
+ const pc=state.player.proCareer,ev=buildInternationalTournament(ph),team=pc.team;if(!playerQualifiedForInternational(ph)){ev.qualified=false;ev.schedule=[];return null}ev.qualified=true;
  ev.schedule=ev.schedule||[];
  if(!ev.schedule.length){
    const myGroup=ev.groups.find(g=>g.teams.includes(team))||ev.groups[0],opps=myGroup.teams.filter(x=>x!==team);
@@ -3628,6 +3656,8 @@ function proMatchHub(){
 }
 function preparePlayoffs(){
  const pc=state.player.proCareer,sn=pc.season;if(!sn||sn.myMatches<22||sn.playoffs)return;
+ const required=sn.seasonName==="春季"?"春季季後賽":"夏季季後賽";
+ if(proAnnualPhase()!==required){sn.regularComplete=true;sn.phase="例行賽";return}
  const sorted=[...sn.teams].sort((a,b)=>(b.w-a.w)||((b.gw-b.gl)-(a.gw-a.gl))),seed=sorted.findIndex(x=>x.name===pc.team)+1;
  sn.playoffs=true;sn.phase=seed<=8?"季後賽":"賽季結束";sn.seed=seed;sn.playoffRound=seed<=8?0:null;sn.playoffWins=0;
  if(seed<=8)state.news.unshift(`${pc.team} 以例行賽第 ${seed} 名晉級季後賽，接下來全面採 BO5。`);
