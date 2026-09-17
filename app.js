@@ -1254,6 +1254,10 @@ function xReasonForFormerSpouse(name){
  const m=state.player?.romance?.marriage;
  return (m?.divorced||[]).find(x=>x?.name===name)?.reason||"已離婚";
 }
+function isActiveEnemy19781(name){
+ const pc=state.player?.proCareer||{},rupt=pc.teamRuptures?.[name],legacy=pc.legacy?.enemies?.[name];
+ return !!legacy||!!(rupt&&(rupt.severity||0)>=4&&["決裂","嚴重衝突","冷戰共存","隊友待轉隊","隊友可能解約","夜鋒被轉隊","夜鋒可能解約"].includes(rupt.status));
+}
 function currentRelationshipLabel(name){
  normalizeFormerSpouseSocialState();
  const p=state.player,c=state.characters?.[name],rel=p.relations?.[name]||0;
@@ -1264,6 +1268,7 @@ function currentRelationshipLabel(name){
  if((p.romance?.partners||[]).includes(name))return c?.teammatePartnerOf?"地下戀情":"戀人";
  if(c?.relationshipType==="炮友")return "固定關係";
  if(c?.formerPartner)return "前任";
+ if(isActiveEnemy19781(name))return "仇人";
  if(c?.isRival)return "對手／宿敵";
  return relationTier(rel,name);
 }
@@ -1291,6 +1296,7 @@ function relationTier(v,name){
  const c=state.characters?.[name];
  if((state.player?.romance?.marriage?.divorced||[]).some(x=>x.name===name)||c?.formerSpouse)return "前妻";
  if(state.player?.romance?.spouse===name)return "老婆";
+ if(isActiveEnemy19781(name))return "仇人";
  const romanceable=!!(c&&c.romanceable&&c.gender==="女");
  const tiers=romanceable?RELATION_TIERS:[
   {min:0,name:"陌生"},{min:20,name:"認識"},{min:40,name:"朋友"},{min:60,name:"好友"},{min:75,name:"摯友"},{min:88,name:"死黨"}
@@ -1464,7 +1470,7 @@ function maybeMeetTeammateGirlfriend(){
  state.logs.push(`👥 在戰隊聚會中，你認識了隊友 ${mate} 的女友 ${v.name}。`);
 }
 function ensureTeamRuptures(){const pc=state.player.proCareer;pc.teamRuptures=pc.teamRuptures||{};return pc.teamRuptures}
-function createTeamRupture(mate,source,reason="私人關係衝突"){const pc=state.player.proCareer,r=ensureTeamRuptures(),x=r[mate]=r[mate]||{mate,source,reason,severity:0,status:"衝突",ultimatum:false,sabotageRisk:0,weeks:0};x.severity=clamp(Math.max(x.severity||0,rand(3,5)),1,5);x.status=x.severity>=4?"決裂":"嚴重衝突";x.sabotageRisk=clamp(.04+x.severity*.035,0,.24);pc.teammateConflict=x;if(x.severity>=4&&!x.ultimatum&&Math.random()<.62){x.ultimatum=true;state.messages.push({id:"ult-"+Date.now(),from:mate,text:"我已經跟管理層講清楚了，有他就沒有我。",unread:true,resolved:true,type:"team_crisis"});state.logs.push(`💥 ${mate} 向戰隊提出「有夜鋒就沒有我」的最後通牒。`)}}
+function createTeamRupture(mate,source,reason="私人關係衝突"){const pc=state.player.proCareer,r=ensureTeamRuptures(),x=r[mate]=r[mate]||{mate,source,reason,severity:0,status:"衝突",ultimatum:false,sabotageRisk:0,weeks:0};x.severity=clamp(Math.max(x.severity||0,rand(3,5)),1,5);x.status=x.severity>=4?"決裂":"嚴重衝突";x.sabotageRisk=clamp(.04+x.severity*.035,0,.24);pc.teammateConflict=x;if(x.severity>=4&&!x.ultimatum&&Math.random()<.62){x.ultimatum=true;x.refusesToPlay=true;x.lineupHandled=false;state.messages.push({id:"ult-"+Date.now(),from:mate,text:"我已經跟管理層講清楚了，有他就沒有我。",unread:true,resolved:true,type:"team_crisis"});state.logs.push(`💥 ${mate} 向戰隊提出「有夜鋒就沒有我」的最後通牒。`)}}
 function emergencyAmateurForRole(role,mate){
  const pc=state.player.proCareer,seed=`${pc.team}-${role}-${state.date.year}-${state.date.week}-${mate}`,first=["陳","林","張","黃","吳","李","許","周"][stableAgeOffset(seed,8)],last=["宇翔","柏廷","冠霖","承恩","子謙","昱辰","家豪","品睿"][stableAgeOffset(seed+"n",8)],name=`${first}${last}`;
  const x={name,role,isPlayer:false,isSub:false,rating:rand(58,69),relation:45,trust:40,chemistry:28,salary:rand(60000,95000),proGames:0,emergencySigning:true,joinedYear:state.date.year};pc.roster.push(x);
@@ -1675,8 +1681,24 @@ function phone(){
 }
 function rosterRating(x){if(x?.isPlayer)return Math.round(avg());if(Number.isFinite(x?.rating))return Math.round(x.rating);const c=state.characters?.[x?.name]||{};return Math.round(c.rating||c.strength||68+stableAgeOffset(x?.name||"player",19));}
 function rosterStatus(x){if(x?.isPlayer){if(state.player.condition?.injury)return `傷病：${state.player.condition.injury.type}`;return `${formLabel()}｜體力 ${Math.round(state.player.energy)}`;}const c=state.characters?.[x?.name]||{};return c.injury?`傷病：${c.injury}`:(c.form>=75?"狀態火熱":c.form<=45?"狀態低迷":"狀態正常");}
+function enforceUltimatumLineup19781(){
+ const pc=state.player?.proCareer;if(!pc||!Array.isArray(pc.roster))return;
+ const active=Object.values(pc.teamRuptures||{}).find(x=>x&&x.ultimatum&&(x.severity||0)>=4&&!["已轉隊","已解約","已和解"].includes(x.status));
+ if(!active)return;
+ const mate=pc.roster.find(x=>x.name===active.mate),me=pc.roster.find(x=>x.isPlayer||x.name===state.player.name);if(!mate||!me)return;
+ // 「有他沒我」：兩人仍同隊時絕不能同時先發。夜鋒目前是一軍先發則衝突隊友必須進替補。
+ if(pc.stage==="starter"){mate.isSub=true;mate.refusesToPlay=true;active.refusesToPlay=true;}else{mate.isSub=false;me.isSub=true;}
+ if(pc.stage==="starter"){
+   const role=normalizeRosterRole(mate.role),starters=pc.roster.filter(x=>!x.isSub&&x!==mate),hasRole=starters.some(x=>normalizeRosterRole(x.role)===role);
+   if(!hasRole){const subs=pc.roster.filter(x=>x.isSub&&x.name!==mate&&!x.refusesToPlay);let rep=subs.find(x=>normalizeRosterRole(x.role)===role);
+     if(!rep&&subs.length)rep=subs.sort((a,b)=>rosterRating(b)-rosterRating(a))[0];
+     if(rep){rep.isSub=false;rep.originalRole=rep.originalRole||rep.role;if(normalizeRosterRole(rep.role)!==role){rep.role=role;rep.forcedRoleSwap=true;}rep.emergencyFor=mate.name;active.emergencyReplacement=rep.name;}
+   }
+ }
+ pc.substitutes=pc.roster.filter(x=>x.isSub).slice(0,2);
+}
 function proTeamPageCard(){
- if(!isProfessionalStage())return "";ensureProRoster();ensureRosterSubstitutes();const p=state.player,pc=p.proCareer,subs=(pc.roster||[]).filter(x=>x.isSub),coaches=pc.coaches||[];pc.substitutes=subs;
+ if(!isProfessionalStage())return "";ensureProRoster();ensureRosterSubstitutes();enforceUltimatumLineup19781();const p=state.player,pc=p.proCareer,subs=(pc.roster||[]).filter(x=>x.isSub),coaches=pc.coaches||[];pc.substitutes=subs;
  const rows=(pc.roster||[]).filter(x=>!x.isSub).map(x=>`<div class="schedule-item"><div><strong>${x.isPlayer?"⭐ ":""}${x.name}</strong><div class="small">${x.role}｜能力 ${rosterRating(x)}｜${rosterStatus(x)}${x.isPlayer?"":`<br>${rosterContractText(x)}`}</div></div><span class="badge">${x.isPlayer?"先發・你":"先發"}</span></div>`).join("");
  const subrows=subs.length?subs.map(x=>`<div class="schedule-item"><div><strong>${x.name}</strong><div class="small">${x.role}｜能力 ${rosterRating(x)}｜${rosterStatus(x)}<br>${rosterContractText(x)}</div></div><span class="badge">替補</span></div>`).join(""):`<div class="small">目前戰隊沒有替補選手。</div>`;
  const coachrows=coaches.map(x=>`<div class="schedule-item"><div><strong>${x.name}</strong><div class="small">${x.role}｜對夜鋒信任 ${Math.round(pc.coachTrust||50)}</div></div><span class="badge">教練團</span></div>`).join("");
@@ -1777,7 +1799,7 @@ function career(){
  return `${proCareerCard()}${competitiveFormCard()}${tacticsCard()}${clubEquityCard()}${legacyRelationsCard()}${hallOfFameCard()}${postCareerCard()}${mediaNetworkCard()}${proTeamPageCard()}${recentProMatchCard()}${playoffBracketCard()}${annualCalendarCard()}${transferMarketCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${bigMatchStoryCard1979()}${championMerchCard1979()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${commercialCard()}${fanMeetingCard()}${teamBuildingCard()}${legalMediaCard()}${assetCard()}${privatePartyCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${isProfessionalStage()?stat("大眾評價",Math.round(ensureAudienceRating().rating)):""}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.8.0</strong>｜冠軍時序修正版：夏季賽必須實際完成季後賽並奪冠後才記錄冠軍；修正提前產生的夏季冠軍、生涯大滿貫與燦金之路。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.8.1</strong>｜冠軍時序修正版：夏季賽必須實際完成季後賽並奪冠後才記錄冠軍；修正提前產生的夏季冠軍、生涯大滿貫與燦金之路。</div></section>`;
 }
 function bind(){
  document.querySelector(".tactic-advice")?.addEventListener("click",openTacticAdvice);document.querySelectorAll(".tactic-suggest").forEach(b=>b.onclick=()=>suggestTactic(b.dataset.tactic));document.querySelectorAll(".equity-buy").forEach(b=>b.onclick=()=>buyEquity(+b.dataset.pct));document.querySelectorAll(".equity-direct").forEach(b=>b.onclick=()=>equityDirective(b.dataset.role));document.querySelectorAll(".career-shift").forEach(b=>b.onclick=()=>careerShift(b.dataset.path));document.querySelector(".coach-suggest")?.addEventListener("click",()=>coachChangeProposal(false));document.querySelector(".coach-change")?.addEventListener("click",()=>coachChangeProposal(true));document.querySelector("#capitalInjection")?.addEventListener("click",injectClubCapital);document.querySelector("#seekApprentice")?.addEventListener("click",apprenticeAction);
@@ -2842,7 +2864,7 @@ function backfillDomesticTitles1979(){
 }
 function enforceSevenManRoster1979(){const pc=state.player.proCareer;if(!Array.isArray(pc.roster))return;const starters=pc.roster.filter(x=>!x.isSub).slice(0,5),subs=pc.roster.filter(x=>x.isSub).slice(0,2);pc.roster=[...starters,...subs];pc.substitutes=subs}
 function migrateProV1979(){const p=state.player;if(p.v1979Migrated)return;if(isProfessionalStage()){backfillDomesticTitles1979();enforceSevenManRoster1979();const pc=ensureCareer20();pc.worldEra=pc.worldEra||{rareGeniusLastYear:0};state.logs.push("🆕 V1.9.7.9：冠軍王朝篇啟用：國內冠軍永久履歷／大滿貫／燦金之路／三冠王朝、國際決賽FMVP與冠軍獎金商品、7人一軍上限、簡化轉會市場；Scrim改為成長實際選擇的戰術體系。")}p.v1979Migrated=true}
-function repairPrematureTitles1980(){
+function repairPrematureTitles1981(){
  const p=state.player;if(!isProfessionalStage())return;ensureCareerHistory();const y=state.date.year,m=careerMonthFromWeek(state.date.week),a=p.achievements||[];
  // A current-year summer title cannot exist before the November summer playoffs have actually been completed.
  const summerFinished=(()=>{if(m<11)return false;const pc=p.proCareer||{},arc=pc.playoffArchive||pc.playoffsArchive||state.world?.playoffArchive||{};return Object.values(arc||{}).some(b=>b?.year===y&&/夏/.test(b?.seasonName||b?.season||"")&&b?.champion===pc.team&&b?.finished!==false) || (pc.season?.year===y&&/夏/.test(pc.season?.seasonName||"")&&pc.season?.champion===pc.team&&pc.season?.finished);})();
@@ -2852,9 +2874,9 @@ function repairPrematureTitles1980(){
  }
  // Re-evaluate only from championships that have truly been earned and persisted.
  evaluateCareerMilestones1979();
- p.v1980PrematureTitleRepair=true;
+ p.v1981PrematureTitleRepair=true;
 }
-function migrateProV1980(){const p=state.player;if(p.v1980Migrated)return;if(isProfessionalStage()){repairPrematureTitles1980();state.logs.push("🛠️ V1.9.8.0：修正未開賽的夏季聯賽被提前回溯為冠軍，並同步撤銷因此誤判的生涯大滿貫／燦金之路。")}p.v1980Migrated=true}
+function migrateProV1981(){const p=state.player;if(p.v1981Migrated)return;if(isProfessionalStage()){repairPrematureTitles1981();state.logs.push("🛠️ V1.9.8.1：修正未開賽的夏季聯賽被提前回溯為冠軍，並同步撤銷因此誤判的生涯大滿貫／燦金之路。")}p.v1981Migrated=true}
 function championMerchCard1979(){if(!isProfessionalStage())return "";const pc=ensureCareer20(),arr=pc.championMerch||[];if(!arr.length)return "";return `<section class="card"><h2>👕 冠軍紀念商品</h2><div class="small">冠軍紀念商品永久保留；奪冠初期有銷售高峰，選手依合約肖像／商業權比例分紅。</div><div class="log">${arr.slice(0,8).map(x=>`<strong>${x.year} ${x.event}冠軍紀念系列</strong>｜${x.team}<br>永久商品｜夜鋒分紅比例 ${Math.round((x.playerShare||.1)*100)}%`).join("<br><br>")}</div></section>`}
 function bigMatchStoryCard1979(){if(!isProfessionalStage())return "";const pc=state.player.proCareer,phase=proAnnualPhase();if(!/MSI|世界賽|季後賽/.test(phase))return "";const a=state.player.achievements||[],world=a.filter(x=>/世界賽冠軍/.test(x.title||"")).length,msi=a.filter(x=>/^MSI冠軍$/.test(x.title||"")).length,lines=[];if(phase==="世界賽"){if(world)lines.push(`傳奇再臨：夜鋒帶著 ${world} 座世界冠軍履歷再次挑戰世界舞台。`);if(world>=1)lines.push(`王朝挑戰：本屆若再度奪冠，將向世界三冠王朝更進一步。`)}if(phase==="MSI"&&msi)lines.push(`MSI榮耀：夜鋒目前已有 ${msi} 座MSI冠軍，將繼續累積國際賽歷史。`);const opp=currentScheduledProMatch?.()?.opp||currentInternationalMatch?.()?.opp;if(opp)lines.push(`焦點對手：${pc.team} 下一戰將面對 ${opp}。`);return `<section class="card"><h2>🔥 大賽賽前看點</h2><div class="log">${(lines.length?lines:["新王與老將的故事將依本屆實際參賽名單、冠軍履歷與對戰歷史持續生成。"]).join("<br><br>")}</div></section>`}
 function achievementCard(){
@@ -4433,6 +4455,7 @@ function socialCategoryFor(name){
  const p=state.player,c=state.characters?.[name];
  if((p.romance?.marriage?.divorced||[]).some(x=>x.name===name)||c?.formerSpouse)return "女生朋友";
  if(p.romance?.spouse===name)return "老婆";
+ if(isActiveEnemy19781(name))return "仇人";
  if(confirmedProfessionalRecord(name))return "職業選手";
  if((p.proCareer?.coaches||[]).some(x=>x.name===name)||c?.isProStaff)return "教練／工作人員";
  if(c?.gender==="女")return "女生朋友";
@@ -4442,7 +4465,7 @@ function socialCategoryFor(name){
 function chooseSocial(){
  normalizeFormerSpouseSocialState();ensureV10();if(isProfessionalStage())ensureProRoster();if(remain()<1){modal(`<h2>今天沒有剩餘時段</h2><p>社交需要 1 個時段。</p>${closeBtn()}`);return}
  const all=Object.values(state.characters||{}).filter(c=>c&&c.known&&c.name&&c.name!==state.player.name&&!isPlaceholderPersonName(c.name)&&proSocialAllowed(c));
- const order=["老婆","職業選手","教練／工作人員","女生朋友","男生朋友","其他"],groups={};all.forEach(c=>(groups[socialCategoryFor(c.name)]??=[]).push(c));
+ const order=["老婆","仇人","職業選手","教練／工作人員","女生朋友","男生朋友","其他"],groups={};all.forEach(c=>(groups[socialCategoryFor(c.name)]??=[]).push(c));
  state.ui=state.ui||{};let active=state.ui.socialCategory;if(!active||!groups[active])active=order.find(x=>groups[x]?.length)||"其他";state.ui.socialCategory=active;
  const people=(groups[active]||[]).sort((a,b)=>(state.player.relations?.[b.name]||0)-(state.player.relations?.[a.name]||0)),main=document.querySelector("#main");
  const tabs=order.filter(x=>groups[x]?.length).map(x=>`<button type="button" class="${x===active?"primary":"ghost"} social-cat" data-cat="${x}">${x} (${groups[x].length})</button>`).join("");
@@ -4756,6 +4779,6 @@ function migrateProV1940(){
  if(c){c.nationality="台灣";c.homeCountry="台灣";c.homeCity="台北";if(c.partnerMobility)partnerCurrentLocationByMode(c);}
  p.v1940Migrated=true;state.logs.push("🔧 V1.9.4.1：社交實體見面改以目前所在地判定，不再誤用常住地；采恩常住台北但可依生活安排身處柏林等地。");
 }
-migrateProV1937();migrateProV1938();migrateProV1939();migrateProV1940();migrateProV1967();migrateProV1973();migrateProV1979();migrateProV1980();recoverLegacyMarriageCrisis1977();
+migrateProV1937();migrateProV1938();migrateProV1939();migrateProV1940();migrateProV1967();migrateProV1973();migrateProV1979();migrateProV1981();recoverLegacyMarriageCrisis1977();
 if(isProfessionalStage()){ensureCareer20();if(!state.player.v1950Migrated){state.player.v1950Migrated=true;state.logs.push("🆕 V1.9.5.0：職業生涯2.0第一階段啟用；既有社交、約會、懷孕、比賽、轉會流程保持原邏輯。");save();}}
 render();
