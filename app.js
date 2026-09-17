@@ -1777,7 +1777,7 @@ function career(){
  return `${proCareerCard()}${competitiveFormCard()}${tacticsCard()}${clubEquityCard()}${legacyRelationsCard()}${hallOfFameCard()}${postCareerCard()}${mediaNetworkCard()}${proTeamPageCard()}${recentProMatchCard()}${playoffBracketCard()}${annualCalendarCard()}${transferMarketCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${commercialCard()}${fanMeetingCard()}${teamBuildingCard()}${legalMediaCard()}${assetCard()}${privatePartyCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${isProfessionalStage()?stat("大眾評價",Math.round(ensureAudienceRating().rating)):""}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.7.7</strong>｜婚姻危機入口修正版：修復舊存檔人物顯示「老婆」但 romance.spouse 未同步，導致看不到「💥 處理婚姻危機」；現在會從人物關係與既有不忠紀錄自動恢復配偶與危機入口。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.7.8</strong>｜婚姻危機資料修正版：修復「危機按鈕存在但點入顯示沒有待處理危機」。現在按鈕會自動從近期不忠紀錄補建真正的待處理危機，事件發生時也同步寫入相容欄位。</div></section>`;
 }
 function bind(){
  document.querySelector(".tactic-advice")?.addEventListener("click",openTacticAdvice);document.querySelectorAll(".tactic-suggest").forEach(b=>b.onclick=()=>suggestTactic(b.dataset.tactic));document.querySelectorAll(".equity-buy").forEach(b=>b.onclick=()=>buyEquity(+b.dataset.pct));document.querySelectorAll(".equity-direct").forEach(b=>b.onclick=()=>equityDirective(b.dataset.role));document.querySelectorAll(".career-shift").forEach(b=>b.onclick=()=>careerShift(b.dataset.path));document.querySelector(".coach-suggest")?.addEventListener("click",()=>coachChangeProposal(false));document.querySelector(".coach-change")?.addEventListener("click",()=>coachChangeProposal(true));document.querySelector("#capitalInjection")?.addEventListener("click",injectClubCapital);document.querySelector("#seekApprentice")?.addEventListener("click",apprenticeAction);
@@ -2403,7 +2403,7 @@ function triggerMarriageAffairCrisis(otherName){
  const m=ensureMarriageState();if(m.crisis)return;
  const severity=rand(2,4);m.trust=clamp((m.trust||80)-rand(25,45),0,100);
  p.relations[spouse]=clamp((p.relations[spouse]||90)-rand(25,45),0,100);
- m.crisis={type:"婚外關係被發現",other:otherName,severity,stage:"等待溝通",week:state.date.week};
+ m.crisis={type:"婚外關係被發現",other:otherName,severity,stage:"等待溝通",week:state.date.week};p.romance.marriageCrisis={...m.crisis};
  changeEthics(-rand(8,15),"婚外關係被配偶發現");
  state.logs.push(`💥 ${spouse} 發現你與 ${otherName} 有不忠關係。婚姻進入重大危機，必須先溝通處理。`);
  state.messages.push({id:"marriage-crisis-"+Date.now(),from:spouse,text:"我已經知道那件事了。我們必須好好談清楚，否則這段婚姻可能沒辦法繼續。",unread:true,resolved:true,type:"normal"});
@@ -2412,9 +2412,23 @@ function marriageCrisisCard(){
  const p=state.player,m=ensureMarriageState(),x=m.crisis;if(!p.romance?.spouse||!x)return "";
  return `<section class="card"><h2>⚠️ 婚姻危機</h2><div class="notice badtext">${x.type}｜婚姻信任 ${Math.round(m.trust||0)}</div><p class="small">目前階段：${x.stage}。先溝通處理；若處理失敗，可能進入分居、離婚、爆料或黑料事件。</p><button id="marriageTalk" class="reply">與老婆溝通處理</button></section>`;
 }
+function ensurePendingMarriageCrisis1978(name){
+ const p=state.player;p.romance=p.romance||{};
+ if(!p.romance.spouse&&name){p.romance.spouse=name}
+ const spouse=p.romance.spouse,m=ensureMarriageState();if(!spouse||spouse!==name)return null;
+ if(m.crisis)return m.crisis;
+ // 相容舊版曾把危機寫在 romance.marriageCrisis 的資料。
+ const legacy=p.romance.marriageCrisis;
+ if(legacy){m.crisis={type:legacy.type||"婚外關係被發現",other:legacy.other||legacy.source||"其他人",severity:Number(legacy.severity)||3,stage:legacy.stage||"等待溝通",week:legacy.week||state.date.week,recovered:true};return m.crisis}
+ // V1.9.7.7 曾只恢復按鈕而沒有穩定保存 crisis；按下按鈕時直接從事件紀錄補建。
+ const logs=(state.logs||[]).slice(-600).reverse().map(String);
+ const hit=logs.find(t=>t.includes(`${spouse} 發現你與`)&&t.includes("不忠關係"));
+ if(hit){const mm=hit.match(/發現你與\s*([^\s]+)\s*有不忠關係/);m.crisis={type:"婚外關係被發現",other:mm?.[1]||"其他人",severity:3,stage:"等待溝通",week:state.date.week,recovered:true};p.romance.marriageCrisis={...m.crisis};state.logs.push(`🔧 V1.9.7.8：已補建 ${spouse} 的待處理婚姻危機。`);save();return m.crisis}
+ return null;
+}
 function openMarriageCrisisTalk(name){
- const p=state.player,spouse=p.romance?.spouse,m=ensureMarriageState(),x=m.crisis;
- if(!spouse||spouse!==name||!x){modal(`<h2>💬 婚姻溝通</h2><p>目前沒有待處理的婚姻危機。</p>${closeBtn()}`);return}
+ const p=state.player;recoverLegacyMarriageCrisis1977();const spouse=p.romance?.spouse,m=ensureMarriageState(),x=ensurePendingMarriageCrisis1978(name);
+ if(!spouse||spouse!==name||!x){modal(`<h2>💬 婚姻溝通</h2><p>目前沒有找到可恢復的待處理婚姻危機紀錄。</p>${closeBtn()}`);return}
  modal(`<h2>💥 與 ${spouse} 處理婚姻危機</h2><p>${spouse} 已經知道你與 <strong>${x.other||"其他人"}</strong> 的不忠關係。這次談話會影響婚姻是否能繼續。</p><div class="notice badtext">婚姻信任 ${Math.round(m.trust||0)}/100｜目前：${x.stage}</div><div class="reply-grid"><button class="reply marriage-crisis-choice" data-a="apologize">坦白並道歉</button><button class="reply marriage-crisis-choice" data-a="endAffair">承諾結束婚外關係並挽回</button><button class="reply marriage-crisis-choice" data-a="negotiate">希望維持其他關係並協商</button><button class="reply marriage-crisis-choice" data-a="separate">先暫時分開冷靜</button><button class="reply marriage-crisis-choice" data-a="divorce">提出離婚</button></div>${closeBtn()}`);
  document.querySelectorAll('.marriage-crisis-choice').forEach(b=>b.onclick=()=>resolveMarriageCrisisChoice(b.dataset.a));
 }
@@ -2430,7 +2444,7 @@ function resolveMarriageCrisisChoice(action){
  if(/成熟|理性|溫柔/.test(traits))chance+=.05;if(/忠誠|保守|嫉妒/.test(traits)&&action==="negotiate")chance-=.12;
  chance=clamp(chance,.05,.82);
  if(action==="endAffair"&&x.other){p.romance.partners=(p.romance.partners||[]).filter(n=>n!==x.other);if(p.romance.affairs?.[x.other])p.romance.affairs[x.other].ended=true;const oc=state.characters?.[x.other];if(oc&&["地下戀人","婚外關係","戀人"].includes(oc.relationshipType))oc.relationshipType=null;state.logs.push(`💔 為挽回婚姻，你結束了與 ${x.other} 的婚外／地下關係。`)}
- if(Math.random()<chance){const gain=action==="endAffair"?rand(12,22):rand(6,14);m.trust=clamp(trust+gain,0,100);p.relations[spouse]=clamp(rel+rand(4,10),0,100);m.history=m.history||[];m.history.push(`第${state.date.week}週：不忠危機後完成溝通，進入信任修復期`);m.crisis=null;state.logs.push(`🤝 你與 ${spouse} 完成婚姻危機溝通。婚姻暫時維持，但信任需要長期修復。`);save();document.querySelector('.modal-backdrop')?.remove();render();modal(`<h2>🤝 暫時和解</h2><p>${spouse} 願意暫時繼續婚姻。這不代表事情已完全過去，之後的行為仍會影響信任。</p>${closeBtn()}`);return}
+ if(Math.random()<chance){const gain=action==="endAffair"?rand(12,22):rand(6,14);m.trust=clamp(trust+gain,0,100);p.relations[spouse]=clamp(rel+rand(4,10),0,100);m.history=m.history||[];m.history.push(`第${state.date.week}週：不忠危機後完成溝通，進入信任修復期`);m.crisis=null;p.romance.marriageCrisis=null;state.logs.push(`🤝 你與 ${spouse} 完成婚姻危機溝通。婚姻暫時維持，但信任需要長期修復。`);save();document.querySelector('.modal-backdrop')?.remove();render();modal(`<h2>🤝 暫時和解</h2><p>${spouse} 願意暫時繼續婚姻。這不代表事情已完全過去，之後的行為仍會影響信任。</p>${closeBtn()}`);return}
  x.stage="溝通未果";m.trust=clamp(trust-rand(3,9),0,100);const roll=Math.random();let result=`${spouse} 目前無法接受你的說法，婚姻危機仍未解除。`;
  if(roll<.22){divorceSpouse("不忠事件後婚姻溝通破裂");result=`${spouse} 決定結束婚姻。`}
  else if(roll<.46){x.stage="分居";result=`${spouse} 決定暫時分居，之後仍可能再次溝通。`}
@@ -4401,7 +4415,7 @@ function openSocialPersonPage(name){
  let acts=staff?[["coachTactics","🧠 討論戰術"],["coachEval","📋 詢問近期評價"],["coachRole","🎯 討論先發競爭"]]:female?[["chat","📱 聊天／視訊"],["food","一起吃飯"],["cafe","咖啡廳"],["movie","看電影"],["date","正式約會"],["confess","💗 告白"]]:[["food","吃飯聊天"],["arcade","去電競館"],["hangout","逛街／閒晃"],["game","一起打遊戲"],["latefood","吃宵夜"]];
  if(!staff&&esports)acts.splice(1,0,["duo","Rank雙排"]);if(!staff&&dating)acts.push(["communicate","💬 感情溝通"]);if(dating&&c.publicFigure&&!c.publicRomance){c.relationshipType=c.relationshipType||"地下戀人";c.secretRomanceRisk=c.secretRomanceRisk||5}
  recoverLegacyMarriageCrisis1977();const spouse=state.player.romance?.spouse===name,isFwb=c.relationshipType==="炮友"||name==="許安然";
- const marriageCrisis=spouse?ensureMarriageState().crisis:null;if(marriageCrisis)acts.unshift(["marriageCrisis","💥 處理婚姻危機"]);
+ const marriageCrisis=spouse?ensurePendingMarriageCrisis1978(name):null;if(marriageCrisis)acts.unshift(["marriageCrisis","💥 處理婚姻危機"]);
  if(!staff&&state.player.age>=18&&female&&Number(c.age||18)>=18){if(spouse)acts.push(["intimate","❤️ 夫妻親密時光"]);else if(dating)acts.push(["intimate","❤️ 親密相處"]);else acts.push(["private",isFwb?"🌙 炮友見面（NT$3,000）":"🌙 詢問私人約會"])}
  if(!staff&&dating)acts.push(["breakup","💔 提出分手"]);if(!staff&&pro)acts.push(["spar","⚔️ 與職業選手切磋"]);
  document.querySelector("#main").innerHTML=`<section class="card"><div class="row space"><h2>${female?"💗":"🤝"} ${name}</h2><button id="socialBack" class="ghost">← 換人</button></div><p class="small">關係值 ${Math.round(rel)}｜性別：${c.gender}｜個性：${safeTraits(c).join("、")||"尚未熟悉"}<br>身分：${socialProfileMeta(name).identity}｜認識來源：${socialProfileMeta(name).source}｜目前關係：${socialProfileMeta(name).relationship}<br>📍 ${socialLocationLabel(name)}${socialProfileMeta(name).special?`｜特殊關係：${socialProfileMeta(name).special}`:""}${pro?`｜${c.rank||"宗師"} ${c.lp||""} LP`:""}</p>${pro?`<div class="notice goodtext">⚔️ 已解鎖職業選手切磋，可直接在下方選擇。</div>`:""}<div class="social-page-grid">${acts.map(a=>`<button type="button" class="choice social-act-page" data-act="${a[0]}" ${(a[0]==="date"&&rel<75&&!dating)||(a[0]==="confess"&&(rel<75||dating))?"disabled":""}><strong>${a[1]}</strong></button>`).join("")}</div></section>`;
