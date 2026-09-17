@@ -1455,6 +1455,20 @@ function maybeMeetTeammateGirlfriend(){
 }
 function ensureTeamRuptures(){const pc=state.player.proCareer;pc.teamRuptures=pc.teamRuptures||{};return pc.teamRuptures}
 function createTeamRupture(mate,source,reason="私人關係衝突"){const pc=state.player.proCareer,r=ensureTeamRuptures(),x=r[mate]=r[mate]||{mate,source,reason,severity:0,status:"衝突",ultimatum:false,sabotageRisk:0,weeks:0};x.severity=clamp(Math.max(x.severity||0,rand(3,5)),1,5);x.status=x.severity>=4?"決裂":"嚴重衝突";x.sabotageRisk=clamp(.04+x.severity*.035,0,.24);pc.teammateConflict=x;if(x.severity>=4&&!x.ultimatum&&Math.random()<.62){x.ultimatum=true;state.messages.push({id:"ult-"+Date.now(),from:mate,text:"我已經跟管理層講清楚了，有他就沒有我。",unread:true,resolved:true,type:"team_crisis"});state.logs.push(`💥 ${mate} 向戰隊提出「有夜鋒就沒有我」的最後通牒。`)}}
+function emergencyAmateurForRole(role,mate){
+ const pc=state.player.proCareer,seed=`${pc.team}-${role}-${state.date.year}-${state.date.week}-${mate}`,first=["陳","林","張","黃","吳","李","許","周"][stableAgeOffset(seed,8)],last=["宇翔","柏廷","冠霖","承恩","子謙","昱辰","家豪","品睿"][stableAgeOffset(seed+"n",8)],name=`${first}${last}`;
+ const x={name,role,isPlayer:false,isSub:false,rating:rand(58,69),relation:45,trust:40,chemistry:28,salary:rand(60000,95000),proGames:0,emergencySigning:true,joinedYear:state.date.year};pc.roster.push(x);
+ addSocialAcquaintance(name,45,{gender:"男",age:18+stableAgeOffset(name,6),role,isPro:true,identityType:"緊急簽約新人",team:pc.team,acquaintanceSource:`${pc.team} 緊急徵召`});state.news.unshift(`🆘 ${pc.team} 因陣容危機緊急簽下零職業經驗的路人新人 ${name}（${role}）。`);return x;
+}
+function prepareRuptureEmergencyLineup(){
+ const pc=state.player.proCareer,active=Object.values(pc.teamRuptures||{}).find(x=>x.refusesToPlay&&["決裂","嚴重衝突","冷戰共存"].includes(x.status));if(!active)return null;
+ const starter=(pc.roster||[]).find(x=>x.name===active.mate);if(!starter)return null;const role=normalizeRosterRole(starter.role),subs=(pc.roster||[]).filter(x=>x.isSub&&!x.refusesToPlay);
+ let rep=subs.find(x=>normalizeRosterRole(x.role)===role),note="";starter.isSub=true;starter.refusesToPlay=true;
+ if(rep){rep.isSub=false;rep.emergencyFor=active.mate;note=`同位置替補 ${rep.name} 緊急頂替 ${active.mate}`;pc.emergencyLineupPenalty=.025;}
+ else if(subs.length){rep=subs.sort((a,b)=>rosterRating(b)-rosterRating(a))[0];rep.isSub=false;rep.emergencyFor=active.mate;rep.originalRole=rep.originalRole||rep.role;rep.role=role;rep.forcedRoleSwap=true;note=`${rep.name} 從 ${rep.originalRole} 被迫轉路至 ${role}`;pc.emergencyLineupPenalty=.075;}
+ else {const international=["MSI","世界賽"].includes(proAnnualPhase());if(!international){rep=emergencyAmateurForRole(role,active.mate);note=`緊急簽下路人新人 ${rep.name} 頂替 ${active.mate}`;pc.emergencyLineupPenalty=.11}else{note=`國際賽名單鎖定，無法臨時簽人；${active.mate} 拒絕出賽造成嚴重陣容缺口`;pc.emergencyLineupPenalty=.16}}
+ active.emergencyReplacement=rep?.name||null;active.lineupHandled=true;state.logs.push(`🚨 陣容危機：${active.mate} 拒絕共同出賽；${note}。`);state.news.unshift(`🚨 ${pc.team} 賽前臨時變陣：${note}。`);return {mate:active.mate,replacement:rep?.name||null,note};
+}
 function teamAssetScore(name){const p=state.player,pc=p.proCareer;if(name===p.name)return avg()*1.15+(pc.coachTrust||50)*.18+(p.followers||0)/30000;const c=state.characters?.[name]||{},rel=p.relations?.[name]||50;return (c.power||c.rating||70)+(100-rel)*.03+rand(-5,5)}
 function resolveTeamRupture(mate){const p=state.player,pc=p.proCareer,x=ensureTeamRuptures()[mate];if(!x||["已轉隊","已解約","已和解"].includes(x.status))return;const my=teamAssetScore(p.name),his=teamAssetScore(mate),roll=Math.random();if(x.severity<4&&roll<.28){x.status="已和解";pc.teamChemistry=clamp((pc.teamChemistry||60)+4,0,100);state.logs.push(`🤝 教練與管理層成功調停你和 ${mate} 的衝突。`);return}if(his+rand(-8,8)>my+8){if(roll<.48){x.status="夜鋒被轉隊";pc.forcedTransferPending={reason:`與 ${mate} 決裂`,preferredKeep:mate};state.logs.push(`🔄 管理層決定優先保留 ${mate}，開始尋找夜鋒的交易方案。`)}else{x.status="夜鋒可能解約";pc.releaseRisk=clamp((pc.releaseRisk||0)+35,0,100);state.logs.push(`⚠️ 你的解約風險大幅提高。`)}}else if(my>his+rand(-5,7)){if(roll<.68){x.status="隊友待轉隊";x.transferOutPending=true;state.logs.push(`🔄 管理層選擇保住夜鋒，開始為 ${mate} 尋找轉隊。`)}else{x.status="隊友可能解約";x.releasePending=true;state.logs.push(`📄 ${mate} 進入解約評估。`)}}else{x.status="冷戰共存";x.sabotageRisk=clamp(x.sabotageRisk+.05,0,.30);pc.teamChemistry=clamp((pc.teamChemistry||60)-8,0,100);state.logs.push(`🧊 沒有人離隊，你與 ${mate} 被迫繼續共事。`)}}
 function teamRuptureWeeklyTick(){const pc=state.player.proCareer,r=ensureTeamRuptures();Object.values(r).forEach(x=>{if(!["決裂","嚴重衝突","冷戰共存"].includes(x.status))return;x.weeks=(x.weeks||0)+1;if((x.ultimatum||x.weeks>=2)&&Math.random()<.34)resolveTeamRupture(x.mate);if(x.transferOutPending&&Math.random()<.42){x.transferOutPending=false;x.status="已轉隊";state.logs.push(`🔄 ${x.mate} 因隊內決裂正式轉隊。`);if(pc.roster)pc.roster=pc.roster.filter(v=>v.name!==x.mate)}if(x.releasePending&&Math.random()<.35){x.releasePending=false;x.status="已解約";state.logs.push(`📄 ${x.mate} 與戰隊解約。`);if(pc.roster)pc.roster=pc.roster.filter(v=>v.name!==x.mate)}})}
@@ -1753,7 +1767,7 @@ function career(){
  return `${proCareerCard()}${competitiveFormCard()}${tacticsCard()}${clubEquityCard()}${legacyRelationsCard()}${hallOfFameCard()}${postCareerCard()}${mediaNetworkCard()}${proTeamPageCard()}${recentProMatchCard()}${playoffBracketCard()}${annualCalendarCard()}${transferMarketCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${commercialCard()}${fanMeetingCard()}${teamBuildingCard()}${legalMediaCard()}${assetCard()}${privatePartyCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${isProfessionalStage()?stat("大眾評價",Math.round(ensureAudienceRating().rating)):""}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.7.2</strong>｜社交親密與地下戀情修正版：修正舊存檔成年伴侶缺少年齡欄位時「親密相處」被靜默跳過；智雅、林映辰同步為程以安的女友，若同時與夜鋒交往則顯示地下戀情。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.7.3</strong>｜地下戀情連鎖曝光與決裂陣容修正版：新增懷疑／線索累積、關係網連鎖曝光、程以安多段戀情成為媒體討論；重大決裂可拒絕共同出賽，戰隊依序啟用同路替補、強制轉路或國內賽緊急簽下零職業經驗新人。</div></section>`;
 }
 function bind(){
  document.querySelector(".tactic-advice")?.addEventListener("click",openTacticAdvice);document.querySelectorAll(".tactic-suggest").forEach(b=>b.onclick=()=>suggestTactic(b.dataset.tactic));document.querySelectorAll(".equity-buy").forEach(b=>b.onclick=()=>buyEquity(+b.dataset.pct));document.querySelectorAll(".equity-direct").forEach(b=>b.onclick=()=>equityDirective(b.dataset.role));document.querySelectorAll(".career-shift").forEach(b=>b.onclick=()=>careerShift(b.dataset.path));document.querySelector(".coach-suggest")?.addEventListener("click",()=>coachChangeProposal(false));document.querySelector(".coach-change")?.addEventListener("click",()=>coachChangeProposal(true));document.querySelector("#capitalInjection")?.addEventListener("click",injectClubCapital);document.querySelector("#seekApprentice")?.addEventListener("click",apprenticeAction);
@@ -3807,7 +3821,7 @@ function richGameEvents(gameNo,opp,win){
  ];return events;
 }
 function teamChemistry(){const p=state.player,pc=p.proCareer,arr=(pc.roster||[]).filter(x=>!x.isPlayer);return arr.length?arr.reduce((a,x)=>a+(p.relations[x.name]||50),0)/arr.length:50}
-function runRichLeagueMatch(){const difficultyPressure=.025+Math.max(0,(state.player.proCareer?.careerStats?.seriesW||0)-(state.player.proCareer?.careerStats?.seriesL||0))*.002+ruptureMatchPenalty();
+function runRichLeagueMatch(){prepareRuptureEmergencyLineup();const difficultyPressure=.025+Math.max(0,(state.player.proCareer?.careerStats?.seriesW||0)-(state.player.proCareer?.careerStats?.seriesL||0))*.002+ruptureMatchPenalty()+Number(state.player.proCareer?.emergencyLineupPenalty||0);
  const p=state.player,pc=p.proCareer,sn=pc.season;if(!sn||pc.stage!=="starter")return;
  preparePlayoffs();
  sn.teams=Array.isArray(sn.teams)?sn.teams:[];
@@ -4490,10 +4504,40 @@ function resolveRomance(name,v){
  }
  save();document.querySelector(".modal-backdrop")?.remove();render();
 }
+function relationshipNetworkFor(name){
+ const chars=state.characters||{},c=chars[name]||{},out=new Set();
+ [c.partnerName,c.romanticPartner,c.teammatePartnerOf,...(c.partnerNames||[])].filter(Boolean).forEach(x=>out.add(x));
+ Object.values(chars).forEach(x=>{if(!x?.name||x.name===name)return;const links=[x.partnerName,x.romanticPartner,x.teammatePartnerOf,...(x.partnerNames||[])];if(links.includes(name))out.add(x.name)});
+ return [...out];
+}
+function exposeSecretRomance(name,reason="地下戀情線索累積"){
+ const p=state.player,c=state.characters?.[name];if(!c)return false;
+ c.secretRomanceExposed=true;c.publicRomance=true;c.relationshipType=(p.romance?.partners||[]).includes(name)?"地下戀情曝光":"戀人";c.secretRomanceRisk=100;
+ p.adultLife.publicRomanceKnown=true;
+ const links=relationshipNetworkFor(name),mate=c.teammatePartnerOf||c.partnerName||c.romanticPartner||null;
+ state.news.unshift(`🚨 地下戀情曝光：夜鋒與 ${name} 的秘密關係遭到公開。`);
+ state.logs.push(`📰 ${name} 的地下戀情因「${reason}」曝光。`);
+ // 媒體會沿著已存在的人際關係追查，但不把多重交往自動描述成劈腿。
+ links.forEach(link=>{
+   const lc=state.characters?.[link];if(!lc)return;lc.mediaRelationshipScrutiny=clamp(Number(lc.mediaRelationshipScrutiny||0)+rand(25,45),0,100);
+   const partners=relationshipNetworkFor(link).filter(x=>x!==name);
+   if(partners.length){state.news.unshift(`🔎 關係網延燒：${link} 同時與 ${[name,...partners].join("、")} 存在感情關係，成為大眾討論焦點。`);lc.publicRelationshipNetwork=true;}
+ });
+ // 同一人物的其他地下戀情可能被順藤摸瓜，但不保證一次全部爆完。
+ const connectedSecrets=(p.romance?.partners||[]).filter(n=>n!==name&&!state.characters?.[n]?.secretRomanceExposed&&relationshipNetworkFor(n).some(x=>links.includes(x)||x===mate));
+ connectedSecrets.forEach(n=>{const x=state.characters?.[n];if(!x)return;x.secretSuspicion=clamp(Number(x.secretSuspicion||0)+rand(30,55),0,100);if(x.secretSuspicion>=80&&Math.random()<.55){x.secretRomanceExposed=true;x.publicRomance=true;x.relationshipType="地下戀情曝光";state.news.unshift(`🔥 連鎖曝光：媒體追查後又發現夜鋒與 ${n} 的地下戀情。`)}});
+ if(mate&&(p.proCareer?.roster||[]).some(x=>x.name===mate&&!x.isPlayer)){
+   createTeamRupture(mate,name,`${name} 地下戀情曝光`);const r=ensureTeamRuptures()[mate];
+   if(r&&r.severity>=4&&Math.random()<.72){r.refusesToPlay=true;r.refusalReason=`${name} 地下戀情曝光`;state.logs.push(`⛔ ${mate} 因重大私人衝突表示暫時不願與夜鋒共同出賽。`)}
+ }
+ triggerPrivateLifePRCrisis(name,"地下戀情曝光");return true;
+}
 function maybeRomanceExposure(){
- const p=state.player,ps=p.romance.partners||[];if(ps.length<2)return;
- const nonConsenting=ps.filter(n=>!p.romance.polyConsent?.[n]);if(!nonConsenting.length){if(Math.random()<.06)state.logs.push("多角關係：彼此知情且已溝通界線，本週沒有爆發衝突。");return}
- if(Math.random()>.14)return;const a=nonConsenting[rand(0,nonConsenting.length-1)],b=ps.find(x=>x!==a);p.relations[a]=clamp((p.relations[a]||0)-rand(5,12),0,100);state.world.rumors.unshift(`有人開始傳你同時和 ${a}、${b} 走得非常近。`);state.logs.push(`⚠️ ${a} 尚未接受多角關係，信任明顯下降。`);
+ const p=state.player,ps=p.romance?.partners||[];
+ const secrets=ps.filter(n=>{const c=state.characters?.[n];return c&&(c.relationshipType==="地下戀人"||c.teammatePartnerOf||c.partnerName||c.romanticPartner)&&!c.secretRomanceExposed});
+ for(const name of secrets){const c=state.characters[name],base=Number(c.secretRomanceRisk||10),clues=Number(c.secretSuspicion||0);let add=rand(0,3)+(c.publicFigure?2:0)+(p.followers>100000?1:0);c.secretSuspicion=clamp(clues+add,0,100);const chance=clamp(.002+base*.00022+c.secretSuspicion*.00035,.002,.065);if(Math.random()<chance){exposeSecretRomance(name,c.secretSuspicion>=60?"媒體與共同友人累積多項線索":"意外留下可辨識線索");break}}
+ // 保留原本多角關係內部信任事件。
+ if(ps.length>=2){const nonConsenting=ps.filter(n=>!p.romance.polyConsent?.[n]);if(nonConsenting.length&&Math.random()<.035){const a=nonConsenting[rand(0,nonConsenting.length-1)],b=ps.find(x=>x!==a);p.relations[a]=clamp((p.relations[a]||0)-rand(3,8),0,100);state.world.rumors.unshift(`有人開始傳你同時和 ${a}、${b} 走得非常近。`)}}
 }
 function openGift(name){
  const g=state.player.gifts||{},items=SHOP_ITEMS.filter(x=>x.gift&&(g[x.id]||0)>0);
@@ -4563,6 +4607,7 @@ function partyGuestRomance(guests){const formed=[],used=new Set();const eligible
 function pRel(name){return Number(state.player?.relations?.[name]||0)}
 function finishPrivateParty(adult,acceptedNames){const p=state.player;if(!acceptedNames.length){modal(`<h2>🎉 派對取消</h2><p>這次受邀者都沒有接受，因此沒有舉辦派對，也不消耗生活時段。</p>${closeBtn()}`);return}if(!consume(adult?"成人私人派對":"私人派對",1))return;const guests=acceptedNames.map(n=>state.characters?.[n]).filter(Boolean);guests.forEach(c=>p.relations[c.name]=clamp((p.relations[c.name]||0)+rand(1,3),0,100));const energyCost=adult?clamp(28+guests.length*2+rand(0,8),30,48):rand(7,12);p.energy=clamp(p.energy-energyCost,0,100);if(adult){p.condition=p.condition||{};p.condition.fatigue=clamp((p.condition.fatigue||0)+rand(12,20),0,100);p.stress=clamp(p.stress+rand(1,5),0,100)}const breakups=adult?guests.map(partyPartnerFallout).filter(Boolean):[];const newCouples=partyGuestRomance(guests);const pregnancies=adult?maybePartyPregnancy(acceptedNames):[];const exposure=adult&&Math.random()<clamp(.006+guests.length*.0035+(guests.some(c=>c.publicFigure)?.012:0),.006,.055);if(exposure){changeCareerRep(-rand(6,14),"私人成人派對曝光");p.prCrisis={type:"私人成人派對照片外流",severity:rand(3,5),source:"匿名外流"};state.news.unshift("🚨 夜鋒高度私密的成人派對內容外流，引發贊助商與媒體關注。")}state.logs.push(`🎉 ${adult?"成人私人":"私人"}派對完成，來賓 ${acceptedNames.join("、")}；體力 -${energyCost}${exposure?"；事件意外曝光":"；維持私人"}。`);save();render();modal(`<h2>🎉 派對結束</h2><p>實際參加者：${acceptedNames.join("、")}</p><div class="notice ${adult?"badtext":""}">⚡ ${adult?"成人私人派對消耗大量體力":"派對消耗體力"}：體力 -${energyCost}${adult?"，並增加疲勞。":"。"}</div>${newCouples.length?`<div class="notice goodtext">💕 ${newCouples.join("；")}。</div>`:""}${breakups.length?`<div class="notice badtext">💔 ${breakups.join("；")}。</div>`:""}${pregnancies.length?`<div class="notice">🤰 ${pregnancies.join("；")}。後續會進入既有懷孕追蹤；生父不確定時不會直接認定夜鋒是父親。</div>`:""}${exposure?`<div class="notice badtext">⚠️ 低機率曝光事件發生，造成較大的公關風險。</div>`:`<div class="notice goodtext">活動維持私人，沒有影響職業風評。</div>`}${closeBtn()}`)}
 function migrateProV1967(){const p=state.player;if(p.v1967Migrated)return;ensureProHealth1967();Object.values(state.characters||{}).forEach(c=>{if(c?.known&&!safeTraits(c).length)c.traits=fallbackTraits(c)});p.v1967Migrated=true;state.logs.push("🆕 V1.9.6.7：動態世界・人物深化篇啟用；跨國聊天、前妻復合再婚、NPC成長與主動生活、校園／師徒、媒體、職業健康、高端資產與私人派對開始運作。");}
+function migrateProV1973(){const p=state.player;if(p.v1973Migrated)return;syncCanonicalPartnerLinks1972();["智雅","林映辰"].forEach(n=>{const c=state.characters?.[n];if(c&&(p.romance?.partners||[]).includes(n)){c.relationshipType="地下戀人";c.secretSuspicion=Number(c.secretSuspicion||0);c.secretRomanceRisk=Math.max(10,Number(c.secretRomanceRisk||0))}});p.v1973Migrated=true;state.logs.push("🆕 V1.9.7.3：地下戀情改為懷疑／線索累積與關係網連鎖曝光；重大隊內決裂可觸發拒絕共同出賽與緊急替補／轉路／新人救火。");}
 function nextDay(){
  ensureV10();let oldWeek=state.date.week,oldDay=state.date.day;try{baseNextDay()}catch(err){state.logs.push(`⚠️ 換日相容修復：${err?.message||err}`);save();render()}
  const advanced=state.date.day!==oldDay||state.date.week!==oldWeek;
@@ -4602,6 +4647,6 @@ function migrateProV1940(){
  if(c){c.nationality="台灣";c.homeCountry="台灣";c.homeCity="台北";if(c.partnerMobility)partnerCurrentLocationByMode(c);}
  p.v1940Migrated=true;state.logs.push("🔧 V1.9.4.1：社交實體見面改以目前所在地判定，不再誤用常住地；采恩常住台北但可依生活安排身處柏林等地。");
 }
-migrateProV1937();migrateProV1938();migrateProV1939();migrateProV1940();migrateProV1967();
+migrateProV1937();migrateProV1938();migrateProV1939();migrateProV1940();migrateProV1967();migrateProV1973();
 if(isProfessionalStage()){ensureCareer20();if(!state.player.v1950Migrated){state.player.v1950Migrated=true;state.logs.push("🆕 V1.9.5.0：職業生涯2.0第一階段啟用；既有社交、約會、懷孕、比賽、轉會流程保持原邏輯。");save();}}
 render();
