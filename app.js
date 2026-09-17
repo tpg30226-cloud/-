@@ -1777,7 +1777,7 @@ function career(){
  return `${proCareerCard()}${competitiveFormCard()}${tacticsCard()}${clubEquityCard()}${legacyRelationsCard()}${hallOfFameCard()}${postCareerCard()}${mediaNetworkCard()}${proTeamPageCard()}${recentProMatchCard()}${playoffBracketCard()}${annualCalendarCard()}${transferMarketCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${bigMatchStoryCard1979()}${championMerchCard1979()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${commercialCard()}${fanMeetingCard()}${teamBuildingCard()}${legalMediaCard()}${assetCard()}${privatePartyCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${isProfessionalStage()?stat("大眾評價",Math.round(ensureAudienceRating().rating)):""}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.7.9</strong>｜職業世界・冠軍王朝篇：補齊聯賽冠軍履歷，新增大滿貫／燦金之路／三冠王朝、MSI／世界賽決賽FMVP、冠軍獎金與永久紀念商品、7人名單上限、合約年限傾向與簡化轉會市場；修正Scrim選錯體系成長。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.8.0</strong>｜冠軍時序修正版：夏季賽必須實際完成季後賽並奪冠後才記錄冠軍；修正提前產生的夏季冠軍、生涯大滿貫與燦金之路。</div></section>`;
 }
 function bind(){
  document.querySelector(".tactic-advice")?.addEventListener("click",openTacticAdvice);document.querySelectorAll(".tactic-suggest").forEach(b=>b.onclick=()=>suggestTactic(b.dataset.tactic));document.querySelectorAll(".equity-buy").forEach(b=>b.onclick=()=>buyEquity(+b.dataset.pct));document.querySelectorAll(".equity-direct").forEach(b=>b.onclick=()=>equityDirective(b.dataset.role));document.querySelectorAll(".career-shift").forEach(b=>b.onclick=()=>careerShift(b.dataset.path));document.querySelector(".coach-suggest")?.addEventListener("click",()=>coachChangeProposal(false));document.querySelector(".coach-change")?.addEventListener("click",()=>coachChangeProposal(true));document.querySelector("#capitalInjection")?.addEventListener("click",injectClubCapital);document.querySelector("#seekApprentice")?.addEventListener("click",apprenticeAction);
@@ -2842,6 +2842,19 @@ function backfillDomesticTitles1979(){
 }
 function enforceSevenManRoster1979(){const pc=state.player.proCareer;if(!Array.isArray(pc.roster))return;const starters=pc.roster.filter(x=>!x.isSub).slice(0,5),subs=pc.roster.filter(x=>x.isSub).slice(0,2);pc.roster=[...starters,...subs];pc.substitutes=subs}
 function migrateProV1979(){const p=state.player;if(p.v1979Migrated)return;if(isProfessionalStage()){backfillDomesticTitles1979();enforceSevenManRoster1979();const pc=ensureCareer20();pc.worldEra=pc.worldEra||{rareGeniusLastYear:0};state.logs.push("🆕 V1.9.7.9：冠軍王朝篇啟用：國內冠軍永久履歷／大滿貫／燦金之路／三冠王朝、國際決賽FMVP與冠軍獎金商品、7人一軍上限、簡化轉會市場；Scrim改為成長實際選擇的戰術體系。")}p.v1979Migrated=true}
+function repairPrematureTitles1980(){
+ const p=state.player;if(!isProfessionalStage())return;ensureCareerHistory();const y=state.date.year,m=careerMonthFromWeek(state.date.week),a=p.achievements||[];
+ // A current-year summer title cannot exist before the November summer playoffs have actually been completed.
+ const summerFinished=(()=>{if(m<11)return false;const pc=p.proCareer||{},arc=pc.playoffArchive||pc.playoffsArchive||state.world?.playoffArchive||{};return Object.values(arc||{}).some(b=>b?.year===y&&/夏/.test(b?.seasonName||b?.season||"")&&b?.champion===pc.team&&b?.finished!==false) || (pc.season?.year===y&&/夏/.test(pc.season?.seasonName||"")&&pc.season?.champion===pc.team&&pc.season?.finished);})();
+ if(!summerFinished){
+  const before=a.length;p.achievements=a.filter(x=>!(x.year===y&&(/夏季賽冠軍/.test(x.title||"")||/燦金之路/.test(x.title||"")||/生涯大滿貫/.test(x.title||""))));
+  if(before!==p.achievements.length)state.logs.push(`🛠️ ${y} 夏季賽尚未完成：已移除提前產生的夏季冠軍／大滿貫成就。`);
+ }
+ // Re-evaluate only from championships that have truly been earned and persisted.
+ evaluateCareerMilestones1979();
+ p.v1980PrematureTitleRepair=true;
+}
+function migrateProV1980(){const p=state.player;if(p.v1980Migrated)return;if(isProfessionalStage()){repairPrematureTitles1980();state.logs.push("🛠️ V1.9.8.0：修正未開賽的夏季聯賽被提前回溯為冠軍，並同步撤銷因此誤判的生涯大滿貫／燦金之路。")}p.v1980Migrated=true}
 function championMerchCard1979(){if(!isProfessionalStage())return "";const pc=ensureCareer20(),arr=pc.championMerch||[];if(!arr.length)return "";return `<section class="card"><h2>👕 冠軍紀念商品</h2><div class="small">冠軍紀念商品永久保留；奪冠初期有銷售高峰，選手依合約肖像／商業權比例分紅。</div><div class="log">${arr.slice(0,8).map(x=>`<strong>${x.year} ${x.event}冠軍紀念系列</strong>｜${x.team}<br>永久商品｜夜鋒分紅比例 ${Math.round((x.playerShare||.1)*100)}%`).join("<br><br>")}</div></section>`}
 function bigMatchStoryCard1979(){if(!isProfessionalStage())return "";const pc=state.player.proCareer,phase=proAnnualPhase();if(!/MSI|世界賽|季後賽/.test(phase))return "";const a=state.player.achievements||[],world=a.filter(x=>/世界賽冠軍/.test(x.title||"")).length,msi=a.filter(x=>/^MSI冠軍$/.test(x.title||"")).length,lines=[];if(phase==="世界賽"){if(world)lines.push(`傳奇再臨：夜鋒帶著 ${world} 座世界冠軍履歷再次挑戰世界舞台。`);if(world>=1)lines.push(`王朝挑戰：本屆若再度奪冠，將向世界三冠王朝更進一步。`)}if(phase==="MSI"&&msi)lines.push(`MSI榮耀：夜鋒目前已有 ${msi} 座MSI冠軍，將繼續累積國際賽歷史。`);const opp=currentScheduledProMatch?.()?.opp||currentInternationalMatch?.()?.opp;if(opp)lines.push(`焦點對手：${pc.team} 下一戰將面對 ${opp}。`);return `<section class="card"><h2>🔥 大賽賽前看點</h2><div class="log">${(lines.length?lines:["新王與老將的故事將依本屆實際參賽名單、冠軍履歷與對戰歷史持續生成。"]).join("<br><br>")}</div></section>`}
 function achievementCard(){
@@ -4743,6 +4756,6 @@ function migrateProV1940(){
  if(c){c.nationality="台灣";c.homeCountry="台灣";c.homeCity="台北";if(c.partnerMobility)partnerCurrentLocationByMode(c);}
  p.v1940Migrated=true;state.logs.push("🔧 V1.9.4.1：社交實體見面改以目前所在地判定，不再誤用常住地；采恩常住台北但可依生活安排身處柏林等地。");
 }
-migrateProV1937();migrateProV1938();migrateProV1939();migrateProV1940();migrateProV1967();migrateProV1973();migrateProV1979();recoverLegacyMarriageCrisis1977();
+migrateProV1937();migrateProV1938();migrateProV1939();migrateProV1940();migrateProV1967();migrateProV1973();migrateProV1979();migrateProV1980();recoverLegacyMarriageCrisis1977();
 if(isProfessionalStage()){ensureCareer20();if(!state.player.v1950Migrated){state.player.v1950Migrated=true;state.logs.push("🆕 V1.9.5.0：職業生涯2.0第一階段啟用；既有社交、約會、懷孕、比賽、轉會流程保持原邏輯。");save();}}
 render();
