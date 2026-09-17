@@ -1490,7 +1490,7 @@ function teammatePartnerRisk(name){
  const p=state.player,mate=c.teammatePartnerOf,rel=p.relations?.[name]||0;
  const consent=clamp(.10+(rel-35)*.009,.05,.55);
  if(Math.random()>consent){state.logs.push(`🚫 ${name} 拒絕了超越朋友界線的邀請。`);modal(`<h2>${name}</h2><p>她拒絕了你的邀請，希望維持普通朋友關係。</p>${closeBtn()}`);return false}
- const loc=currentLocationProfile(),res=residenceProfile(),abroad=loc?.country&&res?.country&&loc.country!==res.country;
+ const loc=currentLocationProfile(),res=currentResidenceProfile(),abroad=loc?.country&&res?.country&&loc.country!==res.country;
  const caught=clamp(.16+(rel>70?.03:0))*(abroad?.5:1);
  if(Math.random()<caught){
   p.relations[mate]=clamp((p.relations[mate]||50)-rand(28,48),0,100);
@@ -1777,7 +1777,7 @@ function career(){
  return `${proCareerCard()}${competitiveFormCard()}${tacticsCard()}${clubEquityCard()}${legacyRelationsCard()}${hallOfFameCard()}${postCareerCard()}${mediaNetworkCard()}${proTeamPageCard()}${recentProMatchCard()}${playoffBracketCard()}${annualCalendarCard()}${transferMarketCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${commercialCard()}${fanMeetingCard()}${teamBuildingCard()}${legalMediaCard()}${assetCard()}${privatePartyCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${isProfessionalStage()?stat("大眾評價",Math.round(ensureAudienceRating().rating)):""}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.7.4</strong>｜情人私人約會視窗修正版：修正地下戀人／舊存檔伴侶點擊「親密相處」後無任何結果；伴侶身分會自動補回戀愛資料，所有失敗情況也一定顯示原因視窗。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.7.5</strong>｜親密相處所在地修正版：修正親密相處流程引用不存在的 residenceProfile 導致中斷；所在地／常駐地判定統一使用 currentResidenceProfile，伴侶互動可正常完成並顯示結果。</div></section>`;
 }
 function bind(){
  document.querySelector(".tactic-advice")?.addEventListener("click",openTacticAdvice);document.querySelectorAll(".tactic-suggest").forEach(b=>b.onclick=()=>suggestTactic(b.dataset.tactic));document.querySelectorAll(".equity-buy").forEach(b=>b.onclick=()=>buyEquity(+b.dataset.pct));document.querySelectorAll(".equity-direct").forEach(b=>b.onclick=()=>equityDirective(b.dataset.role));document.querySelectorAll(".career-shift").forEach(b=>b.onclick=()=>careerShift(b.dataset.path));document.querySelector(".coach-suggest")?.addEventListener("click",()=>coachChangeProposal(false));document.querySelector(".coach-change")?.addEventListener("click",()=>coachChangeProposal(true));document.querySelector("#capitalInjection")?.addEventListener("click",injectClubCapital);document.querySelector("#seekApprentice")?.addEventListener("click",apprenticeAction);
@@ -2391,7 +2391,7 @@ function registerAffair(name){
  const p=ensureLifestyle(),spouse=p.romance?.spouse;if(!spouse||name===spouse)return;
  const a=p.romance.affairs[name]=p.romance.affairs[name]||{name,count:0,exposedToSpouse:false,public:false};a.count++;
  if(a.count>=2)state.characters[name].relationshipType="婚外關係";
- const loc=currentLocationProfile(),res=residenceProfile(),abroad=!!(loc?.country&&res?.country&&loc.country!==res.country),privateTrip=!!p.activeTravel;
+ const loc=currentLocationProfile(),res=currentResidenceProfile(),abroad=!!(loc?.country&&res?.country&&loc.country!==res.country),privateTrip=!!p.activeTravel;
  const distanceFactor=abroad?(privateTrip?.38:.58):1;
  const discover=clamp((.10+a.count*.055+(p.followers>100000?.05:0)-(ensureMarriageState().trust||80)*.0005)*distanceFactor,abroad?.02:.06,abroad?.22:.38);
  a.lastEncounterCountry=loc?.country||res?.country||"未知";a.lastEncounterAbroad=abroad;
