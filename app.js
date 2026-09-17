@@ -1777,7 +1777,7 @@ function career(){
  return `${proCareerCard()}${competitiveFormCard()}${tacticsCard()}${clubEquityCard()}${legacyRelationsCard()}${hallOfFameCard()}${postCareerCard()}${mediaNetworkCard()}${proTeamPageCard()}${recentProMatchCard()}${playoffBracketCard()}${annualCalendarCard()}${transferMarketCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${commercialCard()}${fanMeetingCard()}${teamBuildingCard()}${legalMediaCard()}${assetCard()}${privatePartyCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${isProfessionalStage()?stat("大眾評價",Math.round(ensureAudienceRating().rating)):""}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.7.5</strong>｜親密相處所在地修正版：修正親密相處流程引用不存在的 residenceProfile 導致中斷；所在地／常駐地判定統一使用 currentResidenceProfile，伴侶互動可正常完成並顯示結果。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.7.6</strong>｜婚姻危機溝通修正版：老婆發現不忠後，手機→社交→老婆頁面會出現「💥 處理婚姻危機」；可坦白道歉、結束婚外關係挽回、協商、分居或離婚。舊存檔已有「必須先溝通」紀錄也會自動恢復操作入口。</div></section>`;
 }
 function bind(){
  document.querySelector(".tactic-advice")?.addEventListener("click",openTacticAdvice);document.querySelectorAll(".tactic-suggest").forEach(b=>b.onclick=()=>suggestTactic(b.dataset.tactic));document.querySelectorAll(".equity-buy").forEach(b=>b.onclick=()=>buyEquity(+b.dataset.pct));document.querySelectorAll(".equity-direct").forEach(b=>b.onclick=()=>equityDirective(b.dataset.role));document.querySelectorAll(".career-shift").forEach(b=>b.onclick=()=>careerShift(b.dataset.path));document.querySelector(".coach-suggest")?.addEventListener("click",()=>coachChangeProposal(false));document.querySelector(".coach-change")?.addEventListener("click",()=>coachChangeProposal(true));document.querySelector("#capitalInjection")?.addEventListener("click",injectClubCapital);document.querySelector("#seekApprentice")?.addEventListener("click",apprenticeAction);
@@ -2411,6 +2411,36 @@ function triggerMarriageAffairCrisis(otherName){
 function marriageCrisisCard(){
  const p=state.player,m=ensureMarriageState(),x=m.crisis;if(!p.romance?.spouse||!x)return "";
  return `<section class="card"><h2>⚠️ 婚姻危機</h2><div class="notice badtext">${x.type}｜婚姻信任 ${Math.round(m.trust||0)}</div><p class="small">目前階段：${x.stage}。先溝通處理；若處理失敗，可能進入分居、離婚、爆料或黑料事件。</p><button id="marriageTalk" class="reply">與老婆溝通處理</button></section>`;
+}
+function openMarriageCrisisTalk(name){
+ const p=state.player,spouse=p.romance?.spouse,m=ensureMarriageState(),x=m.crisis;
+ if(!spouse||spouse!==name||!x){modal(`<h2>💬 婚姻溝通</h2><p>目前沒有待處理的婚姻危機。</p>${closeBtn()}`);return}
+ modal(`<h2>💥 與 ${spouse} 處理婚姻危機</h2><p>${spouse} 已經知道你與 <strong>${x.other||"其他人"}</strong> 的不忠關係。這次談話會影響婚姻是否能繼續。</p><div class="notice badtext">婚姻信任 ${Math.round(m.trust||0)}/100｜目前：${x.stage}</div><div class="reply-grid"><button class="reply marriage-crisis-choice" data-a="apologize">坦白並道歉</button><button class="reply marriage-crisis-choice" data-a="endAffair">承諾結束婚外關係並挽回</button><button class="reply marriage-crisis-choice" data-a="negotiate">希望維持其他關係並協商</button><button class="reply marriage-crisis-choice" data-a="separate">先暫時分開冷靜</button><button class="reply marriage-crisis-choice" data-a="divorce">提出離婚</button></div>${closeBtn()}`);
+ document.querySelectorAll('.marriage-crisis-choice').forEach(b=>b.onclick=()=>resolveMarriageCrisisChoice(b.dataset.a));
+}
+function resolveMarriageCrisisChoice(action){
+ const p=state.player,spouse=p.romance?.spouse,m=ensureMarriageState(),x=m.crisis;if(!spouse||!x)return;
+ if(action==="divorce"){divorceSpouse("婚姻危機中主動提出離婚");save();document.querySelector('.modal-backdrop')?.remove();render();return}
+ if(action==="separate"){x.stage="分居冷靜期";m.trust=clamp((m.trust||0)-2,0,100);state.logs.push(`🏠 你與 ${spouse} 決定先分開冷靜，婚姻尚未結束。`);save();document.querySelector('.modal-backdrop')?.remove();render();modal(`<h2>🏠 暫時分居</h2><p>${spouse} 同意先拉開距離。之後仍需要再次處理婚姻危機。</p>${closeBtn()}`);return}
+ const c=state.characters?.[spouse]||{},traits=safeTraits(c).join("、"),rel=p.relations[spouse]||0,trust=m.trust||0;
+ let chance=.16+rel*.004+trust*.004+(p.ethics||50)*.0015-x.severity*.065;
+ if(action==="apologize")chance+=.08;
+ if(action==="endAffair")chance+=.20;
+ if(action==="negotiate")chance-=.18;
+ if(/成熟|理性|溫柔/.test(traits))chance+=.05;if(/忠誠|保守|嫉妒/.test(traits)&&action==="negotiate")chance-=.12;
+ chance=clamp(chance,.05,.82);
+ if(action==="endAffair"&&x.other){p.romance.partners=(p.romance.partners||[]).filter(n=>n!==x.other);if(p.romance.affairs?.[x.other])p.romance.affairs[x.other].ended=true;const oc=state.characters?.[x.other];if(oc&&["地下戀人","婚外關係","戀人"].includes(oc.relationshipType))oc.relationshipType=null;state.logs.push(`💔 為挽回婚姻，你結束了與 ${x.other} 的婚外／地下關係。`)}
+ if(Math.random()<chance){const gain=action==="endAffair"?rand(12,22):rand(6,14);m.trust=clamp(trust+gain,0,100);p.relations[spouse]=clamp(rel+rand(4,10),0,100);m.history=m.history||[];m.history.push(`第${state.date.week}週：不忠危機後完成溝通，進入信任修復期`);m.crisis=null;state.logs.push(`🤝 你與 ${spouse} 完成婚姻危機溝通。婚姻暫時維持，但信任需要長期修復。`);save();document.querySelector('.modal-backdrop')?.remove();render();modal(`<h2>🤝 暫時和解</h2><p>${spouse} 願意暫時繼續婚姻。這不代表事情已完全過去，之後的行為仍會影響信任。</p>${closeBtn()}`);return}
+ x.stage="溝通未果";m.trust=clamp(trust-rand(3,9),0,100);const roll=Math.random();let result=`${spouse} 目前無法接受你的說法，婚姻危機仍未解除。`;
+ if(roll<.22){divorceSpouse("不忠事件後婚姻溝通破裂");result=`${spouse} 決定結束婚姻。`}
+ else if(roll<.46){x.stage="分居";result=`${spouse} 決定暫時分居，之後仍可能再次溝通。`}
+ else if(roll<.60){p.prCrisis={type:"婚姻不忠黑料曝光",severity:rand(3,5),source:spouse};state.world.rumors.unshift(`${spouse}與夜鋒的婚姻危機消息外流。`);result=`談話沒有成功，婚姻危機的消息也開始外流。`}
+ state.logs.push(`💥 與 ${spouse} 的婚姻危機溝通未果：${result}`);save();document.querySelector('.modal-backdrop')?.remove();render();modal(`<h2>💥 溝通未果</h2><p>${result}</p>${closeBtn()}`);
+}
+function recoverLegacyMarriageCrisis1976(){
+ const p=state.player,spouse=p.romance?.spouse;if(!spouse)return;const m=ensureMarriageState();if(m.crisis)return;
+ const logs=(state.logs||[]).slice(-120).reverse();const hit=logs.find(t=>String(t).includes(`${spouse} 發現你與`)&&String(t).includes("不忠關係")&&String(t).includes("必須先溝通"));if(!hit)return;
+ const mm=String(hit).match(/發現你與\s*([^\s]+)\s*有不忠關係/);m.crisis={type:"婚外關係被發現",other:mm?.[1]||"其他人",severity:3,stage:"等待溝通",week:state.date.week,recovered:true};state.logs.push(`🔧 V1.9.7.6：已從既有紀錄恢復 ${spouse} 的待處理婚姻危機，可在手機→社交→老婆處理。`);
 }
 function resolveMarriageCrisis(){
  const p=state.player,spouse=p.romance?.spouse,m=ensureMarriageState(),x=m.crisis;if(!spouse||!x)return;
@@ -4324,6 +4354,7 @@ function runSocialActionByName(name,act){
  }
  if(act?.startsWith("coach"))return coachSocialActivity(name,act);
  if(act==="confess")return resolveRomance(name,"confess");
+ if(act==="marriageCrisis")return openMarriageCrisisTalk(name);
  if(act==="communicate")return relationshipTalk(name);
  if(act==="spar")return sparWithPro(name);
  if(act==="intimate")return adultEstablishedPartnerEvent(name);
@@ -4360,6 +4391,7 @@ function openSocialPersonPage(name){
  let acts=staff?[["coachTactics","🧠 討論戰術"],["coachEval","📋 詢問近期評價"],["coachRole","🎯 討論先發競爭"]]:female?[["chat","📱 聊天／視訊"],["food","一起吃飯"],["cafe","咖啡廳"],["movie","看電影"],["date","正式約會"],["confess","💗 告白"]]:[["food","吃飯聊天"],["arcade","去電競館"],["hangout","逛街／閒晃"],["game","一起打遊戲"],["latefood","吃宵夜"]];
  if(!staff&&esports)acts.splice(1,0,["duo","Rank雙排"]);if(!staff&&dating)acts.push(["communicate","💬 感情溝通"]);if(dating&&c.publicFigure&&!c.publicRomance){c.relationshipType=c.relationshipType||"地下戀人";c.secretRomanceRisk=c.secretRomanceRisk||5}
  const spouse=state.player.romance?.spouse===name,isFwb=c.relationshipType==="炮友"||name==="許安然";
+ const marriageCrisis=spouse?ensureMarriageState().crisis:null;if(marriageCrisis)acts.unshift(["marriageCrisis","💥 處理婚姻危機"]);
  if(!staff&&state.player.age>=18&&female&&Number(c.age||18)>=18){if(spouse)acts.push(["intimate","❤️ 夫妻親密時光"]);else if(dating)acts.push(["intimate","❤️ 親密相處"]);else acts.push(["private",isFwb?"🌙 炮友見面（NT$3,000）":"🌙 詢問私人約會"])}
  if(!staff&&dating)acts.push(["breakup","💔 提出分手"]);if(!staff&&pro)acts.push(["spar","⚔️ 與職業選手切磋"]);
  document.querySelector("#main").innerHTML=`<section class="card"><div class="row space"><h2>${female?"💗":"🤝"} ${name}</h2><button id="socialBack" class="ghost">← 換人</button></div><p class="small">關係值 ${Math.round(rel)}｜性別：${c.gender}｜個性：${safeTraits(c).join("、")||"尚未熟悉"}<br>身分：${socialProfileMeta(name).identity}｜認識來源：${socialProfileMeta(name).source}｜目前關係：${socialProfileMeta(name).relationship}<br>📍 ${socialLocationLabel(name)}${socialProfileMeta(name).special?`｜特殊關係：${socialProfileMeta(name).special}`:""}${pro?`｜${c.rank||"宗師"} ${c.lp||""} LP`:""}</p>${pro?`<div class="notice goodtext">⚔️ 已解鎖職業選手切磋，可直接在下方選擇。</div>`:""}<div class="social-page-grid">${acts.map(a=>`<button type="button" class="choice social-act-page" data-act="${a[0]}" ${(a[0]==="date"&&rel<75&&!dating)||(a[0]==="confess"&&(rel<75||dating))?"disabled":""}><strong>${a[1]}</strong></button>`).join("")}</div></section>`;
@@ -4657,6 +4689,6 @@ function migrateProV1940(){
  if(c){c.nationality="台灣";c.homeCountry="台灣";c.homeCity="台北";if(c.partnerMobility)partnerCurrentLocationByMode(c);}
  p.v1940Migrated=true;state.logs.push("🔧 V1.9.4.1：社交實體見面改以目前所在地判定，不再誤用常住地；采恩常住台北但可依生活安排身處柏林等地。");
 }
-migrateProV1937();migrateProV1938();migrateProV1939();migrateProV1940();migrateProV1967();migrateProV1973();
+migrateProV1937();migrateProV1938();migrateProV1939();migrateProV1940();migrateProV1967();migrateProV1973();recoverLegacyMarriageCrisis1976();
 if(isProfessionalStage()){ensureCareer20();if(!state.player.v1950Migrated){state.player.v1950Migrated=true;state.logs.push("🆕 V1.9.5.0：職業生涯2.0第一階段啟用；既有社交、約會、懷孕、比賽、轉會流程保持原邏輯。");save();}}
 render();
