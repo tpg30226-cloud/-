@@ -633,14 +633,24 @@ function randomEncounter(context){
  const t={cafe:"休息後壓力稍微下降。",restaurant:"吃了一頓不錯的飯。",gym:"活動筋骨，狀態稍微改善。",cinema:"看電影放鬆心情。",nightmarket:"在人群中放鬆了一晚。",store:"買了些生活用品。",book:"翻閱職業選手訪談。"}[context]||"今天沒有特別事件。";if(context==="cafe")state.player.stress=clamp(state.player.stress-3,0,100);state.logs.push("生活事件："+t);save();render();modal(`<h2>生活事件</h2><p>${t}</p>${closeBtn()}`)
 }
 function adultEstablishedPartnerEvent(name){
- const p=state.player,c=state.characters?.[name],spouse=p.romance?.spouse===name,partner=(p.romance?.partners||[]).includes(name);
- if(!c){modal(`<h2>❤️ 親密相處</h2><p>找不到 ${name} 的人物資料，請重新進入社交頁。</p>${closeBtn()}`);return}
- const knownAge=Number.isFinite(Number(c.age))?Number(c.age):(Number.isFinite(Number(c.birthYear))?state.date.year-Number(c.birthYear):null);
- if(p.age<18||knownAge!==null&&knownAge<18){modal(`<h2>❤️ 親密相處</h2><p>目前無法進行這項成人互動。</p>${closeBtn()}`);return}
- if(!spouse&&!partner){modal(`<h2>❤️ 親密相處</h2><p>${name} 目前不是你的正式伴侶。</p>${closeBtn()}`);return}
- // 舊存檔部分成年職業期NPC沒有age欄位；已建立成人戀愛關係本身可作為舊資料修復依據。
- if(knownAge===null)c.age=Math.max(18,p.age||18);
- adultPrivateEvent(name,spouse?"spouse":"partner");
+ const p=state.player,c=state.characters?.[name];
+ try{
+  if(!c){modal(`<h2>❤️ 親密相處</h2><p>找不到 ${name} 的人物資料，請重新進入社交頁。</p>${closeBtn()}`);return}
+  const spouse=p.romance?.spouse===name;
+  const relType=String(c.relationshipType||"");
+  const partner=(p.romance?.partners||[]).includes(name)||["女友","戀人","地下戀人","地下戀情","未婚妻"].includes(relType);
+  const knownAge=Number.isFinite(Number(c.age))?Number(c.age):(Number.isFinite(Number(c.birthYear))?state.date.year-Number(c.birthYear):null);
+  if(p.age<18||knownAge!==null&&knownAge<18){modal(`<h2>❤️ 親密相處</h2><p>目前無法進行這項成人互動。</p>${closeBtn()}`);return}
+  if(!spouse&&!partner){modal(`<h2>❤️ 親密相處</h2><p>${name} 目前不是你的正式伴侶或地下戀人。</p>${closeBtn()}`);return}
+  if(knownAge===null)c.age=Math.max(18,p.age||18);
+  // 舊存檔若只留下「地下戀人／女友」標籤，先補回伴侶陣列，避免按鈕有顯示但事件被跳過。
+  p.romance=p.romance||{};p.romance.partners=p.romance.partners||[];
+  if(!spouse&&!p.romance.partners.includes(name))p.romance.partners.push(name);
+  adultPrivateEvent(name,spouse?"spouse":"partner");
+ }catch(err){
+  console.error("adultEstablishedPartnerEvent",name,err);
+  modal(`<h2>❤️ 親密相處</h2><p>這次互動遇到舊存檔資料異常，系統已保留人物關係。請關閉視窗後再試一次。</p><div class="small">${String(err?.message||err)}</div>${closeBtn()}`);
+ }
 }
 function attemptConsensualPrivateEvent(name,kind="social"){
  const p=state.player,c=state.characters?.[name];
@@ -1767,7 +1777,7 @@ function career(){
  return `${proCareerCard()}${competitiveFormCard()}${tacticsCard()}${clubEquityCard()}${legacyRelationsCard()}${hallOfFameCard()}${postCareerCard()}${mediaNetworkCard()}${proTeamPageCard()}${recentProMatchCard()}${playoffBracketCard()}${annualCalendarCard()}${transferMarketCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${commercialCard()}${fanMeetingCard()}${teamBuildingCard()}${legalMediaCard()}${assetCard()}${privatePartyCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${isProfessionalStage()?stat("大眾評價",Math.round(ensureAudienceRating().rating)):""}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.7.3</strong>｜地下戀情連鎖曝光與決裂陣容修正版：新增懷疑／線索累積、關係網連鎖曝光、程以安多段戀情成為媒體討論；重大決裂可拒絕共同出賽，戰隊依序啟用同路替補、強制轉路或國內賽緊急簽下零職業經驗新人。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.7.4</strong>｜情人私人約會視窗修正版：修正地下戀人／舊存檔伴侶點擊「親密相處」後無任何結果；伴侶身分會自動補回戀愛資料，所有失敗情況也一定顯示原因視窗。</div></section>`;
 }
 function bind(){
  document.querySelector(".tactic-advice")?.addEventListener("click",openTacticAdvice);document.querySelectorAll(".tactic-suggest").forEach(b=>b.onclick=()=>suggestTactic(b.dataset.tactic));document.querySelectorAll(".equity-buy").forEach(b=>b.onclick=()=>buyEquity(+b.dataset.pct));document.querySelectorAll(".equity-direct").forEach(b=>b.onclick=()=>equityDirective(b.dataset.role));document.querySelectorAll(".career-shift").forEach(b=>b.onclick=()=>careerShift(b.dataset.path));document.querySelector(".coach-suggest")?.addEventListener("click",()=>coachChangeProposal(false));document.querySelector(".coach-change")?.addEventListener("click",()=>coachChangeProposal(true));document.querySelector("#capitalInjection")?.addEventListener("click",injectClubCapital);document.querySelector("#seekApprentice")?.addEventListener("click",apprenticeAction);
@@ -2040,7 +2050,7 @@ function advanceTournaments(){
  state.world.tournaments.filter(t=>t.status==="等待下一輪"&&t.nextWeek<=state.date.week).forEach(t=>{t.status="進行中";scheduleTournamentRound(t)});
 }
 function adultPrivateEvent(name,kind="lover"){
- const p=state.player,c=state.characters?.[name];if(p.age<18||!p.adultLife?.enabled){modal(`<h2>尚未開放</h2><p>此內容只在主角成年後開放。</p>${closeBtn()}`);return}
+ const p=state.player,c=state.characters?.[name];p.condition=p.condition||{privateRecent:0,fatigue:0,form:65,injury:null};p.adultLife=p.adultLife||{enabled:p.age>=18};p.adultLife.pregnancies=p.adultLife.pregnancies||[];if(p.age<18||!p.adultLife?.enabled){modal(`<h2>尚未開放</h2><p>此內容只在主角成年後開放。</p>${closeBtn()}`);return}
  if(remain()<1){modal(`<h2>私人約會</h2><p>今天已經沒有剩餘時段。</p>${closeBtn()}`);return}const established=kind==="spouse"||kind==="partner";if(!consume(established?(kind==="spouse"?"夫妻親密時光":"親密相處"):"私人約會",1)){modal(`<h2>私人約會</h2><p>目前無法安排這次約會。</p>${closeBtn()}`);return}
  stiRiskEvent(name,kind==="fan"?"一次性關係":kind==="spouse"?"夫妻關係":kind==="partner"?"伴侶關係":"私人關係");
  let cost=0;if(name==="許安然"){cost=3000;if(p.cash<cost){modal(`<h2>現金不足</h2><p>這次見面需要 NT$${cost.toLocaleString()}。</p>${closeBtn()}`);return}p.cash-=cost}
