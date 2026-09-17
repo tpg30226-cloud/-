@@ -634,7 +634,13 @@ function randomEncounter(context){
 }
 function adultEstablishedPartnerEvent(name){
  const p=state.player,c=state.characters?.[name],spouse=p.romance?.spouse===name,partner=(p.romance?.partners||[]).includes(name);
- if(p.age<18||!c||Number(c.age||0)<18||(!spouse&&!partner))return;adultPrivateEvent(name,spouse?"spouse":"partner");
+ if(!c){modal(`<h2>❤️ 親密相處</h2><p>找不到 ${name} 的人物資料，請重新進入社交頁。</p>${closeBtn()}`);return}
+ const knownAge=Number.isFinite(Number(c.age))?Number(c.age):(Number.isFinite(Number(c.birthYear))?state.date.year-Number(c.birthYear):null);
+ if(p.age<18||knownAge!==null&&knownAge<18){modal(`<h2>❤️ 親密相處</h2><p>目前無法進行這項成人互動。</p>${closeBtn()}`);return}
+ if(!spouse&&!partner){modal(`<h2>❤️ 親密相處</h2><p>${name} 目前不是你的正式伴侶。</p>${closeBtn()}`);return}
+ // 舊存檔部分成年職業期NPC沒有age欄位；已建立成人戀愛關係本身可作為舊資料修復依據。
+ if(knownAge===null)c.age=Math.max(18,p.age||18);
+ adultPrivateEvent(name,spouse?"spouse":"partner");
 }
 function attemptConsensualPrivateEvent(name,kind="social"){
  const p=state.player,c=state.characters?.[name];
@@ -943,6 +949,19 @@ function migrateProV1962(){const p=state.player;if(p.v1963CompetitionFixed)retur
 
 function migrateProV1964(){const p=state.player;if(p.v1964RosterTacticsFixed)return;if(isProfessionalStage()){const pc=ensureCareer20();for(const t of pc.managementTasks||[]){if(t.type==="補強"&&t.status==="完成"&&!t.signedPlayer&&/鎖定|合約|註冊|補強方案/.test(t.note||"")){t.status="待修復";t.note="舊版任務只有完成標記、沒有實際球員；已重新進入球探／簽約流程";t.age=0}}ensureRosterSubstitutes();Object.keys(TACTIC_DEFS).forEach(k=>{if(!Number.isFinite(pc.tactics.mastery[k]))pc.tactics.mastery[k]=40+stableAgeOffset((pc.team||"")+k,16)});state.logs.push("🔧 V1.9.6.4：修復補強完成卻未寫入Roster；擴充18套教練戰術體系與執行方案。")}p.v1964RosterTacticsFixed=true}
 function migrateProV1965(){const p=state.player;if(!isProfessionalStage())return;const pc=ensureCareer20();ensureProRoster();for(const t of pc.managementTasks||[]){if(t.type!=="補強")continue;const actual=t.signedPlayer&&(pc.roster||[]).some(x=>x.name===t.signedPlayer);if(t.status==="完成"&&!actual){t.status="待修復";t.signedPlayer=null;t.note="舊任務沒有實際球員進入Roster，已重新啟動簽約流程";t.age=1}if(t.status==="待修復"&&t.age>1)t.age=1}ensureRosterContracts();if(!p.v1965RosterContractFixed){state.logs.push("🔧 V1.9.6.5：補強完成必須實際寫入Roster；戰術熟練改由Scrim成長；新增隊友合約期限與轉會窗到期規則。");p.v1965RosterContractFixed=true}}
+function syncCanonicalPartnerLinks1972(){
+ const p=state.player,chars=state.characters||{};
+ const links=["智雅","林映辰"];
+ links.forEach(name=>{
+   const c=chars[name];if(!c)return;
+   c.gender="女";c.romanceable=true;
+   if(!Number.isFinite(Number(c.age))&&p.age>=18)c.age=Math.max(18,p.age);
+   c.partnerName="程以安";c.romanticPartner="程以安";c.identityType="程以安的女友";
+   // 她們與夜鋒同時交往時，對夜鋒必須顯示為地下戀情。
+   if((p.romance?.partners||[]).includes(name)){c.relationshipType="地下戀人";c.secretRomanceRisk=Math.max(10,Number(c.secretRomanceRisk||0));}
+ });
+ const cheng=chars["程以安"];if(cheng){cheng.partnerNames=[...new Set([...(cheng.partnerNames||[]),...links.filter(n=>chars[n])])];}
+}
 function ensureV10(){migrateProV1962();migrateProV1964();migrateProV1965();(state.player.proFriends||[]).forEach(n=>ensureProCharacter(n));Object.keys(state.characters||{}).filter(n=>state.characters[n]?.isPro).forEach(n=>ensureProCharacter(n));
  const previousVersion=state?.version||"";
  state=normalize(state);
@@ -965,6 +984,7 @@ if(p.age>=18&&state.characters?.["許安然"]){state.characters["許安然"].des
  if(!Array.isArray(p.romance.partners))p.romance.partners=p.romance.partner?[p.romance.partner]:[];
  p.romance.partners=[...new Set(p.romance.partners.filter(Boolean))];
  p.romance.partner=p.romance.partners[0]||null;
+ syncCanonicalPartnerLinks1972();
  p.romance.flags=p.romance.flags||{};
  p.romance.trust=p.romance.trust||{};
  p.romance.jealousy=p.romance.jealousy||{};
@@ -1229,7 +1249,7 @@ function currentRelationshipLabel(name){
  const p=state.player,c=state.characters?.[name],rel=p.relations?.[name]||0;
  if(p.name===name)return "本人";
  if(p.romance?.spouse===name)return "老婆";
- if((p.romance?.partners||[]).includes(name))return c?.teammatePartnerOf?"地下戀情":(c?.formerSpouse||c?.specialRelation?.includes("前妻")?"復合戀人":"戀人");
+ if((p.romance?.partners||[]).includes(name))return (c?.teammatePartnerOf||c?.partnerName||c?.romanticPartner)?"地下戀情":(c?.formerSpouse||c?.specialRelation?.includes("前妻")?"復合戀人":"戀人");
  if((p.romance?.marriage?.divorced||[]).some(x=>x.name===name)||c?.formerSpouse)return "前妻";
  if((p.romance?.partners||[]).includes(name))return c?.teammatePartnerOf?"地下戀情":"戀人";
  if(c?.relationshipType==="炮友")return "固定關係";
@@ -1733,7 +1753,7 @@ function career(){
  return `${proCareerCard()}${competitiveFormCard()}${tacticsCard()}${clubEquityCard()}${legacyRelationsCard()}${hallOfFameCard()}${postCareerCard()}${mediaNetworkCard()}${proTeamPageCard()}${recentProMatchCard()}${playoffBracketCard()}${annualCalendarCard()}${transferMarketCard()}${freeAgentCard()}${internationalCard()}${internationalGroupsCard()}${achievementCard()}${contractCenter()}${contractLookupCard()}${reputationDetailCard()}${donationCard()}${sponsorCard()}${commercialCard()}${fanMeetingCard()}${teamBuildingCard()}${legalMediaCard()}${assetCard()}${privatePartyCard()}${alumniCard()}${leaveCard()}${pregnancyCard()}${marriageCard()}${teamRuptureCard()}${healthCard()}<section class="card"><h2>生涯中心</h2><div class="stat-grid">${isProfessionalStage()?stat("職業風評",Math.round(p.adultLife.careerReputation))+stat("黑粉",p.publicImage?.haters||0):stat("學業",Math.round(p.school))+stat("家庭支持",Math.round(p.family))}${stat("粉絲",p.followers)}${isProfessionalStage()?stat("大眾評價",Math.round(ensureAudienceRating().rating)):""}${stat("聲譽",p.reputation)}</div></section>
  ${worldCards()}${isProfessionalStage()?metaCard()+financeCard():amateurCard()}${shopCard()}${masteryCard()}
  <section class="card"><h2>💾 存檔與救援</h2><div class="reply-grid"><button id="exportSaveBtn" class="reply">匯出 JSON 存檔</button><button id="importSaveBtn" class="reply">匯入 JSON 存檔</button><button id="recoverW15Btn" class="reply">🛠️ 回朔第15週星期五早上</button><button id="repairAdvanceBtn" class="reply">🔧 修復目前行程鎖定</button></div><input id="importSaveFile" type="file" accept=".json,application/json" style="display:none"><div class="small">回朔救援會保留角色能力、Rank、金錢、人際與裝備，重置第15週星期五當日狀態並重建電競社課。</div></section>
- <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.7.1</strong>｜成人派對一致性修正版：接受成人派對即代表自願參與成人性質活動；近期拒絕成人親密邀約者不會被派對繞過。每位成年女性獨立判定懷孕，因此同場可能多人懷孕；多人情境可記錄多名可能生父。</div></section>`;
+ <section class="card"><h2>版本</h2><div class="log"><strong>V1.9.7.2</strong>｜社交親密與地下戀情修正版：修正舊存檔成年伴侶缺少年齡欄位時「親密相處」被靜默跳過；智雅、林映辰同步為程以安的女友，若同時與夜鋒交往則顯示地下戀情。</div></section>`;
 }
 function bind(){
  document.querySelector(".tactic-advice")?.addEventListener("click",openTacticAdvice);document.querySelectorAll(".tactic-suggest").forEach(b=>b.onclick=()=>suggestTactic(b.dataset.tactic));document.querySelectorAll(".equity-buy").forEach(b=>b.onclick=()=>buyEquity(+b.dataset.pct));document.querySelectorAll(".equity-direct").forEach(b=>b.onclick=()=>equityDirective(b.dataset.role));document.querySelectorAll(".career-shift").forEach(b=>b.onclick=()=>careerShift(b.dataset.path));document.querySelector(".coach-suggest")?.addEventListener("click",()=>coachChangeProposal(false));document.querySelector(".coach-change")?.addEventListener("click",()=>coachChangeProposal(true));document.querySelector("#capitalInjection")?.addEventListener("click",injectClubCapital);document.querySelector("#seekApprentice")?.addEventListener("click",apprenticeAction);
