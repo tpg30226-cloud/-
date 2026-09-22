@@ -3015,9 +3015,27 @@ const ANNUAL_HERO_NAME_SETS=[
  ["蒼珀","影棘","星鑄","流螢","青祈"],
  ["焰牙","霜羽","天璇","疾影","雨歌"]
 ];
+const ANNUAL_HERO_LATER_SETS=[
+ ["夜汐","銀燼","雲棘","曉珀","寒歌"],
+ ["曜羽","玄潮","緋辰","霧刃","靈歌"],
+ ["月蝕","赤璃","風祈","星牙","白燼"],
+ ["蒼凜","影歌","星瀾","流火","青曜"],
+ ["焰歌","霜辰","天羽","疾月","雨璃"],
+ ["暮星","銀牙","雲祈","曉燼","寒羽"],
+ ["曜汐","玄歌","緋刃","霧辰","靈珀"],
+ ["夜璃","赤羽","風燼","星祈","白潮"],
+ ["蒼曜","影汐","星棘","流辰","青歌"],
+ ["焰珀","霜祈","天燼","疾羽","雨曜"]
+];
 function annualHeroNames(year){
- const set=ANNUAL_HERO_NAME_SETS[Math.abs(Number(year)||0)%ANNUAL_HERO_NAME_SETS.length];
- return [...set];
+ const y=Number(year)||2026,baseIndex=Math.abs(y)%ANNUAL_HERO_NAME_SETS.length;
+ // 2026–2030 keep the names players already know. Later seasons use new unique sets instead of cycling old names.
+ if(y<=2030)return [...ANNUAL_HERO_NAME_SETS[baseIndex]];
+ const idx=Math.max(0,y-2031);
+ if(idx<ANNUAL_HERO_LATER_SETS.length)return [...ANNUAL_HERO_LATER_SETS[idx]];
+ // Very long saves still get deterministic, readable names without numeric suffixes.
+ const a=["夜","曜","玄","緋","蒼","霜","星","流","青","焰","月","風","雲","銀","曉","暮"],b=["汐","燼","羽","歌","刃","辰","珀","祈","潮","璃","棘","凜","瀾","牙","火","影"];
+ return Array.from({length:5},(_,i)=>a[(y*7+i*3)%a.length]+b[(y*11+i*5)%b.length]);
 }
 function ensureAnnualHeroDefinitions(year){
  const p=state.player,names=annualHeroNames(year),types=["刺客","爆發法師","控制法師","戰士法師","炮台法師"];
@@ -4987,12 +5005,31 @@ function migrateProV1989(){
  p.v1989Migrated=true;
 }
 function migrateProV1991(){const p=state.player;if(p.v1991Migrated)return;if(isProfessionalStage()){const pc=ensureCareer20();if(pc.team==="Nova Gaming"){pc.clubFinance.cash+=500000000;state.logs.push("💰 V1.9.9.1：Nova Gaming 戰隊資金修復補償 +NT$500,000,000。");const z=(pc.roster||[]).find(x=>x.name==="子辰"),zc=state.characters?.子辰;if(z)z.rating=Math.max(93,Number(z.rating||0));if(zc){zc.rating=Math.max(93,Number(zc.rating||zc.strength||0));zc.strength=Math.max(93,Number(zc.strength||0))}repairCurrentProRosterVacancies("V1.9.9.1 陣容完整性修復");ensureRosterContracts();ensureRosterSubstitutes();ensureNovaOwner1991();ensureContractBonds1991();ensureAllRosterMerch1985();const active=new Set((pc.roster||[]).map(x=>x.name));pc.clubFinance.clubMerch=(pc.clubFinance.clubMerch||[]).filter((m,i,a)=>m?.player&&active.has(m.player)&&a.findIndex(z=>z.player===m.player)===i);state.messages.push({id:`v1991-${Date.now()}`,from:"Nova Gaming 董事會",text:"系統修正完成：子辰能力資料已校正；一軍缺額重新檢查；選手周邊改為每位旗下選手各一系列；俱樂部獲得5億資金修復補償。董事長周啟衡已加入可互動人物。",unread:true,resolved:true,type:"clubFinance"})}state.logs.push("🆕 V1.9.9.1：豪門商業、董事長互動、共同去留條款、周邊與陣容資料修復上線。")}p.v1991Migrated=true}
+
+function repairDuplicateHeroNames1992(){
+ const p=state.player;p.mastery=p.mastery||{};ensureFixedMidExpansionHeroes();ensureSavedAnnualHeroes();
+ // Annual hero IDs are permanent; only repair display names, so mastery/games/wins are never lost.
+ const used=new Set();
+ for(const h of HEROES){
+   if(!h?.name)continue;
+   const m=String(h.id||"").match(/^y(\d{4})_(\d)$/);
+   if(m){const year=Number(m[1]),i=Number(m[2]),names=annualHeroNames(year);h.name=names[i]||h.name}
+   if(!used.has(h.name)){used.add(h.name);continue}
+   if(m){
+     const year=Number(m[1]),i=Number(m[2]),alts=["夜華","曜歌","玄羽","緋汐","蒼辰","霜璃","星祈","流珀","青燼","焰刃","月歌","風羽","雲汐","銀辰","曉璃","暮祈"];
+     let n=0,cand;do{cand=alts[(year*5+i+n)%alts.length]+(["","華","音","光","嵐"][(Math.floor((year-2026)/16)+n)%5]);n++}while(used.has(cand));h.name=cand;
+   }
+   used.add(h.name);
+ }
+}
+function migrateProV1992(){const p=state.player;if(p.v1992Migrated)return;repairDuplicateHeroNames1992();state.logs.push("🔧 V1.9.9.2：修正年度英雄名稱循環造成的重複角色；角色ID、熟練度、場次與勝場完整保留，未來年度新英雄不再重複使用舊名字。");p.v1992Migrated=true}
+
 function migrateProV1986(){const p=state.player;if(p.v1986Migrated)return;ensureEthics();if(isProfessionalStage()){
  p.adultLife.careerReputation=clamp((p.adultLife.careerReputation||0)+20,0,100);p.adultLife.reputationHistory.unshift({delta:20,reason:"V1.9.8.6 重複扣除職業風評補償",year:state.date.year,week:state.date.week});
  (state.messages||[]).forEach(m=>{if(m&&!m.replied&&/最近有個電競圈活動，想邀你參與/.test(m.text||"")){m.type="mediaEventInvite";m.resolved=false;m.eventTopic=m.eventTopic||"電競圈交流活動"}});
  const w=ensureLivingWorld1984(),meta=ensureMeta();const map={"刺客節奏":"early","控制法師":"macro","後期團戰":"teamfight","中野聯動":"jungle","邊線營運":"split"},k=map[meta.style];if(k)w.rhythm={key:k,name:RHYTHM_META_1984[k].name,desc:RHYTHM_META_1984[k].desc,year:state.date.year,week:state.date.week};
  state.logs.push("🔧 V1.9.8.6：補回職業風評 +20；同一事件8週內不再重複扣分；電競圈邀約新增參加／婉拒與後續活動；採訪版本描述與當前Meta同步。");}p.v1986Migrated=true}
 
-migrateProV1937();migrateProV1938();migrateProV1939();migrateProV1940();migrateProV1967();migrateProV1973();migrateProV1979();migrateProV1981();migrateProV1982();migrateProV1984();migrateProV1985();migrateProV1986();migrateProV1987();migrateProV1988();migrateProV1989();migrateProV1990();migrateProV1991();recoverLegacyMarriageCrisis1977();
+migrateProV1937();migrateProV1938();migrateProV1939();migrateProV1940();migrateProV1967();migrateProV1973();migrateProV1979();migrateProV1981();migrateProV1982();migrateProV1984();migrateProV1985();migrateProV1986();migrateProV1987();migrateProV1988();migrateProV1989();migrateProV1990();migrateProV1991();migrateProV1992();recoverLegacyMarriageCrisis1977();
 if(isProfessionalStage()){ensureCareer20();if(!state.player.v1950Migrated){state.player.v1950Migrated=true;state.logs.push("🆕 V1.9.5.0：職業生涯2.0第一階段啟用；既有社交、約會、懷孕、比賽、轉會流程保持原邏輯。");save();}}
 render();
