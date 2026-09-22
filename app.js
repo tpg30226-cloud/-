@@ -4160,6 +4160,7 @@ function moveDatabaseProAfterTransfer(listing,buyer,buyerRegion,toAcademy=false)
 }
 function applyPlayerTransferListing(listing,buyer,buyerRegion,toAcademy,equitySettled=false){
  const p=state.player,pc=p.proCareer,old=pc.team,oldRegion=pc.region||"PCS";
+ pc.preTransferSnapshots=pc.preTransferSnapshots||[];pc.preTransferSnapshots.unshift({team:old,region:oldRegion,year:state.date.year,week:state.date.week,roster:JSON.parse(JSON.stringify(pc.roster||[])),coaches:JSON.parse(JSON.stringify(pc.coaches||[])),contract:pc.contract?JSON.parse(JSON.stringify(pc.contract)):null});pc.preTransferSnapshots=pc.preTransferSnapshots.slice(0,6);
  if(!equitySettled&&Number(pc.clubEquity?.shares?.[old]||0)>0)formerTeamEquityRefund(old,"轉會前股份回購");
  archiveCurrentCoaches(old);pc.team=buyer;pc.region=buyerRegion;pc.stage=toAcademy?"academy":(listing.rating>=82?"starter":"sub");
  const salaryBase=toAcademy?rand(28000,65000):rand(75000,220000),years=rand(1,2);
@@ -4936,6 +4937,30 @@ function migrateProV1987(){
  const p=state.player;if(p.v1987Migrated)return;syncCanonicalAges();if(isProfessionalStage()){const pc=ensureCareer20();ensureAster1987();const r=ensureRealism1985();Object.keys(pc.legacy?.apprentices||{}).forEach(n=>{const a=pc.legacy.apprentices[n];if(!a?.storyEstablished){delete pc.legacy.apprentices[n];const c=state.characters?.[n];if(c&&/徒弟/.test(c.identityType||""))c.identityType="職業選手"}});Object.values(state.characters||{}).forEach(c=>{if(c?.name)c.displayName=String(c.name).replace(/\s+\d+$/,'')});state.logs.push("🆕 V1.9.8.7：全NPC年齡改由出生年份同步；江承曜 Aster 加入KNG；師徒改為玩家參與的故事流程。")};p.v1987Migrated=true;
 }
 function migrateProV1988(){const p=state.player;if(p.v1988Migrated)return;if(isProfessionalStage()){const pc=ensureCareer20(),e=pc.clubEquity||{};e.costBasis=e.costBasis||{};for(const [team,pctRaw] of Object.entries(e.shares||{})){const pct=Number(pctRaw||0);if(team&&team!==pc.team&&pct>0){const refund=formerTeamEquityRefund(team,"V1.9.8.8 舊存檔離隊股份追溯回購");if(refund)state.messages.push({id:`retro-equity-${Date.now()}-${team}`,from:`${team} 管理層`,text:`系統修正：你離隊時仍持有 ${pct.toFixed(1)}% 股份。原戰隊已追溯回購，返還 NT$${refund.toLocaleString()}。`,unread:true,resolved:true,type:"clubFinance"})}}state.logs.push("🔧 V1.9.8.8：持股選手離隊前必須先完成原戰隊股份回購；合約若含『重大轉會先溝通』，交易在通知與溝通前不得成交。")};p.v1988Migrated=true}
+
+function reconstructReturnedTeamRoster1990(team){
+ const p=state.player,pc=p.proCareer,roles=["上路","打野","中路","ADC","輔助"],myRole=normalizeRole(p.role)==="下路"?"ADC":normalizeRole(p.role),defaults=new Set(PRO_ROSTER_NAMES[team]||[]),tm=ensureTransferMarket();
+ const soldAway=new Set([...(tm.history||[]),...(tm.listings||[])].filter(x=>x&&x.name!==p.name&&x.team===team&&x.status==="已成交"&&x.buyer&&x.buyer!==team).map(x=>x.name));
+ const cand=Object.values(state.characters||{}).filter(c=>c&&c.name!==p.name&&!soldAway.has(c.name)&&c.isPro&&(c.currentTeam===team||c.team===team));
+ const chosen=[];
+ for(const role of roles){if(role===myRole){chosen.push({name:p.name,role,isPlayer:true,relation:100,trust:100,chemistry:100});continue}
+   const pool=cand.filter(c=>normalizeRole(c.role||c.currentRole)===role).sort((a,b)=>{const ad=defaults.has(a.name)?0:1,bd=defaults.has(b.name)?0:1;if(ad!==bd)return bd-ad;const ac=Number(a.contract?.salary||a.salary||0),bc=Number(b.contract?.salary||b.salary||0);if(ac!==bc)return bc-ac;return Number(b.rating||b.strength||0)-Number(a.rating||a.strength||0)});
+   const c=pool[0];if(c)chosen.push({name:c.name,role,isPlayer:false,isSub:false,rating:Number(c.rating||c.strength)||undefined,relation:p.relations?.[c.name]??55,trust:Number(c.trust||55),chemistry:Number(c.chemistry||55),contract:c.contract?JSON.parse(JSON.stringify(c.contract)):undefined});
+ }
+ // Preserve real substitutes that still belong to the returned club.
+ const subs=cand.filter(c=>!chosen.some(x=>x.name===c.name)&&(c.isSub||c.identityType==="替補選手")).sort((a,b)=>Number(b.rating||0)-Number(a.rating||0)).slice(0,2).map(c=>({name:c.name,role:normalizeRole(c.role||c.currentRole)||"替補",isPlayer:false,isSub:true,rating:Number(c.rating||c.strength)||undefined,relation:p.relations?.[c.name]??50,trust:Number(c.trust||50),chemistry:Number(c.chemistry||50),contract:c.contract?JSON.parse(JSON.stringify(c.contract)):undefined}));
+ return [...chosen,...subs];
+}
+function migrateProV1990(){
+ const p=state.player;if(p.v1990Migrated)return;if(isProfessionalStage()){const pc=ensureCareer20();
+  // V1.9.8.9 rollback reset pc.roster and accidentally regenerated the fixed launch roster. Rebuild from persistent NPC/team records instead.
+  const invalidRollback=(state.logs||[]).some(x=>/V1\.9\.8\.9：未經同意/.test(x||""));
+  if(invalidRollback){const rebuilt=reconstructReturnedTeamRoster1990(pc.team);if(rebuilt.filter(x=>!x.isSub).length>=4){pc.roster=rebuilt;repairCurrentProRosterVacancies("V1.9.9.0 回歸原隊陣容修復");ensureRosterContracts();ensureRosterSubstitutes();state.logs.push(`🔧 V1.9.9.0：回歸 ${pc.team} 時不再重置成初始名單；已依現有職業世界與轉會紀錄重建原隊友。`);state.messages.push({id:`roster-rollback-fix-${Date.now()}`,from:`${pc.team} 管理層`,text:"系統修正：上次回歸原戰隊時誤把陣容重置成遊戲初始名單。現已依既有NPC、合約與轉會紀錄恢復目前應有的隊友；真正已轉出的選手不會被拉回。",unread:true,resolved:true,type:"contract"})}}
+  pc.preTransferSnapshots=pc.preTransferSnapshots||[];
+ }
+ p.v1990Migrated=true;
+}
+
 function migrateProV1989(){
  const p=state.player;if(p.v1989Migrated)return;if(isProfessionalStage()){const pc=ensureCareer20(),tm=ensureTransferMarket(),e=pc.clubEquity||{};e.shares=e.shares||{};e.costBasis=e.costBasis||{};
  // V1.9.8.8 mistakenly treated an unauthorized transfer as valid. Roll back the newest affected player sale.
@@ -4946,7 +4971,7 @@ function migrateProV1989(){
    p.cash=Math.max(0,Number(p.cash||0)-Math.min(Number(p.cash||0),refund));
    let oldSalary=0;const hist=pc.finance?.history||[];for(const h of hist){if((h.type==="戰隊月薪"||h.type==="欠薪補發"||h.type==="歷史薪資補發")&&Number(h.amount||0)>oldSalary)oldSalary=Number(h.amount||0)}
    if(x.preTransferContract)pc.contract=JSON.parse(JSON.stringify(x.preTransferContract));else{const cur=pc.contract||{};const salary=Math.max(oldSalary,Number(cur.salary||0),pc.worldChampionYear?worldChampionSalaryFloor(oldRegion):0);pc.contract={...cur,team:old,type:"一軍",salary:salary||Number(cur.salary||480000),start:cur.start||{year:state.date.year,week:state.date.week}};pc.contract.complete=false;completeContract(pc.contract)}
-   pc.roster=[];pc.coaches=[];pc.season=null;pc.pendingMajorTransfer=null;ensureProRoster();pc.residence=currentResidenceProfile();x.status="作廢－未經選手同意";x.buyer=wrongTeam;x.pendingConsultation=false;
+   pc.roster=reconstructReturnedTeamRoster1990(old);pc.coaches=[];pc.season=null;pc.pendingMajorTransfer=null;ensureProRoster();pc.residence=currentResidenceProfile();x.status="作廢－未經選手同意";x.buyer=wrongTeam;x.pendingConsultation=false;
    state.messages.push({id:`rollback-transfer-${Date.now()}`,from:`${old} 管理層`,text:`系統修正：先前在你持有 ${pct.toFixed(1)}% 股份且未完成重大轉會溝通前就完成的交易已作廢。你已回到 ${old}，原持股與原合約月薪已恢復。`,unread:true,resolved:true,type:"contract"});state.logs.push(`🔧 V1.9.8.9：未經同意的 ${old} → ${wrongTeam} 轉會作廢；夜鋒回到 ${old}，恢復 ${pct.toFixed(1)}% 股份與原合約月薪。`)
  }
  state.logs.push("🆕 V1.9.8.9：持股與球員合約分離；戰隊可協商薪資或股權，但不得單方面降薪、沒收股份或跳過重大轉會告知。股份未自願出售前，轉會不得成交。");}
@@ -4958,6 +4983,6 @@ function migrateProV1986(){const p=state.player;if(p.v1986Migrated)return;ensure
  const w=ensureLivingWorld1984(),meta=ensureMeta();const map={"刺客節奏":"early","控制法師":"macro","後期團戰":"teamfight","中野聯動":"jungle","邊線營運":"split"},k=map[meta.style];if(k)w.rhythm={key:k,name:RHYTHM_META_1984[k].name,desc:RHYTHM_META_1984[k].desc,year:state.date.year,week:state.date.week};
  state.logs.push("🔧 V1.9.8.6：補回職業風評 +20；同一事件8週內不再重複扣分；電競圈邀約新增參加／婉拒與後續活動；採訪版本描述與當前Meta同步。");}p.v1986Migrated=true}
 
-migrateProV1937();migrateProV1938();migrateProV1939();migrateProV1940();migrateProV1967();migrateProV1973();migrateProV1979();migrateProV1981();migrateProV1982();migrateProV1984();migrateProV1985();migrateProV1986();migrateProV1987();migrateProV1988();migrateProV1989();recoverLegacyMarriageCrisis1977();
+migrateProV1937();migrateProV1938();migrateProV1939();migrateProV1940();migrateProV1967();migrateProV1973();migrateProV1979();migrateProV1981();migrateProV1982();migrateProV1984();migrateProV1985();migrateProV1986();migrateProV1987();migrateProV1988();migrateProV1989();migrateProV1990();recoverLegacyMarriageCrisis1977();
 if(isProfessionalStage()){ensureCareer20();if(!state.player.v1950Migrated){state.player.v1950Migrated=true;state.logs.push("🆕 V1.9.5.0：職業生涯2.0第一階段啟用；既有社交、約會、懷孕、比賽、轉會流程保持原邏輯。");save();}}
 render();
